@@ -1,0 +1,13 @@
+{
+  "name": "ziprocket1",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
