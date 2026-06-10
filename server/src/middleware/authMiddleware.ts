@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User, { IUser } from "../models/User";
+import * as sessionCacheService from "../services/sessionCacheService";
 
 // Extend Express Request to include user
 declare global {
@@ -20,7 +21,20 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
 
             const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret") as any;
 
-            const user = await User.findById(decoded.id).select("-password");
+            // Try loading from Redis session cache first
+            let cachedUser = await sessionCacheService.getSession(decoded.id);
+            let user;
+
+            if (cachedUser) {
+                // Rehydrate mongoose model from cache to keep document methods intact
+                user = new User(cachedUser);
+            } else {
+                user = await User.findById(decoded.id).select("-password");
+                if (user) {
+                    // Cache the plain user object in Redis
+                    await sessionCacheService.setSession(decoded.id, user.toObject());
+                }
+            }
 
             if (!user) {
                 res.status(401).json({ success: false, message: "Not authorized, user not found" });

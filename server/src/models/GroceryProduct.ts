@@ -1,6 +1,11 @@
 import mongoose, { Schema } from "mongoose";
 import { BaseDocument } from "../types/common";
 
+export interface IGroceryProductImage {
+    url: string;
+    publicId: string;
+}
+
 export interface IGroceryProduct extends BaseDocument {
     name: string;
     slug: string;
@@ -12,7 +17,7 @@ export interface IGroceryProduct extends BaseDocument {
     discountedPrice?: number;
     stockQuantity: number;
     unit: "kg" | "gram" | "litre" | "packet" | "piece";
-    images: string[];
+    images: IGroceryProductImage[];
     weightSize: string;
     isAvailable: boolean;
     isFeatured: boolean;
@@ -35,13 +40,37 @@ const groceryProductSchema = new Schema<IGroceryProduct>({
         enum: ["kg", "gram", "litre", "packet", "piece"], 
         required: true 
     },
-    images: { type: [String], default: [] },
+    images: {
+        type: [{
+            url: { type: String, required: true },
+            publicId: { type: String, required: true }
+        }],
+        default: []
+    },
     weightSize: { type: String, required: true },
     isAvailable: { type: Boolean, default: true },
     isFeatured: { type: Boolean, default: false },
     offerBadge: { type: String },
     expiryDate: { type: Date }
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+    toJSON: {
+        transform: (doc, ret: any) => {
+            if (ret.images && Array.isArray(ret.images)) {
+                ret.images = ret.images.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    },
+    toObject: {
+        transform: (doc, ret: any) => {
+            if (ret.images && Array.isArray(ret.images)) {
+                ret.images = ret.images.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    }
+});
 
 // Optimized indexes for quick-commerce catalog, search, and recommendations
 // (Removed redundant slug and category indexes, as slug unique:true builds an index and category is covered by the compound prefix)

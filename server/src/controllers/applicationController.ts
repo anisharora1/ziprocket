@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Restaurant from "../models/Restaurant";
 import DeliveryProfile from "../models/DeliveryProfile";
+import { uploadToCloudinary } from "../services/cloudinaryService";
 
 export const applyRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -65,6 +66,24 @@ export const applyDelivery = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
+        let proofUrl = idProofString || "";
+        let proofPublicId = "";
+
+        if (req.file) {
+            try {
+                const uploadResult = await uploadToCloudinary(req.file.buffer, "users");
+                proofUrl = uploadResult.url;
+                proofPublicId = uploadResult.publicId;
+            } catch (uploadError) {
+                console.error("Cloudinary KYC upload failed:", uploadError);
+                res.status(500).json({ success: false, message: "Failed to upload KYC document image." });
+                return;
+            }
+        } else if (!idProofString) {
+            res.status(400).json({ success: false, message: "KYC ID proof image file is required." });
+            return;
+        }
+
         const newProfile = new DeliveryProfile({
             user: userId,
             fullName,
@@ -72,7 +91,8 @@ export const applyDelivery = async (req: Request, res: Response): Promise<void> 
             address: address || city, // Fallback if address is missing but city is provided
             vehicleType,
             vehicleNumber: vehicleNumber || "N/A", // vehicleNumber isn't in frontend form state yet
-            idProofString,
+            idProofString: proofUrl,
+            idProofPublicId: proofPublicId,
             email,
             city,
             aadhaarNumber,

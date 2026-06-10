@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import axios from "axios";
 import { useCart } from "@/context/CartContext";
+import OptimizedImage from "@/components/OptimizedImage";
 
 export default function RestaurantMenuPage() {
   const { id } = useParams();
@@ -194,10 +195,11 @@ export default function RestaurantMenuPage() {
                 {groupedItems[category].map((item: any) => (
                   <div key={item._id} className={`bg-white rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-slate-100 ${!item.isAvailable ? 'opacity-70' : ''}`}>
                     <div className="h-48 w-full relative bg-slate-100">
-                      <img 
+                      <OptimizedImage 
                         className={`w-full h-full object-cover ${!item.isAvailable ? 'grayscale' : ''}`}
                         src={(item.images && item.images[0]) || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800"} 
-                        alt={item.name} 
+                        alt={item.name}
+                        preset="card"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
                           target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";

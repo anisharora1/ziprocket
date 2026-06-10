@@ -25,7 +25,7 @@ export default function HeroCarousel() {
     const fetchBanners = async () => {
       try {
         setLoading(true);
-        const res = await apiClient.get("/admin/promotions");
+        const res = await apiClient.get("/promotions");
         if (res.data.success) {
           // Fetch ALL active banners published from admin dashboard (both grocery & restaurant targeting)
           const activeBanners = (res.data.promotions || []).filter(

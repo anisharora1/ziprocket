@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "../../services/api";
+import OptimizedImage from "../OptimizedImage";
 
 export default function SellerMobileHeader() {
   const [restaurant, setRestaurant] = useState<any>(null);
@@ -34,7 +35,7 @@ export default function SellerMobileHeader() {
           </span>
           <div className="w-8 h-8 rounded-full bg-slate-200 overflow-hidden border border-slate-200 shadow-sm">
             {restaurant.image ? (
-              <img src={restaurant.image} alt={restaurant.name} className="w-full h-full object-cover" />
+              <OptimizedImage src={restaurant.image} alt={restaurant.name} preset="avatar" className="w-full h-full object-cover" />
             ) : (
               <div className="w-full h-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[14px]">
                 {restaurant.name.charAt(0).toUpperCase()}

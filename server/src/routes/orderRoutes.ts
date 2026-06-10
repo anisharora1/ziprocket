@@ -13,10 +13,11 @@ import {
     cancelOrder
 } from "../controllers/orderController";
 import { protect, authorize } from "../middleware/authMiddleware";
+import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 
 const router = express.Router();
 
-router.post("/", createOrder);
+router.post("/", protect, createOrder);
 router.get("/", protect, authorize("admin"), getAllOrders);
 
 // Protected Grocery Moderator Route
@@ -26,13 +27,13 @@ router.get("/grocery/users", protect, authorize("grocery_moderator", "admin"), g
 // Protected Seller Route
 router.get("/my-orders", protect, authorize("seller", "admin"), getMyOrders);
 
-router.get("/:id", getOrderById);
+router.get("/:id", protect, validateObjectId(["id"]), getOrderById);
 
-router.get("/user/:userId", protect, authorize("customer", "admin"), getUserOrders);
-router.get("/restaurant/:restaurantId", getRestaurantOrders);
+router.get("/user/:userId", protect, authorize("customer", "admin"), validateObjectId(["userId"]), getUserOrders);
+router.get("/restaurant/:restaurantId", protect, authorize("seller", "admin"), validateObjectId(["restaurantId"]), getRestaurantOrders);
 
-router.patch("/:id/status", protect, authorize("seller", "admin", "delivery", "grocery_moderator"), updateOrderStatus);
-router.patch("/:id/payment", updatePaymentStatus);
-router.patch("/:id/cancel", protect, cancelOrder);
+router.patch("/:id/status", protect, authorize("seller", "admin", "delivery", "grocery_moderator"), validateObjectId(["id"]), updateOrderStatus);
+router.patch("/:id/payment", protect, authorize("admin"), validateObjectId(["id"]), updatePaymentStatus);
+router.patch("/:id/cancel", protect, validateObjectId(["id"]), cancelOrder);
 
 export default router;

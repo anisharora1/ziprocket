@@ -7,6 +7,8 @@ import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
 import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
+import * as redisService from "../services/redisService";
+import * as cartCacheService from "../services/cartCacheService";
 
 // Helper function to calculate distance using Haversine
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -25,7 +27,6 @@ const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: numbe
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         const {
-            user, // Usually extracted from auth middleware: req.user._id
             restaurant,
             items,
             totalAmount,
@@ -37,6 +38,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             orderType = "food",
             couponCode
         } = req.body;
+
+        // Securely override user from authenticated request session
+        const user = req.user ? req.user._id : req.body.user;
 
         // Inventory Stock Validations and Deductions for Grocery
         if (orderType === "grocery") {
@@ -199,6 +203,12 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
         await newOrder.save();
 
+        // Clear user's cached cart and recent orders list from Redis
+        if (user) {
+            await cartCacheService.deleteCachedCart(user.toString());
+            await redisService.del(`order:user_recent:${user.toString()}`);
+        }
+
         // Increment total orders count for the restaurant (Food only)
         if (orderType === "food" && restaurant) {
             await Restaurant.findByIdAndUpdate(restaurant, { $inc: { totalOrders: 1 } });
@@ -234,15 +244,75 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 // Get a single order by ID
 export const getOrderById = async (req: Request, res: Response): Promise<void> => {
     try {
-        const order = await Order.findById(req.params.id)
-            .populate("user", "name email phone")
-            .populate("restaurant", "name phone location")
-            .populate("items.menuItem", "name price images")
-            .populate("items.groceryItem", "name price images unit weightSize brand");
+        const orderId = req.params.id;
+        const cacheKey = `order:detail:${orderId}`;
 
+        let order = await redisService.getJson<any>(cacheKey);
+        
         if (!order) {
-            res.status(404).json({ success: false, message: "Order not found" });
-            return;
+            console.log(`[Order Cache] Miss for key: ${cacheKey}. Querying MongoDB.`);
+            order = await Order.findById(orderId)
+                .populate("user", "name email phone")
+                .populate("restaurant", "name phone location")
+                .populate("items.menuItem", "name price images")
+                .populate("items.groceryItem", "name price images unit weightSize brand");
+
+            if (!order) {
+                res.status(404).json({ success: false, message: "Order not found" });
+                return;
+            }
+
+            // Cache duration: 10 mins for active/mutable orders, 1 hour for terminal states
+            const isTerminal = ["delivered", "cancelled"].includes(order.orderStatus);
+            const ttl = isTerminal ? 3600 : 600;
+            await redisService.setJson(cacheKey, order, ttl);
+        } else {
+            console.log(`[Order Cache] Hit for key: ${cacheKey}`);
+        }
+
+        // --- SECURE OWNERSHIP CHECK ---
+        if (req.user?.role !== "admin") {
+            const userId = req.user?._id?.toString();
+            
+            // Check if requester is the customer who placed the order
+            const isCustomer = userId === (order.user?._id || order.user)?.toString();
+            
+            // Check if requester is the restaurant owner
+            let isSeller = false;
+            if (order.restaurant) {
+                const restId = (order.restaurant._id || order.restaurant)?.toString();
+                const restaurant = await Restaurant.findById(restId);
+                if (restaurant && restaurant.owner?.toString() === userId) {
+                    isSeller = true;
+                }
+            }
+
+            // Check if requester is the assigned delivery rider
+            let isDelivery = false;
+            const DeliveryModel = mongoose.model("Delivery");
+            const activeDelivery = await DeliveryModel.findOne({
+                order: order._id,
+                deliveryBoy: req.user?._id
+            });
+            if (activeDelivery) {
+                isDelivery = true;
+            }
+
+            // Check if requester is the grocery moderator in the zone
+            let isGroceryModerator = false;
+            if (order.orderType === "grocery" && req.user?.role === "grocery_moderator") {
+                const modUser = await User.findById(userId);
+                const zoneId = (order.deliveryZone?._id || order.deliveryZone)?.toString();
+                if (modUser?.assignedZones?.map(z => z.toString()).includes(zoneId)) {
+                    isGroceryModerator = true;
+                }
+            }
+
+            if (!isCustomer && !isSeller && !isDelivery && !isGroceryModerator) {
+                console.warn(`[SECURITY WARNING] Unauthorized order details access attempt. User: ${userId}, Order: ${order._id}, IP: ${req.ip}`);
+                res.status(403).json({ success: false, message: "Unauthorized to view this order" });
+                return;
+            }
         }
 
         res.status(200).json({
@@ -258,12 +328,28 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
 export const getUserOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = req.params.userId;
+        const cacheKey = `order:user_recent:${userId}`;
 
+        const cachedUserOrders = await redisService.getJson<any[]>(cacheKey);
+        if (cachedUserOrders) {
+            console.log(`[Order Cache] Hit for user recent orders: ${cacheKey}`);
+            res.status(200).json({
+                success: true,
+                count: cachedUserOrders.length,
+                orders: cachedUserOrders
+            });
+            return;
+        }
+
+        console.log(`[Order Cache] Miss for user recent orders: ${cacheKey}. Querying MongoDB.`);
         const orders = await Order.find({ user: userId })
             .populate("restaurant", "name image")
             .populate("items.menuItem", "name")
             .populate("items.groceryItem", "name")
             .sort({ createdAt: -1 });
+
+        // Cache user recent orders for 10 minutes
+        await redisService.setJson(cacheKey, orders, 600);
 
         res.status(200).json({
             success: true,
@@ -279,6 +365,17 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
 export const getRestaurantOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const restaurantId = req.params.restaurantId;
+        
+        // Secure Ownership Check
+        if (req.user?.role !== "admin") {
+            const restaurant = await Restaurant.findById(restaurantId);
+            if (!restaurant || restaurant.owner?.toString() !== req.user?._id?.toString()) {
+                console.warn(`[SECURITY WARNING] Unauthorized restaurant orders access attempt. User: ${req.user?._id}, Restaurant: ${restaurantId}`);
+                res.status(403).json({ success: false, message: "Unauthorized to view these orders" });
+                return;
+            }
+        }
+
         const { orderStatus } = req.query;
 
         let filter: any = { restaurant: restaurantId };
@@ -352,6 +449,10 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        // Invalidate Redis caches for this order and user orders list
+        await redisService.del(`order:detail:${orderId}`);
+        await redisService.del(`order:user_recent:${order.user.toString()}`);
+
         // Handle cancellations and increment the respective cancellation count
         if (orderStatus === "cancelled") {
             if (cancelledBy === "customer") {
@@ -393,6 +494,10 @@ export const updatePaymentStatus = async (req: Request, res: Response): Promise<
             res.status(404).json({ success: false, message: "Order not found" });
             return;
         }
+
+        // Invalidate Redis caches
+        await redisService.del(`order:detail:${orderId}`);
+        await redisService.del(`order:user_recent:${order.user.toString()}`);
 
         res.status(200).json({
             success: true,
@@ -537,6 +642,10 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         order.cancelledAt = new Date();
 
         await order.save();
+
+        // Invalidate Redis caches
+        await redisService.del(`order:detail:${id}`);
+        await redisService.del(`order:user_recent:${order.user.toString()}`);
 
         res.status(200).json({
             success: true,

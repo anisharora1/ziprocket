@@ -1,20 +1,6 @@
 import { Request, Response } from "express";
 import GroceryProduct from "../models/GroceryProduct";
-import cloudinary from "../config/cloudinary";
-import streamifier from "streamifier";
-
-const uploadToCloudinary = (buffer: Buffer): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-            { folder: "ziprocket/grocery" },
-            (error, result) => {
-                if (result) resolve(result.secure_url);
-                else reject(error);
-            }
-        );
-        streamifier.createReadStream(buffer).pipe(stream);
-    });
-};
+import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 
 const generateSlug = (name: string): string => {
     return name
@@ -45,11 +31,11 @@ export const createGroceryProduct = async (req: Request, res: Response): Promise
 
         const slug = generateSlug(name);
 
-        const imageUrls: string[] = [];
+        const imageUrls: any[] = [];
         if (req.files && Array.isArray(req.files)) {
             for (const file of req.files) {
-                const url = await uploadToCloudinary(file.buffer);
-                imageUrls.push(url);
+                const uploadResult = await uploadToCloudinary(file.buffer, "products");
+                imageUrls.push(uploadResult);
             }
         }
 
@@ -178,12 +164,27 @@ export const updateGroceryProduct = async (req: Request, res: Response): Promise
             updateData.isFeatured = updateData.isFeatured === "true" || updateData.isFeatured === true;
         }
 
+        const productToUpdate = await GroceryProduct.findById(id);
+        if (!productToUpdate) {
+            res.status(404).json({ success: false, message: "Product not found" });
+            return;
+        }
+
         // Handle image updates (append or replace)
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-            const imageUrls: string[] = [];
+            // Delete old images from Cloudinary
+            if (productToUpdate.images && productToUpdate.images.length > 0) {
+                for (const img of (productToUpdate.images as any[])) {
+                    if (img.publicId) {
+                        await deleteFromCloudinary(img.publicId);
+                    }
+                }
+            }
+
+            const imageUrls: any[] = [];
             for (const file of req.files) {
-                const url = await uploadToCloudinary(file.buffer);
-                imageUrls.push(url);
+                const uploadResult = await uploadToCloudinary(file.buffer, "products");
+                imageUrls.push(uploadResult);
             }
             updateData.images = imageUrls;
         }
@@ -214,12 +215,23 @@ export const updateGroceryProduct = async (req: Request, res: Response): Promise
 export const deleteGroceryProduct = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
-        const product = await GroceryProduct.findByIdAndDelete(id);
+        const product = await GroceryProduct.findById(id);
 
         if (!product) {
             res.status(404).json({ success: false, message: "Product not found" });
             return;
         }
+
+        // Delete associated images from Cloudinary
+        if (product.images && product.images.length > 0) {
+            for (const img of (product.images as any[])) {
+                if (img.publicId) {
+                    await deleteFromCloudinary(img.publicId);
+                }
+            }
+        }
+
+        await GroceryProduct.findByIdAndDelete(id);
 
         res.status(200).json({ success: true, message: "Product deleted successfully" });
     } catch (error: any) {

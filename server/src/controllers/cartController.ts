@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Cart from "../models/Cart";
 import mongoose from "mongoose";
+import * as cartCacheService from "../services/cartCacheService";
 
 export const getCart = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -10,6 +11,18 @@ export const getCart = async (req: Request, res: Response): Promise<void> => {
             return;
         }
 
+        // Check Redis cache first
+        const cachedCart = await cartCacheService.getCachedCart(userId.toString());
+        if (cachedCart) {
+            console.log(`[Cart Cache] Hit for user: ${userId}`);
+            res.status(200).json({
+                success: true,
+                cart: cachedCart
+            });
+            return;
+        }
+
+        console.log(`[Cart Cache] Miss for user: ${userId}. Querying MongoDB.`);
         let cart = await Cart.findOne({ user: userId });
         if (!cart) {
             res.status(200).json({
@@ -23,6 +36,9 @@ export const getCart = async (req: Request, res: Response): Promise<void> => {
             });
             return;
         }
+
+        // Cache the found cart in Redis
+        await cartCacheService.cacheCart(userId.toString(), cart);
 
         res.status(200).json({
             success: true,
@@ -89,6 +105,9 @@ export const syncCart = async (req: Request, res: Response): Promise<void> => {
             });
             await cart.save();
         }
+
+        // Sync to Redis cache
+        await cartCacheService.cacheCart(userId.toString(), cart);
 
         res.status(200).json({
             success: true,

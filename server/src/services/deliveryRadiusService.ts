@@ -2,6 +2,7 @@ import DeliveryZone from "../models/DeliveryZone";
 import Restaurant from "../models/Restaurant";
 import { calculateDistance } from "./distanceService";
 import { getRouteDistanceAndDuration } from "../utils/googleMaps";
+import * as zoneCacheService from "./zoneCacheService";
 
 /**
  * Finds the applicable active delivery zone for a given geolocated coordinate, pincode, or address text
@@ -12,6 +13,16 @@ export const findApplicableZone = async (
     pincode?: string,
     addressText?: string
 ): Promise<any | null> => {
+    const cacheKey = zoneCacheService.getServiceabilityKey(lat, lng, pincode, addressText);
+    const cachedResult = await zoneCacheService.getCachedServiceability(cacheKey);
+
+    if (cachedResult !== null) {
+        console.log(`[Zone Cache] Hit for key: ${cacheKey}`);
+        if (cachedResult === "none") return null;
+        return cachedResult;
+    }
+
+    console.log(`[Zone Cache] Miss for key: ${cacheKey}. Resolving zone from DB.`);
     const activeZones = await DeliveryZone.find({ isActive: true });
     
     const inputDesc = `Lat=${lat}, Lng=${lng}, Pincode=${pincode || "N/A"}, AddressText="${addressText || "N/A"}"`;
@@ -19,11 +30,15 @@ export const findApplicableZone = async (
 
     if (activeZones.length === 0) {
         console.warn("[Zone Check] Validation Result: FAILED. Reason: No active delivery zones defined in database.");
+        // Cache negative result to prevent database/geofencing load
+        await zoneCacheService.cacheServiceability(cacheKey, "none");
         return null;
     }
 
     const cleanPin = pincode ? pincode.toString().trim() : "";
     const normalizedAddress = addressText ? addressText.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+
+    let resolvedZone = null;
 
     // 1. First Pass: Coordinates Radius distance check
     if (lat !== undefined && lng !== undefined) {
@@ -32,37 +47,47 @@ export const findApplicableZone = async (
             console.log(`[Zone Check] Checking Zone '${zone.name}': Distance from center to user is ${dist.toFixed(2)} km (Zone Radius Limit: ${zone.radiusKm} km)`);
             if (dist <= zone.radiusKm) {
                 console.log(`[Zone Check] Validation Result: SUCCESS. Matched Zone: '${zone.name}' via radius check.`);
-                return zone;
+                resolvedZone = zone;
+                break;
             }
         }
     }
 
     // 2. Second Pass: Pincode lookup check
-    if (cleanPin) {
+    if (!resolvedZone && cleanPin) {
         for (const zone of activeZones) {
             const matchesPincode = zone.pincodes && zone.pincodes.includes(cleanPin);
             console.log(`[Zone Check] Checking Zone '${zone.name}': Pincode '${cleanPin}' in zone list? ${matchesPincode ? "YES" : "NO"}`);
             if (matchesPincode) {
                 console.log(`[Zone Check] Validation Result: SUCCESS. Matched Zone: '${zone.name}' via Pincode fallback.`);
-                return zone;
+                resolvedZone = zone;
+                break;
             }
         }
     }
 
     // 3. Third Pass: Locality/Zone name variation match
-    if (normalizedAddress) {
+    if (!resolvedZone && normalizedAddress) {
         for (const zone of activeZones) {
             const normalizedZoneName = zone.name.toLowerCase().replace(/[^a-z0-9]/g, "");
             const isMatch = normalizedAddress.includes(normalizedZoneName) || normalizedZoneName.includes(normalizedAddress);
             console.log(`[Zone Check] Checking Zone '${zone.name}': Locality name variation match with address? ${isMatch ? "YES" : "NO"}`);
             if (isMatch) {
                 console.log(`[Zone Check] Validation Result: SUCCESS. Matched Zone: '${zone.name}' via Locality Name fallback.`);
-                return zone;
+                resolvedZone = zone;
+                break;
             }
         }
     }
 
+    if (resolvedZone) {
+        await zoneCacheService.cacheServiceability(cacheKey, resolvedZone);
+        return resolvedZone;
+    }
+
     console.warn(`[Zone Check] Validation Result: FAILED. Reason: User location does not fall within any operational zone boundaries (checked ${activeZones.length} zones).`);
+    // Cache negative result
+    await zoneCacheService.cacheServiceability(cacheKey, "none");
     return null;
 };
 

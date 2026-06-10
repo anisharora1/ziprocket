@@ -1,6 +1,11 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
 
+export interface IRestaurantImage {
+    url: string;
+    publicId: string;
+}
+
 export interface IRestaurant extends BaseDocument {
     name: string;
     owner: Types.ObjectId;
@@ -33,6 +38,9 @@ export interface IRestaurant extends BaseDocument {
         ifscCode: string;
     };
     deliveryZone?: Types.ObjectId;
+    image?: IRestaurantImage;
+    logo?: IRestaurantImage;
+    gallery?: IRestaurantImage[];
 }
 
 const restaurantSchema = new Schema<IRestaurant>({
@@ -75,9 +83,47 @@ const restaurantSchema = new Schema<IRestaurant>({
         accountNumber: { type: String, required: true },
         ifscCode: { type: String, required: true }
     },
-    deliveryZone: { type: Schema.Types.ObjectId, ref: "DeliveryZone" }
+    deliveryZone: { type: Schema.Types.ObjectId, ref: "DeliveryZone" },
 
-}, { timestamps: true });
+    image: {
+        url: String,
+        publicId: String
+    },
+    logo: {
+        url: String,
+        publicId: String
+    },
+    gallery: {
+        type: [{
+            url: { type: String, required: true },
+            publicId: { type: String, required: true }
+        }],
+        default: []
+    }
+
+}, { 
+    timestamps: true,
+    toJSON: {
+        transform: (doc, ret: any) => {
+            if (ret.image) ret.image = ret.image.url || ret.image;
+            if (ret.logo) ret.logo = ret.logo.url || ret.logo;
+            if (ret.gallery && Array.isArray(ret.gallery)) {
+                ret.gallery = ret.gallery.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    },
+    toObject: {
+        transform: (doc, ret: any) => {
+            if (ret.image) ret.image = ret.image.url || ret.image;
+            if (ret.logo) ret.logo = ret.logo.url || ret.logo;
+            if (ret.gallery && Array.isArray(ret.gallery)) {
+                ret.gallery = ret.gallery.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    }
+});
 
 // Indexes for owner lookup, delivery zone availability, and admin compliance monitoring
 restaurantSchema.index({ owner: 1 }, { unique: true });

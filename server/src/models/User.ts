@@ -25,6 +25,10 @@ export interface IUser extends BaseDocument {
     walletBalance: number;
     cancellationCount: number;
     assignedZones?: Types.ObjectId[];
+    profilePhoto?: {
+        url: string;
+        publicId: string;
+    };
 }
 
 const userSchema = new Schema<IUser>({
@@ -65,9 +69,28 @@ const userSchema = new Schema<IUser>({
 
     cancellationCount: { type: Number, default: 0 },
 
-    assignedZones: [{ type: Schema.Types.ObjectId, ref: "DeliveryZone", default: [] }]
+    assignedZones: [{ type: Schema.Types.ObjectId, ref: "DeliveryZone", default: [] }],
 
-}, { timestamps: true });
+    profilePhoto: {
+        url: String,
+        publicId: String
+    }
+
+}, { 
+    timestamps: true,
+    toJSON: {
+        transform: (doc, ret: any) => {
+            if (ret.profilePhoto) ret.profilePhoto = ret.profilePhoto.url || ret.profilePhoto;
+            return ret;
+        }
+    },
+    toObject: {
+        transform: (doc, ret: any) => {
+            if (ret.profilePhoto) ret.profilePhoto = ret.profilePhoto.url || ret.profilePhoto;
+            return ret;
+        }
+    }
+});
 
 // Indexes for admin/moderator lookups and compliance monitoring
 userSchema.index({ cancellationCount: -1 });

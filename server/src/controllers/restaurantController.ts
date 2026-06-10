@@ -1,21 +1,8 @@
 import { Request, Response } from "express";
 import Restaurant from "../models/Restaurant";
 import MenuItem from "../models/MenuItem";
-import cloudinary from "../config/cloudinary";
-import streamifier from "streamifier";
-
-const uploadToCloudinary = (buffer: Buffer): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-            { folder: "ziprocket/menu" },
-            (error, result) => {
-                if (result) resolve(result.secure_url);
-                else reject(error);
-            }
-        );
-        streamifier.createReadStream(buffer).pipe(stream);
-    });
-};
+import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
+import * as restaurantCacheService from "../services/restaurantCacheService";
 
 // --- RESTAURANT OPERATIONS ---
 
@@ -33,6 +20,9 @@ export const createRestaurant = async (req: Request, res: Response): Promise<voi
 
         await newRestaurant.save();
 
+        // Invalidate list caches
+        await restaurantCacheService.invalidateRestaurantCache();
+
         res.status(201).json({
             success: true,
             message: "Restaurant created successfully",
@@ -47,6 +37,20 @@ export const createRestaurant = async (req: Request, res: Response): Promise<voi
 export const getAllRestaurants = async (req: Request, res: Response): Promise<void> => {
     try {
         const { status, isActive, deliveryZone } = req.query;
+        const cacheKeySuffix = `list:${status || "any"}:${isActive !== undefined ? isActive : "any"}:${deliveryZone || "any"}`;
+
+        const cachedList = await restaurantCacheService.getCachedRestaurantList(cacheKeySuffix);
+        if (cachedList) {
+            console.log(`[Restaurant Cache] Hit for list key: restaurants:${cacheKeySuffix}`);
+            res.status(200).json({
+                success: true,
+                count: cachedList.length,
+                restaurants: cachedList
+            });
+            return;
+        }
+
+        console.log(`[Restaurant Cache] Miss for list key: restaurants:${cacheKeySuffix}. Querying MongoDB.`);
         let filter: any = {};
         
         if (status) filter.status = status;
@@ -54,6 +58,9 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
         if (deliveryZone) filter.deliveryZone = deliveryZone;
 
         const restaurants = await Restaurant.find(filter).populate("owner", "name email");
+
+        // Cache lists in Redis
+        await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, restaurants);
 
         res.status(200).json({
             success: true,
@@ -87,12 +94,27 @@ export const getMyRestaurant = async (req: Request, res: Response): Promise<void
 // Get a single restaurant by ID
 export const getRestaurantById = async (req: Request, res: Response): Promise<void> => {
     try {
-        const restaurant = await Restaurant.findById(req.params.id).populate("owner", "name email");
+        const id = req.params.id as string;
+        const cachedDetail = await restaurantCacheService.getCachedRestaurantDetail(id);
+        if (cachedDetail) {
+            console.log(`[Restaurant Cache] Hit for detail key: restaurant:detail:${id}`);
+            res.status(200).json({
+                success: true,
+                restaurant: cachedDetail
+            });
+            return;
+        }
+
+        console.log(`[Restaurant Cache] Miss for detail key: restaurant:detail:${id}. Querying MongoDB.`);
+        const restaurant = await Restaurant.findById(id).populate("owner", "name email");
 
         if (!restaurant) {
             res.status(404).json({ success: false, message: "Restaurant not found" });
             return;
         }
+
+        // Cache detail in Redis
+        await restaurantCacheService.cacheRestaurantDetail(id, restaurant);
 
         res.status(200).json({
             success: true,
@@ -106,6 +128,12 @@ export const getRestaurantById = async (req: Request, res: Response): Promise<vo
 // Update restaurant details
 export const updateRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
+        const restaurantToUpdate = await Restaurant.findById(req.params.id);
+        if (!restaurantToUpdate) {
+            res.status(404).json({ success: false, message: "Restaurant not found" });
+            return;
+        }
+
         const { name, phone, location, isActive } = req.body;
 
         const updateFields: any = {};
@@ -114,15 +142,53 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
         if (location !== undefined) updateFields.location = location;
         if (isActive !== undefined) updateFields.isActive = isActive;
 
+        // Handle file uploads (image, logo, gallery) from multer
+        if (req.files && typeof req.files === "object" && !Array.isArray(req.files)) {
+            const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] };
+            
+            const imageFile = filesObj["image"]?.[0];
+            if (imageFile) {
+                if (restaurantToUpdate.image?.publicId) {
+                    await deleteFromCloudinary(restaurantToUpdate.image.publicId);
+                }
+                updateFields.image = await uploadToCloudinary(imageFile.buffer, "restaurants");
+            }
+
+            const logoFile = filesObj["logo"]?.[0];
+            if (logoFile) {
+                if (restaurantToUpdate.logo?.publicId) {
+                    await deleteFromCloudinary(restaurantToUpdate.logo.publicId);
+                }
+                updateFields.logo = await uploadToCloudinary(logoFile.buffer, "restaurants");
+            }
+
+            const galleryFiles = filesObj["gallery"];
+            if (galleryFiles && galleryFiles.length > 0) {
+                if (restaurantToUpdate.gallery && restaurantToUpdate.gallery.length > 0) {
+                    for (const img of (restaurantToUpdate.gallery as any[])) {
+                        if (img.publicId) {
+                            await deleteFromCloudinary(img.publicId);
+                        }
+                    }
+                }
+                const galleryUrls = [];
+                for (const file of galleryFiles) {
+                    const uploadResult = await uploadToCloudinary(file.buffer, "restaurants");
+                    galleryUrls.push(uploadResult);
+                }
+                updateFields.gallery = galleryUrls;
+            }
+        }
+
         const restaurant = await Restaurant.findByIdAndUpdate(
             req.params.id,
             updateFields,
             { new: true, runValidators: true }
         );
 
-        if (!restaurant) {
-            res.status(404).json({ success: false, message: "Restaurant not found" });
-            return;
+        if (restaurant) {
+            // Invalidate cache
+            await restaurantCacheService.invalidateRestaurantCache(restaurant._id.toString());
         }
 
         res.status(200).json({
@@ -155,6 +221,9 @@ export const updateRestaurantStatus = async (req: Request, res: Response): Promi
             return;
         }
 
+        // Invalidate cache
+        await restaurantCacheService.invalidateRestaurantCache(restaurant._id.toString());
+
         res.status(200).json({
             success: true,
             message: "Restaurant status updated successfully",
@@ -177,6 +246,9 @@ export const deleteRestaurant = async (req: Request, res: Response): Promise<voi
 
         // Optional: Delete associated menu items when a restaurant is deleted
         await MenuItem.deleteMany({ restaurant: req.params.id });
+
+        // Invalidate cache
+        await restaurantCacheService.invalidateRestaurantCache(req.params.id as string);
 
         res.status(200).json({
             success: true,
@@ -208,11 +280,11 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
         }
 
         // Handle image uploads
-        const imageUrls: string[] = [];
+        const imageUrls: any[] = [];
         if (req.files && Array.isArray(req.files)) {
             for (const file of req.files) {
-                const url = await uploadToCloudinary(file.buffer);
-                imageUrls.push(url);
+                const uploadResult = await uploadToCloudinary(file.buffer, "products");
+                imageUrls.push(uploadResult);
             }
         }
 
@@ -229,6 +301,9 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
 
         await newMenuItem.save();
 
+        // Invalidate menu and listings cache
+        await restaurantCacheService.invalidateRestaurantCache(restaurantId as string);
+
         res.status(201).json({
             success: true,
             message: "Menu item added successfully",
@@ -242,9 +317,24 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
 // Get all menu items for a specific restaurant
 export const getRestaurantMenuItems = async (req: Request, res: Response): Promise<void> => {
     try {
-        const restaurantId = req.params.restaurantId;
+        const restaurantId = req.params.restaurantId as string;
 
+        const cachedMenu = await restaurantCacheService.getCachedRestaurantMenu(restaurantId);
+        if (cachedMenu) {
+            console.log(`[Restaurant Cache] Hit for menu key: restaurant:menu:${restaurantId}`);
+            res.status(200).json({
+                success: true,
+                count: cachedMenu.length,
+                menuItems: cachedMenu
+            });
+            return;
+        }
+
+        console.log(`[Restaurant Cache] Miss for menu key: restaurant:menu:${restaurantId}. Querying MongoDB.`);
         const menuItems = await MenuItem.find({ restaurant: restaurantId });
+
+        // Cache the menu list
+        await restaurantCacheService.cacheRestaurantMenu(restaurantId, menuItems);
 
         res.status(200).json({
             success: true,
@@ -277,10 +367,17 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
         // We will just append them for now, or replace them. Let's replace if new images provided.
         let imageUrls = menuItemToUpdate.images || [];
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            if (menuItemToUpdate.images && menuItemToUpdate.images.length > 0) {
+                for (const img of (menuItemToUpdate.images as any[])) {
+                    if (img.publicId) {
+                        await deleteFromCloudinary(img.publicId);
+                    }
+                }
+            }
             imageUrls = []; // replace existing images if new ones are uploaded
             for (const file of req.files) {
-                const url = await uploadToCloudinary(file.buffer);
-                imageUrls.push(url);
+                const uploadResult = await uploadToCloudinary(file.buffer, "products");
+                imageUrls.push(uploadResult);
             }
         }
 
@@ -297,6 +394,11 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             },
             { new: true, runValidators: true }
         );
+
+        if (updatedMenuItem) {
+            // Invalidate restaurant menu cache
+            await restaurantCacheService.invalidateRestaurantCache(updatedMenuItem.restaurant.toString());
+        }
 
         res.status(200).json({
             success: true,
@@ -324,7 +426,19 @@ export const deleteMenuItem = async (req: Request, res: Response): Promise<void>
             return;
         }
 
+        if (menuItem.images && menuItem.images.length > 0) {
+            for (const img of (menuItem.images as any[])) {
+                if (img.publicId) {
+                    await deleteFromCloudinary(img.publicId);
+                }
+            }
+        }
+        
+        const restId = menuItem.restaurant.toString();
         await MenuItem.findByIdAndDelete(req.params.menuItemId);
+
+        // Invalidate restaurant menu cache
+        await restaurantCacheService.invalidateRestaurantCache(restId);
 
         res.status(200).json({
             success: true,

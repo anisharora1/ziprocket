@@ -7,6 +7,7 @@ import Delivery from "../models/Delivery";
 import DeliveryProfile from "../models/DeliveryProfile";
 import BannerAd from "../models/BannerAd";
 import Payment from "../models/Payment";
+import * as sessionCacheService from "../services/sessionCacheService";
 
 // --- DASHBOARD METRICS ---
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
@@ -156,6 +157,9 @@ export const toggleUserBlockStatus = async (req: Request, res: Response): Promis
             return;
         }
 
+        // Invalidate session cache in Redis
+        await sessionCacheService.deleteSession(userId.toString());
+
         res.status(200).json({
             success: true,
             message: `User has been ${isBlocked ? "blocked" : "unblocked"} successfully`,
@@ -210,6 +214,9 @@ export const resetUserCancellationCount = async (req: Request, res: Response): P
             res.status(404).json({ success: false, message: "User not found" });
             return;
         }
+
+        // Invalidate session cache in Redis
+        await sessionCacheService.deleteSession(userId.toString());
 
         res.status(200).json({
             success: true,
@@ -303,12 +310,18 @@ export const approveApplication = async (req: Request, res: Response): Promise<v
             userId = restaurant.owner;
             // Update user role
             await User.findByIdAndUpdate(userId, { role: "seller" });
+            if (userId) {
+                await sessionCacheService.deleteSession(userId.toString());
+            }
         } else if (type === 'delivery') {
             const profile = await DeliveryProfile.findByIdAndUpdate(id, { status: "approved" }, { new: true });
             if (!profile) { res.status(404).json({ success: false, message: "Not found" }); return; }
             userId = profile.user;
             // Update user role
             await User.findByIdAndUpdate(userId, { role: "delivery" });
+            if (userId) {
+                await sessionCacheService.deleteSession(userId.toString());
+            }
         } else {
             res.status(400).json({ success: false, message: "Invalid type" });
             return;
@@ -474,6 +487,9 @@ export const updateGroceryModerator = async (req: Request, res: Response): Promi
             return;
         }
 
+        // Invalidate session cache in Redis
+        await sessionCacheService.deleteSession(id.toString());
+
         res.status(200).json({
             success: true,
             message: "Grocery Moderator updated successfully",
@@ -565,6 +581,11 @@ export const updateDeliveryProfileStatus = async (req: Request, res: Response): 
         }
         if (isBlocked !== undefined) {
             await User.findByIdAndUpdate(profile.user, { isBlocked });
+        }
+
+        if (profile.user) {
+            const riderUserId = (profile.user as any)._id || profile.user;
+            await sessionCacheService.deleteSession(riderUserId.toString());
         }
 
         res.status(200).json({
@@ -667,6 +688,23 @@ export const deletePromotion = async (req: Request, res: Response): Promise<void
         res.status(200).json({
             success: true,
             message: "Promotion deleted successfully by admin"
+        });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Public: Fetch all active banner ads / promotions (No Auth Required)
+export const getPublicPromotions = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const promotions = await BannerAd.find({ isActive: true })
+            .populate("restaurant", "name cuisines image rating")
+            .sort({ createdAt: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: promotions.length,
+            promotions
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });

@@ -1,6 +1,11 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
 
+export interface IDeliveryProof {
+    url: string;
+    publicId: string;
+}
+
 export interface IDelivery extends BaseDocument {
     order: Types.ObjectId;
     deliveryBoy: Types.ObjectId;
@@ -8,6 +13,7 @@ export interface IDelivery extends BaseDocument {
     status: "assigned" | "picked" | "on_the_way" | "delivered";
 
     earnings: number;
+    deliveryProof?: IDeliveryProof;
 }
 
 const deliverySchema = new Schema<IDelivery>({
@@ -21,7 +27,12 @@ const deliverySchema = new Schema<IDelivery>({
         default: "assigned"
     },
 
-    earnings: Number
+    earnings: Number,
+    
+    deliveryProof: {
+        url: String,
+        publicId: String
+    }
 
 }, { timestamps: true });
 

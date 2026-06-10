@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import { useLocation } from "@/context/LocationContext";
 import Link from "next/link";
+import OptimizedImage from "./OptimizedImage";
 
 interface Restaurant {
   _id: string;
@@ -134,10 +135,11 @@ export default function RestaurantList() {
               className="block bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/70 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 active:scale-[0.98] group"
             >
               <div className="h-44 relative overflow-hidden bg-slate-50">
-                <img 
+                <OptimizedImage 
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103" 
                   src={restaurant.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=600"}
                   alt={restaurant.name}
+                  preset="card"
                 />
                 
                 {/* Simulated delivery time */}

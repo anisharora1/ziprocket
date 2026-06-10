@@ -5,8 +5,12 @@ import {
     logPaymentFailure
 } from "../controllers/paymentController";
 import { protect, authorize } from "../middleware/authMiddleware";
+import { paymentLimiter } from "../middlewares/rateLimitMiddleware";
 
 const router = express.Router();
+
+// Apply payment rate limiters globally to payment routes
+router.use(paymentLimiter);
 
 // All payment endpoints are protected and accessible by authenticated customers/admins
 router.post("/create", protect, authorize("customer", "admin"), createRazorpayOrder);

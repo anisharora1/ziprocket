@@ -9,19 +9,20 @@ import {
     adminSearchUsers,
     adminSearchOrders
 } from "../controllers/searchController";
+import { searchLimiter } from "../middlewares/rateLimitMiddleware";
 
 const router = express.Router();
 
 // Autocomplete and typeahead suggestions (Public)
-router.get("/suggestions", getSearchSuggestions);
+router.get("/suggestions", searchLimiter, getSearchSuggestions);
 
 // Global customer search (Public)
-router.get("/global", searchGlobal);
+router.get("/global", searchLimiter, searchGlobal);
 
 // Collection-specific searches (Public)
-router.get("/grocery", searchGrocery);
-router.get("/restaurants", searchRestaurants);
-router.get("/menu-items", searchMenuItems);
+router.get("/grocery", searchLimiter, searchGrocery);
+router.get("/restaurants", searchLimiter, searchRestaurants);
+router.get("/menu-items", searchLimiter, searchMenuItems);
 
 // Admin / Moderator Search routes (Protected)
 router.get("/admin/users", protect, authorize("admin", "grocery_moderator"), adminSearchUsers);

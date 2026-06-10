@@ -12,7 +12,7 @@ import {
     deleteMenuItem,
     getMyRestaurant
 } from "../controllers/restaurantController";
-import { uploadMenuImages } from "../middleware/uploadMiddleware";
+import { uploadMenuImages, uploadRestaurantImages } from "../middleware/uploadMiddleware";
 import { protect, authorize } from "../middleware/authMiddleware";
 
 const router = express.Router();
@@ -24,7 +24,7 @@ router.get("/my-restaurant", protect, authorize("seller", "admin"), getMyRestaur
 router.post("/", protect, authorize("admin"), createRestaurant);
 router.get("/", getAllRestaurants);
 router.get("/:id", getRestaurantById);
-router.put("/:id", protect, authorize("seller", "admin"), updateRestaurant);
+router.put("/:id", protect, authorize("seller", "admin"), uploadRestaurantImages, updateRestaurant);
 router.patch("/:id/status", protect, authorize("admin"), updateRestaurantStatus);
 router.delete("/:id", protect, authorize("admin"), deleteRestaurant);
 

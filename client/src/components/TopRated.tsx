@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import OptimizedImage from "./OptimizedImage";
 
 interface Restaurant {
   _id: string;
@@ -34,7 +35,7 @@ export default function TopRated() {
       try {
         setLoading(true);
         // 1. Fetch live restaurant promotions/featured ads from admin desk
-        const promoRes = await apiClient.get("/admin/promotions");
+        const promoRes = await apiClient.get("/promotions");
         let activeRestaurantAds: any[] = [];
         if (promoRes.data.success) {
           activeRestaurantAds = (promoRes.data.promotions || []).filter(
@@ -138,10 +139,11 @@ export default function TopRated() {
               </div>
             )}
             
-            <img 
+            <OptimizedImage 
               className="h-28 w-full object-cover" 
               src={restaurant.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=300"}
               alt={restaurant.name}
+              preset="card"
             />
             
             <div className="p-3 space-y-1">

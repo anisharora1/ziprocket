@@ -4,6 +4,8 @@ import Restaurant from "../models/Restaurant";
 import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
 import { findApplicableZone } from "../services/deliveryRadiusService";
+import * as zoneCacheService from "../services/zoneCacheService";
+import * as redisService from "../services/redisService";
 
 // --- CRUD OPERATIONS (For Admin Panel) ---
 
@@ -30,6 +32,9 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
 
         await newZone.save();
 
+        // Invalidate zone caches
+        await zoneCacheService.invalidateZoneCache();
+
         res.status(201).json({
             success: true,
             message: "Delivery zone created successfully",
@@ -43,7 +48,21 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
 // Get all Delivery Zones
 export const getAllDeliveryZones = async (req: Request, res: Response): Promise<void> => {
     try {
+        const cachedZones = await zoneCacheService.getCachedAllZones();
+        if (cachedZones) {
+            console.log(`[Zone Cache] Hit for all zones`);
+            res.status(200).json({
+                success: true,
+                count: cachedZones.length,
+                zones: cachedZones
+            });
+            return;
+        }
+
         const zones = await DeliveryZone.find();
+
+        // Cache zones list in Redis
+        await zoneCacheService.cacheAllZones(zones);
 
         res.status(200).json({
             success: true,
@@ -104,6 +123,9 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        // Invalidate zone caches
+        await zoneCacheService.invalidateZoneCache();
+
         res.status(200).json({
             success: true,
             message: "Delivery zone updated successfully",
@@ -124,6 +146,9 @@ export const deleteDeliveryZone = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        // Invalidate zone caches
+        await zoneCacheService.invalidateZoneCache();
+
         res.status(200).json({
             success: true,
             message: "Delivery zone deleted successfully"
@@ -142,6 +167,14 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
 
         if (!userLat || !userLng) {
             res.status(400).json({ success: false, message: "Please provide user latitude and longitude" });
+            return;
+        }
+
+        const feasibilityKey = `zone:feasibility:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
+        const cachedFeasibility = await redisService.getJson<any>(feasibilityKey);
+        if (cachedFeasibility) {
+            console.log(`[Feasibility Cache] Hit for key: ${feasibilityKey}`);
+            res.status(200).json(cachedFeasibility);
             return;
         }
 
@@ -180,7 +213,7 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
         let deliveryFee = Math.min(applicableZone.maxDeliveryFee, Math.max(applicableZone.minDeliveryFee, totalDeliveryFee));
         deliveryFee = Math.ceil(deliveryFee);
 
-        res.status(200).json({
+        const responsePayload = {
             success: true,
             isDeliverable: true,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
@@ -188,7 +221,12 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
             deliveryFee,
             zoneName: applicableZone.name,
             zoneId: applicableZone._id
-        });
+        };
+
+        // Cache the feasibility calculation for 10 minutes
+        await redisService.setJson(feasibilityKey, responsePayload, 600);
+
+        res.status(200).json(responsePayload);
 
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });

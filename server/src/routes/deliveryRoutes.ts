@@ -15,6 +15,8 @@ import {
     getMyRejectedOrders
 } from "../controllers/deliveryController";
 import { protect, authorize } from "../middleware/authMiddleware";
+import { uploadSingle } from "../middleware/uploadMiddleware";
+import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 
 const router = express.Router();
 
@@ -26,15 +28,15 @@ router.put("/profile/availability", protect, authorize("delivery", "admin"), upd
 router.get("/pending", protect, authorize("delivery", "admin"), getPendingDeliveries);
 router.post("/accept", protect, authorize("delivery", "admin"), acceptDeliveryOrder);
 router.post("/reject", protect, authorize("delivery", "admin"), rejectDeliveryOrder);
-router.post("/deliver", protect, authorize("delivery", "admin"), deliverOrder);
+router.post("/deliver", protect, authorize("delivery", "admin"), uploadSingle("proof"), deliverOrder);
 router.get("/my-deliveries", protect, authorize("delivery", "admin"), getMyDeliveries);
 router.get("/rejected", protect, authorize("delivery", "admin"), getMyRejectedOrders);
 
-router.post("/assign", assignDelivery);
-router.get("/", getAllDeliveries);
-router.get("/:id", getDeliveryById);
+router.post("/assign", protect, authorize("admin"), assignDelivery);
+router.get("/", protect, authorize("admin"), getAllDeliveries);
+router.get("/:id", protect, authorize("delivery", "admin"), validateObjectId(["id"]), getDeliveryById);
 
-router.patch("/:id/status", updateDeliveryStatus);
-router.get("/delivery-boy/:deliveryBoyId", getDeliveriesByDeliveryBoy);
+router.patch("/:id/status", protect, authorize("delivery", "admin"), validateObjectId(["id"]), updateDeliveryStatus);
+router.get("/delivery-boy/:deliveryBoyId", protect, authorize("delivery", "admin"), validateObjectId(["deliveryBoyId"]), getDeliveriesByDeliveryBoy);
 
 export default router;

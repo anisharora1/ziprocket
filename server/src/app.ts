@@ -1,6 +1,12 @@
 import express from "express";
 import cors from "cors";
 
+// Security Middlewares
+import helmetMiddleware from "./middlewares/helmetMiddleware";
+import securityHeadersMiddleware from "./middlewares/securityHeadersMiddleware";
+import { globalLimiter } from "./middlewares/rateLimitMiddleware";
+import { nosqlSanitizer, xssSanitizer } from "./middlewares/authSecurityMiddleware";
+
 import authRoutes from "./routes/authRoutes";
 import adminRoutes from "./routes/adminRoutes";
 import restaurantRoutes from "./routes/restaurantRoutes";
@@ -17,11 +23,33 @@ import couponRoutes from "./routes/couponRoutes";
 import cartRoutes from "./routes/cartRoutes";
 import recommendationRoutes from "./routes/recommendationRoutes";
 import searchRoutes from "./routes/searchRoutes";
+import promotionsRoutes from "./routes/promotionsRoutes";
 
 const app = express();
 
+// Set trust proxy to true (1) if behind a load balancer (Haproxy, Nginx, AWS ALB, etc.)
+// This ensures express-rate-limit correctly resolves client IP addresses rather than the load balancer's IP.
+app.set("trust proxy", 1);
+
+// Enable security headers (Helmet.js)
+app.use(helmetMiddleware);
+
+// Enable auxiliary custom headers
+app.use(securityHeadersMiddleware);
+
+// CORS configuration
 app.use(cors());
-app.use(express.json());
+
+// Configure body limits to prevent payload flooding / DoS attacks
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+
+// Enable recursive input sanitization against NoSQL Injections and XSS scripting
+app.use(nosqlSanitizer);
+app.use(xssSanitizer);
+
+// Apply global rate limiting to all requests
+app.use(globalLimiter);
 
 // API Routes
 app.use("/api/auth", authRoutes);
@@ -40,6 +68,7 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/cart", cartRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/search", searchRoutes);
+app.use("/api/promotions", promotionsRoutes);
 import { Request, Response, NextFunction } from "express";
 
 app.use("/api/applications", applicationRoutes);

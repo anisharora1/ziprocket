@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../services/api';
+import OptimizedImage from '../OptimizedImage';
 
 export default function SellerSidebar() {
   const pathname = usePathname();
@@ -65,7 +66,7 @@ export default function SellerSidebar() {
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shrink-0 border border-slate-200 shadow-sm">
               {restaurant.image ? (
-                <img src={restaurant.image} alt={restaurant.name} className="w-full h-full object-cover" />
+                <OptimizedImage src={restaurant.image} alt={restaurant.name} preset="avatar" className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-[18px]">
                   {restaurant.name.charAt(0).toUpperCase()}

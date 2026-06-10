@@ -9,6 +9,7 @@ export interface IDeliveryProfile extends BaseDocument {
     vehicleType: "bike" | "scooter" | "bicycle" | "e-bike" | "other";
     vehicleNumber: string;
     idProofString: string;
+    idProofPublicId?: string;
     status: "pending" | "approved" | "rejected";
     isActive: boolean;
     isBlocked: boolean;
@@ -35,6 +36,7 @@ const deliveryProfileSchema = new Schema<IDeliveryProfile>({
     vehicleType: { type: String, enum: ["bike", "scooter", "bicycle", "e-bike", "other"], required: true },
     vehicleNumber: { type: String, required: true },
     idProofString: { type: String, required: true },
+    idProofPublicId: { type: String },
 
     status: {
         type: String,

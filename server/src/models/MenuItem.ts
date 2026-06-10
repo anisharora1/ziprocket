@@ -1,13 +1,18 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
 
+export interface IMenuItemImage {
+    url: string;
+    publicId: string;
+}
+
 export interface IMenuItem extends BaseDocument {
     restaurant: Types.ObjectId;
     name: string;
     description: string;
     price: number;
     category: string;
-    images?: string[];
+    images?: IMenuItemImage[];
     isAvailable: boolean;
     isVeg: boolean;
 }
@@ -23,13 +28,37 @@ const menuItemSchema = new Schema<IMenuItem>({
 
     category: String,
 
-    images: { type: [String], default: [] },
+    images: {
+        type: [{
+            url: { type: String, required: true },
+            publicId: { type: String, required: true }
+        }],
+        default: []
+    },
 
     isAvailable: { type: Boolean, default: true },
 
     isVeg: { type: Boolean, default: false }
 
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+    toJSON: {
+        transform: (doc, ret: any) => {
+            if (ret.images && Array.isArray(ret.images)) {
+                ret.images = ret.images.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    },
+    toObject: {
+        transform: (doc, ret: any) => {
+            if (ret.images && Array.isArray(ret.images)) {
+                ret.images = ret.images.map((img: any) => img.url || img);
+            }
+            return ret;
+        }
+    }
+});
 
 // Compound index for restaurant menu loads and recommendation lookups
 menuItemSchema.index({ restaurant: 1, isAvailable: 1, category: 1 });

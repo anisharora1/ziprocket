@@ -8,6 +8,7 @@ import FloatingCartButton from "@/components/FloatingCartButton";
 import { useCart } from "@/context/CartContext";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import OptimizedImage from "@/components/OptimizedImage";
 
 interface Product {
   _id: string;
@@ -139,7 +140,7 @@ export default function CategoryProductsPage() {
             className={`flex flex-col md:flex-row items-center py-3 px-2 gap-2 border-l-[4px] transition-all text-left cursor-pointer ${activeSub === "All" ? 'bg-[#FFF1E6]/40 border-l-[#FF5C00]' : 'bg-white border-l-transparent hover:bg-slate-50'}`}
           >
             <div className="w-8 h-8 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center bg-white shrink-0 shadow-sm transition-transform group-hover:scale-105">
-              <img src={SUBCATEGORY_ICONS["All"]} alt="All" className="w-full h-full object-cover" />
+              <OptimizedImage src={SUBCATEGORY_ICONS["All"]} alt="All" preset="thumbnail" className="w-full h-full object-cover" />
             </div>
             <span className={`text-[10px] md:text-[11px] leading-tight tracking-tight font-sans text-center md:text-left ${activeSub === "All" ? 'font-black text-[#FF5C00]' : 'font-semibold text-slate-500'}`}>
               All Items
@@ -156,7 +157,7 @@ export default function CategoryProductsPage() {
                 className={`flex flex-col md:flex-row items-center py-3 px-2 gap-2 border-l-[4px] transition-all text-left cursor-pointer ${isActive ? 'bg-[#FFF1E6]/40 border-l-[#FF5C00]' : 'bg-white border-l-transparent hover:bg-slate-50'}`}
               >
                 <div className="w-8 h-8 rounded-full border border-slate-100 overflow-hidden flex items-center justify-center bg-white shrink-0 shadow-sm transition-transform group-hover:scale-105">
-                  <img src={subIcon} alt={sub} className="w-full h-full object-cover" />
+                  <OptimizedImage src={subIcon} alt={sub} preset="thumbnail" className="w-full h-full object-cover" />
                 </div>
                 <span className={`text-[10px] md:text-[11px] leading-tight tracking-tight font-sans text-center md:text-left ${isActive ? 'font-black text-[#FF5C00]' : 'font-semibold text-slate-500'}`}>
                   {sub}
@@ -214,7 +215,7 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
 
       <div className="p-3 bg-white relative flex justify-center items-center h-28 sm:h-32 md:h-36 border-b border-slate-50 shrink-0">
         {prod.images && prod.images[0] ? (
-          <img src={prod.images[0]} alt={prod.name} className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300" />
+          <OptimizedImage src={prod.images[0]} alt={prod.name} preset="thumbnail" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <span className="material-symbols-outlined text-slate-300 text-[32px]">image</span>
         )}

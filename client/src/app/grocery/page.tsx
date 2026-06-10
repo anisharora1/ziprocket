@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Header from "@/components/Header";
+import OptimizedImage from "@/components/OptimizedImage";
 import BottomNavBar from "@/components/BottomNavBar";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import { useCart } from "@/context/CartContext";
@@ -216,7 +217,7 @@ export default function GroceryPage() {
                   className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 hover:shadow-[0_4px_20px_rgba(255,92,0,0.06)] hover:border-[#FF5C00]/20 transition-all duration-300 group cursor-pointer"
                 >
                   <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border ${cat.color} overflow-hidden shadow-sm bg-white`}>
-                    <img src={cat.image} alt={cat.name} className="w-full h-full object-cover group-hover:rotate-3 transition-transform duration-300" />
+                    <OptimizedImage src={cat.image} alt={cat.name} preset="thumbnail" className="w-full h-full object-cover group-hover:rotate-3 transition-transform duration-300" />
                   </div>
                   <span className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-snug">
                     {cat.name}
@@ -310,7 +311,7 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
       {/* Image box */}
       <div className="p-3 bg-white relative flex justify-center items-center h-28 sm:h-32 md:h-36 border-b border-slate-50 shrink-0">
         {prod.images && prod.images[0] ? (
-          <img src={prod.images[0]} alt={prod.name} className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300" />
+          <OptimizedImage src={prod.images[0]} alt={prod.name} preset="thumbnail" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300" />
         ) : (
           <span className="material-symbols-outlined text-slate-300 text-[32px]">image</span>
         )}
@@ -411,7 +412,7 @@ function PromotionalCarousel() {
   useEffect(() => {
     const fetchGroceryBanners = async () => {
       try {
-        const res = await apiClient.get("/admin/promotions");
+        const res = await apiClient.get("/promotions");
         if (res.data.success) {
           const activeBanners = (res.data.promotions || []).filter(
             (p: any) => p.isActive && p.targetType === "grocery"

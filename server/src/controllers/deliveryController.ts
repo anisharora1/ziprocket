@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Delivery from "../models/Delivery";
 import Order from "../models/Order";
 import DeliveryProfile from "../models/DeliveryProfile";
+import { uploadToCloudinary } from "../services/cloudinaryService";
 
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
@@ -327,6 +328,18 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
         if (!delivery) {
             res.status(404).json({ success: false, message: "Assigned delivery not found for this courier" });
             return;
+        }
+
+        // Upload delivery proof to Cloudinary if provided
+        if (req.file) {
+            try {
+                const uploadResult = await uploadToCloudinary(req.file.buffer, "delivery-proofs");
+                delivery.deliveryProof = uploadResult;
+            } catch (uploadError) {
+                console.error("Failed to upload delivery proof:", uploadError);
+                res.status(500).json({ success: false, message: "Failed to upload delivery proof image." });
+                return;
+            }
         }
 
         delivery.status = "delivered";

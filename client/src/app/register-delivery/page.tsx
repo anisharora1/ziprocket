@@ -52,6 +52,7 @@ export default function DeliveryRegisterForm() {
         ifscCode: "",
         agreed: false,
     });
+    const [idProofFile, setIdProofFile] = useState<File | null>(null);
 
     const handleInputChange = (
         e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
@@ -87,19 +88,32 @@ export default function DeliveryRegisterForm() {
                 return;
             }
 
-            // Using dummy strings for document uploads for now (tier 3 simplicity)
-            const payload = {
-                ...formData,
-                idProofString: "dummy_base64_string_or_url"
-            };
+            const form = new FormData();
+            form.append("fullName", formData.fullName);
+            form.append("phone", formData.phone);
+            form.append("email", formData.email);
+            form.append("city", formData.city);
+            form.append("vehicleType", formData.vehicleType);
+            form.append("deliveryZone", formData.deliveryZone);
+            form.append("aadhaarNumber", formData.aadhaarNumber);
+            form.append("licenseNumber", formData.licenseNumber || "");
+            form.append("panNumber", formData.panNumber);
+            form.append("accountNumber", formData.accountNumber);
+            form.append("ifscCode", formData.ifscCode);
+            if (idProofFile) {
+                form.append("idProof", idProofFile);
+            } else {
+                alert("Please select your ID proof document photo.");
+                setIsSubmitting(false);
+                return;
+            }
 
             const res = await fetch("http://localhost:5000/api/applications/delivery", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "Authorization": `Bearer ${token}`
                 },
-                body: JSON.stringify(payload)
+                body: form
             });
 
             const data = await res.json();
@@ -358,6 +372,22 @@ export default function DeliveryRegisterForm() {
                                             maxLength={10}
                                             className={`${inputClass} uppercase`}
                                         />
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>Upload ID Proof (Aadhaar/License/PAN Photo) *</label>
+                                        <input
+                                            required
+                                            type="file"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                if (e.target.files && e.target.files[0]) {
+                                                    setIdProofFile(e.target.files[0]);
+                                                }
+                                            }}
+                                            className={inputClass}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1 ml-1">Upload JPEG, PNG or WebP image up to 5MB</p>
                                     </div>
 
                                     {/* Info note */}

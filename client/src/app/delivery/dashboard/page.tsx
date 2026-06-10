@@ -188,22 +188,43 @@ export default function DeliveryDashboardPage() {
     }
   };
 
-  // Deliver an active delivery task
+  // Deliver an active delivery task with camera/gallery proof photo
   const handleDeliverOrder = async (orderId: string) => {
-    setActioningId(orderId);
-    try {
-      const res = await apiClient.post("/delivery/deliver", { orderId });
-      if (res.data.success) {
-        alert("Delivery completed! Great job.");
-        setActiveTab("history"); // Move to history tab
-        fetchDashboardData();
+    // Create a dynamic file input to capture camera/gallery image
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    
+    input.onchange = async (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      setActioningId(orderId);
+      try {
+        const formData = new FormData();
+        formData.append("orderId", orderId);
+        formData.append("proof", file);
+
+        const res = await apiClient.post("/delivery/deliver", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        if (res.data.success) {
+          alert("Delivery completed with proof! Great job.");
+          setActiveTab("history"); // Move to history tab
+          fetchDashboardData();
+        }
+      } catch (err: any) {
+        console.error("Failed to complete delivery:", err);
+        alert(err.response?.data?.message || "Failed to mark as delivered");
+      } finally {
+        setActioningId(null);
       }
-    } catch (err: any) {
-      console.error("Failed to complete delivery:", err);
-      alert(err.response?.data?.message || "Failed to mark as delivered");
-    } finally {
-      setActioningId(null);
-    }
+    };
+
+    input.click();
   };
 
   // Helper to format item description list
