@@ -223,10 +223,14 @@ export default function OrdersPage() {
         ["delivered", "cancelled"].includes(o.orderStatus || o.status)
     );
 
-    // Active order polling every 5 seconds
+    // Active order polling every 5 seconds if tab is active
     useEffect(() => {
         if (activeOrders.length === 0) return;
-        const interval = setInterval(fetchOrders, 5000);
+        const interval = setInterval(() => {
+            if (typeof document !== "undefined" && !document.hidden) {
+                fetchOrders();
+            }
+        }, 5000);
         return () => clearInterval(interval);
     }, [activeOrders.length]);
 

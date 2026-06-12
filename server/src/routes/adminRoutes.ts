@@ -21,7 +21,8 @@ import {
     getAllPromotions,
     createPromotion,
     togglePromotionStatus,
-    deletePromotion
+    deletePromotion,
+    updateRestaurantAvailability
 } from "../controllers/adminController";
 import { protect, authorize } from "../middleware/authMiddleware";
 import { adminLimiter } from "../middlewares/rateLimitMiddleware";
@@ -53,6 +54,7 @@ router.get("/cancellations/restaurants", getHighCancellationRestaurants);
 // User & Restaurant Management
 router.patch("/users/:userId/block-status", validateObjectId(["userId"]), toggleUserBlockStatus);
 router.patch("/restaurants/:restaurantId/block-status", validateObjectId(["restaurantId"]), toggleRestaurantBlockStatus);
+router.patch("/restaurants/:restaurantId/availability", validateObjectId(["restaurantId"]), updateRestaurantAvailability);
 
 router.patch("/users/:userId/reset-cancellations", validateObjectId(["userId"]), resetUserCancellationCount);
 router.patch("/restaurants/:restaurantId/reset-cancellations", validateObjectId(["restaurantId"]), resetRestaurantCancellationCount);

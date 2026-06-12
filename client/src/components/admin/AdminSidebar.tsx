@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { usePlatform } from '@/context/PlatformContext';
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
   const navLinks = [
     { name: 'Dashboard', href: '/admin/dashboard', icon: 'dashboard' },
+    { name: 'Platform Management', href: '/admin/platform', icon: 'settings_suggest' },
     { name: 'Applications', href: '/admin/applications', icon: 'approval' },
     { name: 'Delivery Zones', href: '/admin/zones', icon: 'map' },
     { name: 'Restaurants', href: '/admin/restaurants', icon: 'storefront' },
@@ -52,15 +54,34 @@ export default function AdminSidebar() {
       </nav>
 
       {/* System Status Footer */}
-      <div className="p-4 border-t border-slate-100 shrink-0">
-        <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">System Status</p>
-            <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-tertiary-container shadow-[0_0_0_2px_rgba(85,164,84,0.2)]"></div>
-            <span className="text-[12px] font-medium text-slate-700">Operational</span>
+      {(() => {
+        const { settings, isPlatformCurrentlyOpen } = usePlatform();
+        let statusText = "Operational";
+        let statusColor = "bg-emerald-500 shadow-[0_0_0_2px_rgba(16,185,129,0.2)]";
+
+        if (!settings) {
+          statusText = "Loading...";
+          statusColor = "bg-slate-300 animate-pulse";
+        } else if (settings.maintenanceMode) {
+          statusText = "Maintenance";
+          statusColor = "bg-rose-500 shadow-[0_0_0_2px_rgba(244,63,94,0.2)]";
+        } else if (!settings.isPlatformOpen || !isPlatformCurrentlyOpen()) {
+          statusText = "Closed";
+          statusColor = "bg-amber-500 shadow-[0_0_0_2px_rgba(245,158,11,0.2)]";
+        }
+
+        return (
+          <div className="p-4 border-t border-slate-100 shrink-0">
+            <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">System Status</p>
+                <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${statusColor}`}></div>
+                <span className="text-[12px] font-medium text-slate-700">{statusText}</span>
+                </div>
             </div>
-        </div>
-      </div>
+          </div>
+        );
+      })()}
     </aside>
   );
 }

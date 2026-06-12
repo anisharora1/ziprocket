@@ -9,6 +9,7 @@ import { useCart } from "@/context/CartContext";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
 import OptimizedImage from "@/components/OptimizedImage";
+import { usePlatform } from "@/context/PlatformContext";
 
 interface Product {
   _id: string;
@@ -204,6 +205,8 @@ export default function CategoryProductsPage() {
 // Reusable product card (exact match to main view)
 function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; qty: number; addToCart: any; updateQuantity: any }) {
   const currentPrice = prod.discountedPrice || prod.price;
+  const { isGroceryCurrentlyOpen } = usePlatform();
+  const isGroceryOpen = isGroceryCurrentlyOpen();
 
   return (
     <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,92,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col relative group cursor-pointer">
@@ -224,16 +227,18 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
           {qty > 0 ? (
             <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-md overflow-hidden font-black text-xs">
               <button 
+                disabled={!isGroceryOpen}
                 onClick={(e) => {
                   e.stopPropagation();
                   updateQuantity(`groc-${prod._id}`, qty - 1);
                 }}
-                className="px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00]"
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 -
               </button>
               <span className="px-2.5 text-slate-800">{qty}</span>
               <button 
+                disabled={!isGroceryOpen}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (qty >= prod.stockQuantity) {
@@ -242,14 +247,14 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   }
                   updateQuantity(`groc-${prod._id}`, qty + 1);
                 }}
-                className="px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00]"
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 +
               </button>
             </div>
           ) : (
             <button 
-              disabled={prod.stockQuantity === 0}
+              disabled={prod.stockQuantity === 0 || !isGroceryOpen}
               onClick={(e) => {
                 e.stopPropagation();
                 addToCart({
@@ -265,9 +270,13 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   orderType: "grocery"
                 });
               }}
-              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${prod.stockQuantity === 0 ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default' : 'border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5'}`}
+              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${
+                (prod.stockQuantity === 0 || !isGroceryOpen) 
+                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none' 
+                  : 'border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5'
+              }`}
             >
-              {prod.stockQuantity === 0 ? "Out of Stock" : "Add"}
+              {prod.stockQuantity === 0 ? "Out of Stock" : !isGroceryOpen ? "Unavailable" : "Add"}
             </button>
           )}
         </div>

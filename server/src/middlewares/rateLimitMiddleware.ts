@@ -10,9 +10,22 @@ class SafeDynamicStore implements Store {
     private localStore: Record<string, { totalHits: number; resetTime: number }> = {};
     private redisStoreInstance: RedisStore | null = null;
     prefix: string;
+    windowMs: number = 15 * 60 * 1000;
+    options: any = null;
 
     constructor(prefix: string) {
         this.prefix = prefix;
+    }
+
+    init(options: any) {
+        this.options = options;
+        if (options && options.windowMs) {
+            this.windowMs = options.windowMs;
+        }
+        const redisStore = this.getRedisStore();
+        if (redisStore && typeof redisStore.init === 'function') {
+            redisStore.init(options);
+        }
     }
 
     private getLocalKeyInfo(key: string, windowMs: number) {
@@ -34,6 +47,9 @@ class SafeDynamicStore implements Store {
                     sendCommand: (...args: string[]) => redisClient.call(args[0], ...args.slice(1)),
                     prefix: `rl:${this.prefix}:`,
                 });
+                if (this.options && typeof this.redisStoreInstance.init === 'function') {
+                    this.redisStoreInstance.init(this.options);
+                }
             } catch (err: any) {
                 console.error(`[RateLimit SafeStore] Failed to initialize RedisStore for ${this.prefix}:`, err.message);
             }
@@ -51,8 +67,7 @@ class SafeDynamicStore implements Store {
             }
         }
 
-        const windowMs = 15 * 60 * 1000;
-        const info = this.getLocalKeyInfo(key, windowMs);
+        const info = this.getLocalKeyInfo(key, this.windowMs);
         info.totalHits += 1;
         return {
             totalHits: info.totalHits,

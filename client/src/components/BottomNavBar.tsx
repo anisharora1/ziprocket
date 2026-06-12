@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePwa } from '@/context/PwaContext';
 
 export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home" | "search" | "orders" | "profile" | "menu" }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, token, logout } = useAuth();
+  const { isInstalled, installApp, mounted } = usePwa();
 
 
   const isMenu = activeTab === "menu";
@@ -131,6 +133,30 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                     </Link>
                   )}
                 </div>
+
+                {/* PWA Install Card */}
+                {!isInstalled && mounted && (
+                  <div className="mx-4 my-2 p-4 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-3">
+                    <div className="flex gap-3 items-center">
+                      <div className="bg-[#FF5C00]/15 text-[#FF5C00] p-2 rounded-xl flex items-center justify-center shrink-0">
+                        <span className="material-symbols-outlined text-[20px] font-bold">bolt</span>
+                      </div>
+                      <div className="flex flex-col text-left">
+                        <span className="text-xs font-black text-slate-900">Install ZipRocket App</span>
+                        <span className="text-[10px] text-slate-500 font-semibold mt-0.5">तेज़ ऑर्डर और होम स्क्रीन एक्सेस</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        installApp();
+                      }}
+                      className="w-full py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10"
+                    >
+                      Install App (इनस्टॉल करें)
+                    </button>
+                  </div>
+                )}
 
                 {/* Logout */}
                 <div className="p-3 border-t border-slate-50 bg-slate-50/50 sticky bottom-0">

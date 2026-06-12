@@ -4,8 +4,10 @@ import { useState, useEffect } from "react";
 import BottomNavBar from "@/components/BottomNavBar";
 import { useLocation } from "@/context/LocationContext";
 import { getAllRestaurants } from "@/services/restaurantService";
+import OptimizedImage from "@/components/OptimizedImage";
 
 import { apiClient } from "@/services/api";
+import PlatformBanner from "@/components/PlatformBanner";
 
 // Helper: Resolve a relevant Unsplash image based on name/cuisines
 const getRestaurantImage = (name: string, cuisines: string): string => {
@@ -92,6 +94,7 @@ export default function RestaurantsPage() {
 
   return (
     <div className="bg-[#fcfcfc] text-on-surface pb-28 min-h-screen w-full font-sans">
+      <PlatformBanner />
       <div className="max-w-7xl mx-auto w-full">
         {/* Top Search Bar */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center justify-between gap-4">
@@ -105,11 +108,12 @@ export default function RestaurantsPage() {
               className="bg-transparent border-none outline-none text-sm w-full placeholder-slate-400 text-slate-800"
             />
           </div>
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 cursor-pointer shrink-0">
-            <img
+          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 cursor-pointer shrink-0 relative">
+            <OptimizedImage
               alt="User Profile"
               className="w-full h-full object-cover"
               src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5iEnRAbZdcMCEE6FhrZx4jSPayqCNcc13TkynQfP8Ng5bKnT9LupfoId4PYadysnp5cErwKtTUS3JAeY8hYJLszSf_x_r_rX4Jpz3N0O_nT77wcoQTamIwUSvVHlNLZHPXpSLfOPIPphXQc4o4n12VZBz5DWo_h8OnCypahluYJeLZuxn5O7Mmsa0IgVei7eZGnJv7iphDh1Hswpkx2nFlKPs57_gzSD5TBFyWYd4ntPScL37OM-jaZl1g-6MjcYGxmtvD3O7Zds"
+              preset="avatar"
             />
           </div>
         </header>
@@ -173,10 +177,11 @@ export default function RestaurantsPage() {
                       <Link href={`/restaurants/${rest._id}`} key={`featured-${rest._id}`}>
                         <div className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-sm transition-transform active:scale-[0.98] cursor-pointer hover:shadow-md h-full flex flex-col">
                           <div className="h-40 relative w-full shrink-0">
-                            <img
+                            <OptimizedImage
                               className="w-full h-full object-cover"
                               src={getRestaurantImage(rest.name, rest.cuisines || "")}
                               alt={rest.name}
+                              preset="card"
                             />
                             <div className="absolute top-2 left-2 bg-[#a73a00] text-white text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">
                               Top Rated
@@ -209,10 +214,11 @@ export default function RestaurantsPage() {
                     <Link href={`/restaurants/${rest._id}`} key={rest._id}>
                       <div className="bg-white rounded-xl overflow-hidden border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.04)] transition-transform active:scale-[0.98] cursor-pointer hover:shadow-md h-full flex flex-col">
                         <div className="h-44 relative w-full shrink-0">
-                          <img
+                          <OptimizedImage
                             className="w-full h-full object-cover"
                             src={getRestaurantImage(rest.name, rest.cuisines || "")}
                             alt={rest.name}
+                            preset="card"
                           />
                           <div className="absolute bottom-0 left-0 bg-[#a73a00] text-white text-[10px] font-semibold px-2.5 py-1 rounded-tr-xl">
                             Flat {rest.commission || 10}% Commission Tier

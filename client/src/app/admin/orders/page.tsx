@@ -41,7 +41,11 @@ export default function OrdersAdminPage() {
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(fetchOrders, 5000);
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchOrders();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

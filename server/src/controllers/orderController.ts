@@ -9,6 +9,7 @@ import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
+import PlatformSettings from "../models/PlatformSettings";
 
 // Helper function to calculate distance using Haversine
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -38,6 +39,88 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             orderType = "food",
             couponCode
         } = req.body;
+
+        // Check Platform Settings, Maintenance Mode, and Operating Hours
+        const settings = await PlatformSettings.findOne();
+        if (settings) {
+            // 1. Maintenance Mode Check
+            if (settings.maintenanceMode) {
+                res.status(400).json({
+                    success: false,
+                    message: "We are currently performing maintenance. Please check back soon."
+                });
+                return;
+            }
+
+            // 2. Global Platform Status Check
+            if (!settings.isPlatformOpen) {
+                res.status(400).json({
+                    success: false,
+                    message: "Ordering is currently unavailable. Please try again later."
+                });
+                return;
+            }
+
+            // 3. Operating Hours Check (Asia/Kolkata timezone)
+            const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
+            const timeString = new Intl.DateTimeFormat('en-US', options).format(new Date());
+            const [currH, currM] = timeString.split(":").map(Number);
+            const [openH, openM] = settings.operatingHours.open.split(":").map(Number);
+            const [closeH, closeM] = settings.operatingHours.close.split(":").map(Number);
+
+            const currVal = currH * 60 + currM;
+            const openVal = openH * 60 + openM;
+            const closeVal = closeH * 60 + closeM;
+
+            let isWithinHours = false;
+            if (openVal <= closeVal) {
+                isWithinHours = currVal >= openVal && currVal < closeVal;
+            } else {
+                // overnight hours
+                isWithinHours = currVal >= openVal || currVal < closeVal;
+            }
+
+            if (!isWithinHours) {
+                const [h, m] = settings.operatingHours.open.split(":").map(Number);
+                const ampm = h >= 12 ? 'PM' : 'AM';
+                const displayH = h % 12 || 12;
+                const displayM = m.toString().padStart(2, '0');
+                const formattedOpenTime = `${displayH}:${displayM} ${ampm}`;
+
+                res.status(400).json({
+                    success: false,
+                    message: `Orders are closed for today. We will reopen at ${formattedOpenTime}.`
+                });
+                return;
+            }
+
+            // 4. Grocery Operations Check
+            if (orderType === "grocery" && settings.groceryStatus !== "open") {
+                const groceryMsg = settings.groceryStatus === "disabled"
+                    ? "Grocery ordering is temporarily disabled."
+                    : "Grocery operations are currently closed.";
+                res.status(400).json({
+                    success: false,
+                    message: groceryMsg
+                });
+                return;
+            }
+        }
+
+        // 5. Restaurant Availability Check (Food only)
+        if (orderType === "food" && restaurant) {
+            const rest = await Restaurant.findById(restaurant);
+            if (!rest || rest.availabilityStatus !== "open") {
+                const restMsg = rest && rest.availabilityStatus === "disabled"
+                    ? "This restaurant is temporarily disabled."
+                    : "This restaurant is currently closed.";
+                res.status(400).json({
+                    success: false,
+                    message: restMsg
+                });
+                return;
+            }
+        }
 
         // Securely override user from authenticated request session
         const user = req.user ? req.user._id : req.body.user;

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import OptimizedImage from "./OptimizedImage";
 
 interface Promotion {
   _id: string;
@@ -105,7 +106,7 @@ export default function HeroCarousel() {
         onTouchEnd={() => setIsPaused(false)}
         className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-1 scroll-smooth w-full"
       >
-        {displayBanners.map((banner) => {
+        {displayBanners.map((banner, idx) => {
           const destination = banner.category || (banner.targetType === "grocery" ? "/grocery" : "/restaurants");
           
           return (
@@ -115,10 +116,12 @@ export default function HeroCarousel() {
               className="w-full shrink-0 snap-center px-1"
             >
               <div className="h-40 md:h-56 rounded-2xl relative overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
-                <img 
+                <OptimizedImage 
                   className="absolute inset-0 w-full h-full object-cover" 
                   src={banner.image}
                   alt={banner.title}
+                  preset="large"
+                  priority={idx === 0}
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent flex flex-col justify-center p-md md:p-lg">
                   <span className="bg-[#FF5C00] text-white text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded w-fit mb-2">

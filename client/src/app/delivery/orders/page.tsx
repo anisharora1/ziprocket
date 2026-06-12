@@ -81,8 +81,12 @@ export default function DeliveryOrdersPage() {
 
   useEffect(() => {
     fetchOrdersData();
-    // Poll data every 5 seconds for dynamic synchronization
-    const interval = setInterval(fetchOrdersData, 5000);
+    // Poll data every 5 seconds for dynamic synchronization if tab is active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchOrdersData();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

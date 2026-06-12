@@ -8,6 +8,9 @@ import DeliveryProfile from "../models/DeliveryProfile";
 import BannerAd from "../models/BannerAd";
 import Payment from "../models/Payment";
 import * as sessionCacheService from "../services/sessionCacheService";
+import * as restaurantCacheService from "../services/restaurantCacheService";
+import { broadcastSettings } from "../utils/platformSse";
+import PlatformSettings from "../models/PlatformSettings";
 
 // --- DASHBOARD METRICS ---
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
@@ -705,6 +708,46 @@ export const getPublicPromotions = async (req: Request, res: Response): Promise<
             success: true,
             count: promotions.length,
             promotions
+        });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Admin action: Update a restaurant's availability status (open, closed, disabled)
+export const updateRestaurantAvailability = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { restaurantId } = req.params;
+        const { availabilityStatus } = req.body;
+
+        const validStatuses = ["open", "closed", "disabled"];
+        if (!validStatuses.includes(availabilityStatus)) {
+            res.status(400).json({ success: false, message: "Invalid availability status" });
+            return;
+        }
+
+        const restaurant = await Restaurant.findByIdAndUpdate(
+            restaurantId,
+            { availabilityStatus },
+            { new: true, runValidators: true }
+        );
+
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: "Restaurant not found" });
+            return;
+        }
+
+        // Invalidate Redis cache for lists and detail view
+        await restaurantCacheService.invalidateRestaurantCache(restaurantId as string);
+
+        // Also broadcast settings/update trigger via SSE so clients get real-time state changes
+        const settings = await PlatformSettings.findOne() || {};
+        broadcastSettings(settings);
+
+        res.status(200).json({
+            success: true,
+            message: `Restaurant availability updated to ${availabilityStatus}`,
+            restaurant
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });

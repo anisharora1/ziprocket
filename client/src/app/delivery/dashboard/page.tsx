@@ -122,8 +122,12 @@ export default function DeliveryDashboardPage() {
   useEffect(() => {
     if (isActive) {
       fetchDashboardData();
-      // Poll orders status every 5 seconds to ensure instant real-time sync
-      const interval = setInterval(fetchDashboardData, 5000);
+      // Poll orders status every 5 seconds to ensure instant real-time sync if active
+      const interval = setInterval(() => {
+        if (typeof document !== "undefined" && !document.hidden) {
+          fetchDashboardData();
+        }
+      }, 5000);
       return () => clearInterval(interval);
     } else {
       setPendingOrders([]);

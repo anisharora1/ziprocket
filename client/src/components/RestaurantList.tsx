@@ -5,6 +5,7 @@ import { apiClient } from "@/services/api";
 import { useLocation } from "@/context/LocationContext";
 import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
+import { usePlatform } from "@/context/PlatformContext";
 
 interface Restaurant {
   _id: string;
@@ -16,6 +17,7 @@ interface Restaurant {
   isActive: boolean;
   totalOrders: number;
   status: string;
+  availabilityStatus: "open" | "closed" | "disabled";
   location?: {
     address: string;
     lat: number;
@@ -29,6 +31,7 @@ export default function RestaurantList() {
   const [zoneName, setZoneName] = useState<string | null>(null);
   const [feasibilityError, setFeasibilityError] = useState<string | null>(null);
   const { location: userCoords, pincode: userPincode } = useLocation();
+  const { settings, loading: platformLoading, getPlatformStatusMessage } = usePlatform();
 
   useEffect(() => {
     const loadZoneAndRestaurants = async () => {
@@ -75,7 +78,7 @@ export default function RestaurantList() {
     loadZoneAndRestaurants();
   }, [userCoords, userPincode]);
 
-  if (loading) {
+  if (loading || platformLoading) {
     // Premium loading skeletons
     return (
       <section className="space-y-md">
@@ -122,9 +125,15 @@ export default function RestaurantList() {
       
       {restaurants.length === 0 ? (
         <div className="text-center py-12 px-4 bg-white rounded-3xl border border-slate-100/80 shadow-sm max-w-xl mx-auto my-6">
-          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">storefront</span>
-          <p className="text-slate-700 font-black text-[15px]">No active restaurants found in your zone.</p>
-          <p className="text-slate-400 text-xs font-semibold mt-1">Please approve restaurant profiles in the admin panel to publish them here!</p>
+          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">
+            {getPlatformStatusMessage() ? "engineering" : "storefront"}
+          </span>
+          <p className="text-slate-700 font-black text-[15px]">
+            {getPlatformStatusMessage() ? "Ordering is currently unavailable" : "No active restaurants found in your zone."}
+          </p>
+          <p className="text-slate-400 text-xs font-semibold mt-1">
+            {getPlatformStatusMessage() ? getPlatformStatusMessage() : "Please approve restaurant profiles in the admin panel to publish them here!"}
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -150,15 +159,27 @@ export default function RestaurantList() {
                 </div>
                 
                 {/* Activity Status */}
-                {restaurant.isActive ? (
-                  <div className="absolute top-3 left-3 bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
-                    OPEN
-                  </div>
-                ) : (
-                  <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
-                    CLOSED
-                  </div>
-                )}
+                {(() => {
+                  if (settings?.maintenanceMode) {
+                    return (
+                      <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+                        MAINTENANCE MODE
+                      </div>
+                    );
+                  }
+                  if (restaurant.availabilityStatus === "open") {
+                    return (
+                      <div className="absolute top-3 left-3 bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+                        OPEN NOW
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+                      CLOSED
+                    </div>
+                  );
+                })()}
               </div>
               
               <div className="p-4 space-y-1">

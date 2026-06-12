@@ -3,11 +3,18 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { useLocation } from "@/context/LocationContext";
 import { useAuth } from "@/context/AuthContext";
-import LocationSelectorModal from "@/components/LocationSelectorModal";
+import { usePwa } from "@/context/PwaContext";
+import dynamic from "next/dynamic";
+const LocationSelectorModal = dynamic(() => import("@/components/LocationSelectorModal"), {
+  ssr: false,
+});
+
+import PlatformBanner from "@/components/PlatformBanner";
 
 export default function Header() {
   const { address, isLoading } = useLocation();
   const { user, token, logout } = useAuth();
+  const { isInstalled, installApp, mounted } = usePwa();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -23,7 +30,8 @@ export default function Header() {
   }, []);
 
   return (
-    <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm fixed top-0 left-0 right-0 z-50">
+    <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm fixed top-0 left-0 right-0 z-50 flex flex-col">
+      <PlatformBanner />
       <div className="max-w-7xl mx-auto flex justify-between items-center w-full px-4 sm:px-6 lg:px-8 h-16">
 
         {/* Left Side: Logo/Location */}
@@ -115,6 +123,30 @@ export default function Header() {
                     )}
                   </div>
                   
+                  {/* PWA Install Card */}
+                  {!isInstalled && mounted && (
+                    <div className="mx-3 my-2 p-3.5 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-2">
+                      <div className="flex gap-2.5 items-center">
+                        <div className="bg-[#FF5C00]/15 text-[#FF5C00] p-1.5 rounded-lg flex items-center justify-center shrink-0">
+                          <span className="material-symbols-outlined text-[18px] font-bold">bolt</span>
+                        </div>
+                        <div className="flex flex-col text-left">
+                          <span className="text-[11px] font-extrabold text-slate-850">Install ZipRocket</span>
+                          <span className="text-[9px] text-slate-500 font-semibold leading-tight">Faster food delivery app</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          installApp();
+                        }}
+                        className="w-full py-2 bg-[#FF5C00] hover:bg-[#e05200] text-white text-[11px] font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10"
+                      >
+                        Install App
+                      </button>
+                    </div>
+                  )}
+
                   <div className="border-t border-slate-100 pt-2 pb-1">
                     <button 
                       onClick={() => {

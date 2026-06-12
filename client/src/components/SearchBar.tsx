@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
+import OptimizedImage from "./OptimizedImage";
 
 interface SearchResults {
   restaurants: any[];
@@ -318,9 +319,9 @@ export default function SearchBar() {
                         className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group"
                       >
                         <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-slate-50 border border-slate-100 flex items-center justify-center overflow-hidden shrink-0 relative">
                             {prod.images && prod.images[0] ? (
-                              <img src={prod.images[0]} alt={prod.name} className="w-full h-full object-contain" />
+                              <OptimizedImage src={prod.images[0]} alt={prod.name} className="w-full h-full object-contain" preset="thumbnail" />
                             ) : (
                               <span className="material-symbols-outlined text-slate-300 text-xs">shopping_bag</span>
                             )}

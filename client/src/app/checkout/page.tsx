@@ -6,6 +6,8 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
+import { usePlatform } from "@/context/PlatformContext";
+import PlatformBanner from "@/components/PlatformBanner";
 
 interface BillDetails {
     success?: boolean;
@@ -30,6 +32,50 @@ interface BillDetails {
 export default function CheckoutPage() {
     const router = useRouter();
     const [placingOrder, setPlacingOrder] = useState(false);
+    const { cart, clearCart } = useCart();
+    const { 
+        isPlatformCurrentlyOpen, 
+        getPlatformStatusMessage, 
+        isGroceryCurrentlyOpen, 
+        getGroceryStatusMessage 
+    } = usePlatform();
+
+    const [vendorAvailability, setVendorAvailability] = useState<string>("open");
+
+    useEffect(() => {
+        const fetchVendorStatus = async () => {
+            if (cart.orderType === 'food' && cart.vendorId) {
+                try {
+                    const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
+                    if (res.data.success && res.data.restaurant) {
+                        setVendorAvailability(res.data.restaurant.availabilityStatus || "open");
+                    }
+                } catch (err) {
+                    console.error("Failed to check restaurant status in checkout:", err);
+                }
+            }
+        };
+        fetchVendorStatus();
+    }, [cart.vendorId, cart.orderType]);
+
+    const platformMsg = getPlatformStatusMessage();
+    const isCheckoutDisabled = (() => {
+        if (platformMsg) return true;
+        if (cart.orderType === "grocery" && !isGroceryCurrentlyOpen()) return true;
+        if (cart.orderType === "food" && vendorAvailability !== "open") return true;
+        return false;
+    })();
+
+    const checkoutDisabledMessage = (() => {
+        if (platformMsg) return platformMsg;
+        if (cart.orderType === "grocery") {
+            return "Grocery ordering is currently unavailable. Please try again later.";
+        }
+        if (cart.orderType === "food" && vendorAvailability !== "open") {
+            return "Ordering from this restaurant is currently unavailable.";
+        }
+        return null;
+    })();
 
     // ── Notification Card Overlay System ──────────────────────────────────────
     type NotifType = 'success' | 'error' | 'warning' | 'zone';
@@ -42,7 +88,6 @@ export default function CheckoutPage() {
     const [showOutOfZoneOverlay, setShowOutOfZoneOverlay] = useState(false);
     const [activeZones, setActiveZones] = useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('ONLINE');
-    const { cart, clearCart } = useCart();
     const { user } = useAuth();
     const { location: userCoords, address: userAddress, pincode: userPincode } = useLocation();
 
@@ -426,6 +471,14 @@ export default function CheckoutPage() {
     };
 
     const handlePlaceOrder = async () => {
+        if (isCheckoutDisabled) {
+            showCard({ 
+                type: 'error', 
+                title: 'Ordering Unavailable', 
+                message: checkoutDisabledMessage || 'Checkout is currently disabled.' 
+            });
+            return;
+        }
         if (cart.items.length === 0) {
             showCard({ type: 'warning', title: 'Cart is Empty', message: 'Please add items to your cart before placing an order.' });
             return;
@@ -634,6 +687,7 @@ export default function CheckoutPage() {
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-36 min-h-screen w-full font-sans">
+            <PlatformBanner />
 
             {/* ── Unified Notification Card Overlay ───────────────────────────── */}
             {notifCard && (() => {
@@ -856,6 +910,21 @@ export default function CheckoutPage() {
                     </div>
                 )}
 
+                {/* Platform/Restaurant/Grocery Closed Warning Banner */}
+                {isCheckoutDisabled && checkoutDisabledMessage && (
+                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-3.5 flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
+                            <span className="material-symbols-outlined text-[16px]">error</span>
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-rose-850 text-[14px]">Ordering Currently Unavailable</h3>
+                            <p className="text-[12px] text-rose-600 mt-0.5 leading-relaxed font-semibold">
+                                {checkoutDisabledMessage}
+                            </p>
+                        </div>
+                    </div>
+                )}
+
                 {/* Route-Based Distance & ETA */}
                 {!loadingBill && billDetails && !checkoutError && (
                     <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex justify-between items-center gap-3">
@@ -1011,13 +1080,13 @@ export default function CheckoutPage() {
                     <div className="space-y-3">
                         {/* ONLINE */}
                         <div 
-                            onClick={() => !checkoutError && setPaymentMethod('ONLINE')}
+                            onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('ONLINE')}
                             className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${
-                              checkoutError ? 'opacity-50 cursor-not-allowed' : ''
-                            } ${paymentMethod === 'ONLINE' && !checkoutError ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
+                              (checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
+                            } ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
                         >
                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
                                     <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
                                 </div>
                                 <div>
@@ -1025,20 +1094,20 @@ export default function CheckoutPage() {
                                     <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay instantly using Google Pay, PhonePe, Cards or NetBanking</p>
                                 </div>
                             </div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
-                                {paymentMethod === 'ONLINE' && !checkoutError && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
+                                {paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
                             </div>
                         </div>
 
                         {/* CASH ON DELIVERY (COD) */}
                         <div 
-                            onClick={() => !checkoutError && setPaymentMethod('COD')}
+                            onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('COD')}
                             className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${
-                              checkoutError ? 'opacity-50 cursor-not-allowed' : ''
-                            } ${paymentMethod === 'COD' && !checkoutError ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
+                              (checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
+                            } ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
                         >
                             <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
                                     <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
                                 </div>
                                 <div>
@@ -1046,8 +1115,8 @@ export default function CheckoutPage() {
                                     <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay in cash or scan QR code on delivery</p>
                                 </div>
                             </div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
-                                {paymentMethod === 'COD' && !checkoutError && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
+                                {paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
                             </div>
                         </div>
                     </div>
@@ -1152,21 +1221,23 @@ export default function CheckoutPage() {
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 pb-safe z-50">
                 <button 
                     onClick={handlePlaceOrder}
-                    disabled={placingOrder || loadingBill || !!checkoutError}
+                    disabled={placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled}
                     className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${
-                      placingOrder || loadingBill || !!checkoutError ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
+                      placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
                     }`}
                 >
                     <span className="font-medium text-[15px]">
-                        {checkoutError 
-                          ? 'Outside Delivery Service Area' 
-                          : loadingBill 
-                            ? 'Calculating dynamic fares...' 
-                            : placingOrder 
-                              ? 'Processing...' 
-                              : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
+                        {isCheckoutDisabled
+                          ? 'Ordering is unavailable'
+                          : checkoutError 
+                            ? 'Outside Delivery Service Area' 
+                            : loadingBill 
+                              ? 'Calculating dynamic fares...' 
+                              : placingOrder 
+                                ? 'Processing...' 
+                                : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
                     </span>
-                    {!placingOrder && !loadingBill && !checkoutError && <span className="material-symbols-outlined text-[20px]">arrow_forward</span>}
+                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && <span className="material-symbols-outlined text-[20px]">arrow_forward</span>}
                 </button>
                 <p className="text-center text-[10px] text-slate-500 mt-2.5">
                     By placing this order, you agree to our Terms & Conditions

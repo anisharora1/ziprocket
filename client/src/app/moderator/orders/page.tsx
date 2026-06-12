@@ -66,8 +66,12 @@ export default function ModeratorOrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-    // Real-time polling every 5 seconds for new grocery orders
-    const interval = setInterval(fetchOrders, 5000);
+    // Real-time polling every 5 seconds for new grocery orders if tab is active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchOrders();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

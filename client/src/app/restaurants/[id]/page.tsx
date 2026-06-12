@@ -7,11 +7,14 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
+import { usePlatform } from "@/context/PlatformContext";
+import PlatformBanner from "@/components/PlatformBanner";
 
 export default function RestaurantMenuPage() {
   const { id } = useParams();
   const router = useRouter();
   const { addToCart } = useCart();
+  const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage } = usePlatform();
   
   const [restaurant, setRestaurant] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
@@ -98,6 +101,7 @@ export default function RestaurantMenuPage() {
 
   return (
     <div className="bg-[#f8f9fa] text-on-surface pb-32 min-h-screen w-full font-sans">
+      <PlatformBanner />
       {/* Top AppBar */}
       <header className="bg-[#fef9f4] sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between">
         <Link href="/" className="w-10 h-10 flex items-center justify-center transition-transform active:scale-95 bg-white rounded-full shadow-sm">
@@ -129,8 +133,20 @@ export default function RestaurantMenuPage() {
           <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#e8f0f4] border border-[#d2e2eb]">
             <span className="material-symbols-outlined text-[14px] text-slate-500">info</span>
             <div className="flex flex-col items-center">
-              <span className={`text-[11px] font-bold leading-none ${restaurant.isActive ? 'text-emerald-600' : 'text-red-500'}`}>
-                {restaurant.isActive ? 'OPEN' : 'CLOSED'}
+              <span className={`text-[11px] font-bold leading-none ${
+                settings?.maintenanceMode
+                  ? 'text-rose-600'
+                  : restaurant.availabilityStatus === "open"
+                  ? 'text-emerald-600'
+                  : 'text-red-500'
+              }`}>
+                {settings?.maintenanceMode
+                  ? 'MAINTENANCE'
+                  : restaurant.availabilityStatus === "open"
+                  ? 'OPEN'
+                  : restaurant.availabilityStatus === "disabled"
+                  ? 'DISABLED'
+                  : 'CLOSED'}
               </span>
               <span className="text-[9px] text-slate-500 leading-none">Status</span>
             </div>
@@ -140,6 +156,37 @@ export default function RestaurantMenuPage() {
           {restaurant.location?.address || "Address not provided"}
         </p>
       </div>
+
+      {/* Platform / Restaurant Status Warning Banner */}
+      {(() => {
+        const platformMsg = getPlatformStatusMessage();
+        const isRestaurantOpen = restaurant && restaurant.availabilityStatus === "open";
+        const isOrderingDisabled = !!platformMsg || !isRestaurantOpen;
+
+        if (!isOrderingDisabled) return null;
+
+        return (
+          <div className="mx-4 mt-4 bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+            <span className="material-symbols-outlined text-rose-500 shrink-0 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+              {settings?.maintenanceMode ? "engineering" : "error"}
+            </span>
+            <div className="space-y-1">
+              <h4 className="text-[13px] font-bold text-rose-800">
+                {settings?.maintenanceMode 
+                  ? "Platform Maintenance" 
+                  : !isPlatformCurrentlyOpen() 
+                  ? "Ordering Closed" 
+                  : "Restaurant Unavailable"}
+              </h4>
+              <p className="text-[12px] text-rose-600 leading-relaxed font-semibold">
+                {platformMsg || (restaurant?.availabilityStatus === "disabled" 
+                  ? "This restaurant is temporarily disabled by platform administration." 
+                  : "This restaurant is currently closed and not accepting new orders.")}
+              </p>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Sticky Categories Navigation */}
       {categories.length > 0 && (
@@ -242,9 +289,11 @@ export default function RestaurantMenuPage() {
                               orderType: 'food'
                             });
                           }}
-                          disabled={!item.isAvailable || !restaurant.isActive}
+                          disabled={!item.isAvailable || !!getPlatformStatusMessage() || restaurant.availabilityStatus !== "open"}
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-md transition-transform active:scale-90 ${
-                            (!item.isAvailable || !restaurant.isActive) ? 'bg-slate-200 text-slate-400' : 'bg-[#a73a00] text-white hover:bg-[#8e3100]'
+                            (!item.isAvailable || !!getPlatformStatusMessage() || restaurant.availabilityStatus !== "open") 
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
+                              : 'bg-[#a73a00] text-white hover:bg-[#8e3100]'
                           }`}
                         >
                           <span className="material-symbols-outlined text-[20px]">add</span>

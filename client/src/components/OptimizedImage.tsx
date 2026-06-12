@@ -1,11 +1,15 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 
-interface OptimizedImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "src"> {
   src: string;
   alt: string;
   preset?: "thumbnail" | "card" | "large" | "avatar";
+  width?: number | string;
+  height?: number | string;
+  priority?: boolean;
 }
 
 /**
@@ -87,6 +91,10 @@ export default function OptimizedImage({
   alt,
   preset = "card",
   className = "",
+  width,
+  height,
+  priority,
+  loading,
   ...props
 }: OptimizedImageProps) {
   const [loaded, setLoaded] = useState(false);
@@ -104,6 +112,10 @@ export default function OptimizedImage({
     }
   }, [src, preset]);
 
+  const useFill = !width && !height;
+  const parsedWidth = width ? Number(width) : undefined;
+  const parsedHeight = height ? Number(height) : undefined;
+
   return (
     <div className={`relative overflow-hidden bg-slate-100 ${className}`}>
       {/* Loading shimmer placeholder */}
@@ -113,15 +125,20 @@ export default function OptimizedImage({
         </div>
       )}
       
-      <img
-        src={optimizedSrc}
-        alt={alt}
-        loading="lazy"
+      <Image
+        src={optimizedSrc || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4"}
+        alt={alt || "Optimized Image"}
+        fill={useFill}
+        width={useFill ? undefined : parsedWidth}
+        height={useFill ? undefined : parsedHeight}
+        priority={priority}
+        loading={priority ? undefined : (loading || "lazy")}
+        sizes={useFill ? "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" : undefined}
         onLoad={() => setLoaded(true)}
-        className={`w-full h-full transition-opacity duration-300 ${
+        className={`transition-opacity duration-300 ${
           className.includes("object-contain") ? "object-contain" : "object-cover"
         } ${loaded ? "opacity-100" : "opacity-0"}`}
-        {...props}
+        {...(props as any)}
       />
     </div>
   );

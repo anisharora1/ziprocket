@@ -61,8 +61,12 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
-    // Refresh stats every 5 seconds for a dynamic real-time experience
-    const interval = setInterval(fetchDashboardData, 5000);
+    // Refresh stats every 5 seconds for a dynamic real-time experience if active
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchDashboardData();
+      }
+    }, 5000);
     return () => clearInterval(interval);
   }, []);
 

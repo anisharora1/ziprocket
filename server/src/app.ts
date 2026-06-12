@@ -24,6 +24,7 @@ import cartRoutes from "./routes/cartRoutes";
 import recommendationRoutes from "./routes/recommendationRoutes";
 import searchRoutes from "./routes/searchRoutes";
 import promotionsRoutes from "./routes/promotionsRoutes";
+import platformRoutes from "./routes/platformRoutes";
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use("/api/cart", cartRoutes);
 app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/promotions", promotionsRoutes);
+app.use("/api/platform", platformRoutes);
 import { Request, Response, NextFunction } from "express";
 
 app.use("/api/applications", applicationRoutes);

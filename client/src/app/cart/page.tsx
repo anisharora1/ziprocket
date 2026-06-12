@@ -6,13 +6,56 @@ import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { usePlatform } from "@/context/PlatformContext";
+import PlatformBanner from "@/components/PlatformBanner";
 
 export default function CartPage() {
     const { cart, updateQuantity, clearCart, addToCart } = useCart();
     const router = useRouter();
+    const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage, isGroceryCurrentlyOpen, getGroceryStatusMessage } = usePlatform();
     
     const [recommendations, setRecommendations] = useState<any[]>([]);
     const [loadingRecs, setLoadingRecs] = useState(false);
+    const [vendorAvailability, setVendorAvailability] = useState<string>("open");
+
+    useEffect(() => {
+        const fetchVendorStatus = async () => {
+            if (cart.orderType === 'food' && cart.vendorId) {
+                try {
+                    const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
+                    if (res.data.success && res.data.restaurant) {
+                        setVendorAvailability(res.data.restaurant.availabilityStatus || "open");
+                    }
+                } catch (err) {
+                    console.error("Failed to check restaurant status in cart:", err);
+                }
+            }
+        };
+        fetchVendorStatus();
+    }, [cart.vendorId, cart.orderType]);
+
+    const platformMsg = getPlatformStatusMessage();
+    const isPlatformOpen = isPlatformCurrentlyOpen();
+
+    const isCartServiceClosed = (() => {
+        if (platformMsg) return true;
+        if (cart.orderType === "grocery" && !isGroceryCurrentlyOpen()) return true;
+        if (cart.orderType === "food" && vendorAvailability !== "open") return true;
+        return false;
+    })();
+
+    const cartServiceMessage = (() => {
+        if (platformMsg) return platformMsg;
+        if (cart.orderType === "grocery") {
+            return getGroceryStatusMessage();
+        }
+        if (cart.orderType === "food" && vendorAvailability !== "open") {
+            return vendorAvailability === "disabled" 
+                ? "This restaurant is temporarily disabled." 
+                : "This restaurant is currently closed.";
+        }
+        return null;
+    })();
 
     // Fetch recommendations dynamically whenever cart items change
     useEffect(() => {
@@ -63,7 +106,7 @@ export default function CartPage() {
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-32 min-h-screen w-full font-sans">
-            
+            <PlatformBanner />
             {/* Header */}
             <header className="bg-white sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between border-b border-slate-100">
                 <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center transition-transform active:scale-95">
@@ -121,6 +164,21 @@ export default function CartPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* Service Unavailable Warning */}
+                        {isCartServiceClosed && cartServiceMessage && (
+                            <div className="bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
+                                <span className="material-symbols-outlined text-rose-500 shrink-0 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
+                                    error
+                                </span>
+                                <div className="space-y-1">
+                                    <h4 className="text-[13px] font-bold text-rose-800">Checkout Closed</h4>
+                                    <p className="text-[12px] text-rose-605 leading-relaxed font-semibold">
+                                        {cartServiceMessage}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Cart Items List */}
                         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
@@ -245,13 +303,23 @@ export default function CartPage() {
                                 </span>
                             </p>
                         </div>
-                        <Link
-                            href="/checkout"
-                            className="bg-[#FF5C00] hover:bg-[#e05200] active:scale-[0.98] text-white px-7 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
-                        >
-                            Next: Checkout
-                            <span className="material-symbols-outlined text-[16px] font-black">arrow_forward</span>
-                        </Link>
+                        {isCartServiceClosed ? (
+                            <button
+                                disabled
+                                className="bg-slate-200 text-slate-400 px-7 py-3 rounded-xl font-black text-xs uppercase tracking-wider cursor-not-allowed flex items-center gap-1.5"
+                            >
+                                Closed
+                                <span className="material-symbols-outlined text-[16px] font-black">lock</span>
+                            </button>
+                        ) : (
+                            <Link
+                                href="/checkout"
+                                className="bg-[#FF5C00] hover:bg-[#e05200] active:scale-[0.98] text-white px-7 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
+                            >
+                                Next: Checkout
+                                <span className="material-symbols-outlined text-[16px] font-black">arrow_forward</span>
+                            </Link>
+                        )}
                     </div>
                 </div>
             )}

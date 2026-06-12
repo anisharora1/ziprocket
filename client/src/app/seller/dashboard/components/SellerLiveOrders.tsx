@@ -19,10 +19,14 @@ export default function SellerLiveOrders({ initialOrders, restaurantId }: { init
         }
     };
 
-    // Poll every 5 seconds
+    // Poll every 5 seconds if tab is active
     useEffect(() => {
         if (!restaurantId) return;
-        const interval = setInterval(fetchOrders, 5000);
+        const interval = setInterval(() => {
+            if (typeof document !== "undefined" && !document.hidden) {
+                fetchOrders();
+            }
+        }, 5000);
         return () => clearInterval(interval);
     }, [restaurantId]);
 

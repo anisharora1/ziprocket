@@ -34,7 +34,11 @@ export default function SellerOrdersPage() {
     };
 
     fetchOrders();
-    const interval = setInterval(fetchOrders, 10000); // Poll every 10s
+    const interval = setInterval(() => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        fetchOrders();
+      }
+    }, 10000); // Poll every 10s
     return () => clearInterval(interval);
   }, [user, authLoading, router]);
 
