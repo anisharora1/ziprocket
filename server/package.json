@@ -5,7 +5,9 @@
   "main": "index.js",
   "type": "commonjs",
   "scripts": {
-    "dev": "nodemon --watch . --ext ts --exec ts-node --transpile-only server.ts"
+    "dev": "nodemon --watch . --ext ts --exec ts-node --transpile-only server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
