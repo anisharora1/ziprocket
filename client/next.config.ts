@@ -145,6 +145,15 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/favicon.ico",
+        destination: "/icon-192x192.png",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default withPWA(nextConfig);
