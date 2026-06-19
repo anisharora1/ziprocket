@@ -158,6 +158,7 @@ export default function SearchBar() {
           className="block w-full h-14 pl-12 pr-20 bg-white border border-slate-200 rounded-xl font-label-md text-label-md focus:ring-2 focus:ring-primary-container focus:border-transparent shadow-sm outline-none text-slate-800" 
           placeholder="Search for food, grocery..." 
           type="text"
+          suppressHydrationWarning={true}
         />
         <div className="absolute inset-y-0 right-0 pr-4 flex items-center gap-2">
           {query && (

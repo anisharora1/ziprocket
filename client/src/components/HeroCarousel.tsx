@@ -15,34 +15,59 @@ interface Promotion {
   isActive: boolean;
 }
 
-export default function HeroCarousel() {
+const DEFAULT_BANNERS: Promotion[] = [
+  {
+    _id: "default-banner-1",
+    title: "Delicious Meals Delivered Fast",
+    description: "Get up to 50% off on your first order!",
+    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
+    targetType: "restaurant",
+    isActive: true
+  },
+  {
+    _id: "default-banner-2",
+    title: "Fresh Groceries At Your Doorstep",
+    description: "Quality groceries delivered in minutes",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e",
+    targetType: "grocery",
+    isActive: true
+  }
+];
+
+interface HeroCarouselProps {
+  initialBanners?: Promotion[];
+}
+
+export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [banners, setBanners] = useState<Promotion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [banners, setBanners] = useState<Promotion[]>(initialBanners);
+  const [loading, setLoading] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        setLoading(true);
         const res = await apiClient.get("/promotions");
         if (res.data.success) {
-          // Fetch ALL active banners published from admin dashboard (both grocery & restaurant targeting)
+          // Fetch ALL active banners published from admin dashboard
           const activeBanners = (res.data.promotions || []).filter(
             (p: Promotion) => p.isActive
           );
-          setBanners(activeBanners);
+          if (activeBanners.length > 0) {
+            setBanners(activeBanners);
+          }
         }
       } catch (err) {
         console.error("Failed to fetch homepage banners:", err);
-      } finally {
-        setLoading(false);
       }
     };
 
-    fetchBanners();
-  }, []);
+    // Defer data fetch until after first paint to avoid competing with LCP resources
+    const timer = setTimeout(fetchBanners, 1000);
+    return () => clearTimeout(timer);
+  }, [initialBanners]);
+
 
   // Use live database banners only
   const displayBanners = banners;
@@ -107,11 +132,15 @@ export default function HeroCarousel() {
         className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-1 scroll-smooth w-full"
       >
         {displayBanners.map((banner, idx) => {
-          const destination = banner.category || (banner.targetType === "grocery" ? "/grocery" : "/restaurants");
+          let destination = banner.category || (banner.targetType === "grocery" ? "/grocery" : "/restaurants");
+          if (destination === "/restaurant") {
+            destination = "/restaurants";
+          }
           
           return (
             <Link 
               href={destination}
+              prefetch={false}
               key={banner._id} 
               className="w-full shrink-0 snap-center px-1"
             >
@@ -122,6 +151,7 @@ export default function HeroCarousel() {
                   alt={banner.title}
                   preset="large"
                   priority={idx === 0}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1200px"
                 />
                 <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent flex flex-col justify-center p-md md:p-lg">
                   <span className="bg-[#FF5C00] text-white text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded w-fit mb-2">

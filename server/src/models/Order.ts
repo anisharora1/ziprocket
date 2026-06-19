@@ -38,6 +38,15 @@ export interface IOrder extends BaseDocument {
         fullAddress: string;
         lat: number;
         lng: number;
+        deliveryAddress?: {
+            houseNumber: string;
+            street?: string;
+            locality: string;
+            village: string;
+            landmark: string;
+            pincode?: string;
+            instructions?: string;
+        };
     };
 
     whatsappOrder: boolean;
@@ -101,9 +110,18 @@ const orderSchema = new Schema<IOrder>({
     distance: Number,
 
     address: {
-        fullAddress: String,
-        lat: Number,
-        lng: Number
+        fullAddress: { type: String, required: true },
+        lat: { type: Number, required: true },
+        lng: { type: Number, required: true },
+        deliveryAddress: {
+            houseNumber: { type: String },
+            street: { type: String, default: "" },
+            locality: { type: String },
+            village: { type: String },
+            landmark: { type: String },
+            pincode: { type: String, default: "" },
+            instructions: { type: String, default: "" }
+        }
     },
 
     whatsappOrder: { type: Boolean, default: false },

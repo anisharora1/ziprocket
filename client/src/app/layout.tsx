@@ -6,8 +6,8 @@ import { CartProvider } from "@/context/CartContext";
 import { LocationProvider } from "@/context/LocationContext";
 import { PlatformProvider } from "@/context/PlatformContext";
 import LocationPromptModal from "@/components/DynamicLocationPromptModal";
-import PwaManager from "@/components/PwaManager";
 import { PwaProvider } from "@/context/PwaContext";
+import PwaManager from "@/components/DynamicPwaManager";
 
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -55,6 +55,8 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://images.unsplash.com" />
+        <link rel="preconnect" href="https://res.cloudinary.com" />
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"

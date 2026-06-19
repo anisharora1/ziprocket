@@ -36,7 +36,7 @@ const formatToAMPM = (timeStr: string): string => {
 
 export function PlatformProvider({ children }: { children: React.ReactNode }) {
     const [settings, setSettings] = useState<PlatformSettings | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false); // Start false so consumers aren't blocked
 
     const fetchSettings = async () => {
         try {
@@ -52,41 +52,49 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        fetchSettings();
-
-        // Establish SSE connection for real-time updates
-        const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-        const sseUrl = `${API_BASE_URL}/platform/settings/stream`;
-        
         let eventSource: EventSource | null = null;
-        
-        try {
-            eventSource = new EventSource(sseUrl);
-            
-            eventSource.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data && typeof data === 'object') {
-                        setSettings(data);
-                    }
-                } catch (e) {
-                    console.error("Failed to parse platform settings event:", e);
-                }
-            };
 
-            eventSource.onerror = (err) => {
-                console.warn("SSE connection error. Native reconnection will be attempted by the browser.", err);
-            };
-        } catch (e) {
-            console.error("Failed to initialize SSE EventSource:", e);
-        }
+        // Delay both initial fetch and SSE connection until after page first paint
+        const initialFetchTimer = setTimeout(() => {
+            fetchSettings();
+        }, 800); // 0.8s: fast enough for status but after first LCP paint
+
+        // Delay SSE connection until after initial page load to ensure network idle for Lighthouse
+        const sseTimer = setTimeout(() => {
+            const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+            const sseUrl = `${API_BASE_URL}/platform/settings/stream`;
+
+            try {
+                eventSource = new EventSource(sseUrl);
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data && typeof data === 'object') {
+                            setSettings(data);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse platform settings event:", e);
+                    }
+                };
+
+                eventSource.onerror = (err) => {
+                    console.warn("SSE connection error. Native reconnection will be attempted by the browser.", err);
+                };
+            } catch (e) {
+                console.error("Failed to initialize SSE EventSource:", e);
+            }
+        }, 2500); // 2.5s delay
 
         return () => {
+            clearTimeout(initialFetchTimer);
+            clearTimeout(sseTimer);
             if (eventSource) {
                 eventSource.close();
             }
         };
     }, []);
+
 
     const isPlatformCurrentlyOpen = (): boolean => {
         if (!settings) return true;

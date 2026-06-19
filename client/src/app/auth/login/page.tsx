@@ -154,10 +154,18 @@ export default function LoginPage() {
       const userCredential = await confirmationResult.confirm(otpString);
       const idToken = await userCredential.user.getIdToken();
 
+      // Detect if app is currently running in standalone PWA mode
+      const isPwa = typeof window !== 'undefined' && (
+        window.matchMedia('(display-mode: standalone)').matches || 
+        (window.navigator as any).standalone || 
+        document.referrer.includes('android-app://')
+      );
+
       // By default, everyone is a customer. They upgrade via the Profile dropdown later.
       const res = await apiClient.post('/auth/verify-otp', {
         token: idToken,
-        role: 'customer'
+        role: 'customer',
+        isPwa
       });
 
       if (res.data.success) {

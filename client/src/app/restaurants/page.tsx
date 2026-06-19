@@ -106,6 +106,7 @@ export default function RestaurantsPage() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-transparent border-none outline-none text-sm w-full placeholder-slate-400 text-slate-800"
+              suppressHydrationWarning={true}
             />
           </div>
           <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 cursor-pointer shrink-0 relative">

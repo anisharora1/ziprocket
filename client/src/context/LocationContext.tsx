@@ -18,6 +18,15 @@ interface SavedAddress {
   location: Location;
   deliveryZone?: string;
   isDefault: boolean;
+  deliveryAddress?: {
+    houseNumber: string;
+    street?: string;
+    locality: string;
+    village: string;
+    landmark: string;
+    pincode?: string;
+    instructions?: string;
+  };
 }
 
 interface LocationContextType {
@@ -31,9 +40,11 @@ interface LocationContextType {
   zoneName: string | null;
   savedAddresses: SavedAddress[];
   selectedAddressId: string | null;
+  deliveryAddress: SavedAddress['deliveryAddress'] | null;
   isLoading: boolean;
   error: string | null;
   isFirstTime: boolean;
+  isLocationLoaded: boolean;
   fetchLocation: () => void;
   dismissPrompt: () => void;
   setSelectedAddress: (addr: SavedAddress | null) => void;
@@ -56,10 +67,12 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [deliveryAddress, setDeliveryAddress] = useState<SavedAddress['deliveryAddress'] | null>(null);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isFirstTime, setIsFirstTime] = useState(false);
+  const [isLocationLoaded, setIsLocationLoaded] = useState(false);
 
   // 1. Load active delivery zone details based on coordinates
   const resolveOperationalZone = async (lat: number, lng: number, pin: string | null) => {
@@ -93,7 +106,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         const defaultAddr = res.data.addresses.find((a: SavedAddress) => a.isDefault);
         const storedLoc = localStorage.getItem('ziprocket_location');
         if (defaultAddr && !storedLoc) {
-          setSelectedAddress(defaultAddr);
+          await setSelectedAddress(defaultAddr);
         }
       }
     } catch (err) {
@@ -102,38 +115,45 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   useEffect(() => {
-    const storedLocation = localStorage.getItem('ziprocket_location');
-    const hasPrompted = localStorage.getItem('ziprocket_location_prompted');
+    const initializeLocation = async () => {
+      const storedLocation = localStorage.getItem('ziprocket_location');
+      const hasPrompted = localStorage.getItem('ziprocket_location_prompted');
 
-    if (storedLocation) {
-      try {
-        const parsed = JSON.parse(storedLocation);
-        setLocation(parsed.coords);
-        setAddress(parsed.address);
-        setPincode(parsed.pincode || null);
-        setCity(parsed.city || null);
-        setState(parsed.state || null);
-        setCountry(parsed.country || null);
-        setZoneId(parsed.zoneId || null);
-        setZoneName(parsed.zoneName || null);
-        setSelectedAddressId(parsed.selectedAddressId || null);
-        
-        // Proactively re-verify zone calculations
-        if (parsed.coords) {
-          resolveOperationalZone(parsed.coords.lat, parsed.coords.lng, parsed.pincode || null);
+      if (storedLocation) {
+        try {
+          const parsed = JSON.parse(storedLocation);
+          setLocation(parsed.coords);
+          setAddress(parsed.address);
+          setPincode(parsed.pincode || null);
+          setCity(parsed.city || null);
+          setState(parsed.state || null);
+          setCountry(parsed.country || null);
+          setZoneId(parsed.zoneId || null);
+          setZoneName(parsed.zoneName || null);
+          setSelectedAddressId(parsed.selectedAddressId || null);
+          setDeliveryAddress(parsed.deliveryAddress || null);
+          
+          // Proactively re-verify zone calculations only if zoneId was not already resolved
+          if (parsed.coords && !parsed.zoneId) {
+            await resolveOperationalZone(parsed.coords.lat, parsed.coords.lng, parsed.pincode || null);
+          }
+        } catch (e) {
+          console.error("Failed to parse stored location");
         }
-      } catch (e) {
-        console.error("Failed to parse stored location");
+      } else if (!hasPrompted) {
+        setIsFirstTime(true);
       }
-    } else if (!hasPrompted) {
-      setIsFirstTime(true);
-    }
 
-    // Check if token exists to fetch saved address book
-    const token = localStorage.getItem('ziprocket_token');
-    if (token) {
-      loadSavedAddresses();
-    }
+      // Check if token exists to fetch saved address book
+      const token = localStorage.getItem('token');
+      if (token) {
+        await loadSavedAddresses();
+      }
+
+      setIsLocationLoaded(true);
+    };
+
+    initializeLocation();
   }, []);
 
   const dismissPrompt = () => {
@@ -142,7 +162,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   // 3. Set address based on user action
-  const setSelectedAddress = (addr: SavedAddress | null) => {
+  const setSelectedAddress = async (addr: SavedAddress | null) => {
     if (!addr) {
       setLocation(null);
       setAddress(null);
@@ -153,6 +173,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       setZoneId(null);
       setZoneName(null);
       setSelectedAddressId(null);
+      setDeliveryAddress(null);
       localStorage.removeItem('ziprocket_location');
       return;
     }
@@ -165,7 +186,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       state: addr.state,
       country: addr.country || null,
       zoneId: addr.deliveryZone || null,
-      selectedAddressId: addr._id
+      selectedAddressId: addr._id,
+      deliveryAddress: addr.deliveryAddress || null
     };
 
     setLocation(addr.location);
@@ -175,6 +197,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     setState(addr.state);
     setCountry(addr.country || null);
     setSelectedAddressId(addr._id);
+    setDeliveryAddress(addr.deliveryAddress || null);
     
     if (addr.deliveryZone) {
       setZoneId(addr.deliveryZone);
@@ -183,7 +206,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       setZoneName(matched ? "ZipRocket Active Zone" : "Local Operating Area");
     }
 
-    resolveOperationalZone(addr.location.lat, addr.location.lng, addr.pincode);
+    await resolveOperationalZone(addr.location.lat, addr.location.lng, addr.pincode);
     localStorage.setItem('ziprocket_location', JSON.stringify(newLoc));
     dismissPrompt();
   };
@@ -236,6 +259,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
             setState(s || null);
             setCountry(co || null);
             setSelectedAddressId(null); // GPS Override unsets address ID
+            setDeliveryAddress(null); // Reset until manual address is captured
 
             // Resolve operational zone and save
             let zId = null;
@@ -266,7 +290,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
               country: co,
               zoneId: zId,
               zoneName: zName,
-              selectedAddressId: null
+              selectedAddressId: null,
+              deliveryAddress: null
             }));
           }
           dismissPrompt();
@@ -300,9 +325,11 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       zoneName,
       savedAddresses,
       selectedAddressId,
+      deliveryAddress,
       isLoading,
       error,
       isFirstTime,
+      isLocationLoaded,
       fetchLocation,
       dismissPrompt,
       setSelectedAddress,

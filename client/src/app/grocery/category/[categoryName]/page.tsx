@@ -79,7 +79,7 @@ export default function CategoryProductsPage() {
   const { categoryName } = useParams();
   const router = useRouter();
   const { addToCart, cart, updateQuantity } = useCart();
-  
+
   const decodedCategory = decodeURIComponent(categoryName as string);
   const subcategories = CATEGORIES_MAP[decodedCategory] || [];
 
@@ -94,7 +94,7 @@ export default function CategoryProductsPage() {
       if (activeSub !== "All") {
         query += `&subcategory=${encodeURIComponent(activeSub)}`;
       }
-      
+
       const res = await apiClient.get(query);
       if (res.data.success) {
         setProducts(res.data.products);
@@ -123,20 +123,20 @@ export default function CategoryProductsPage() {
 
       {/* Main Split View */}
       <div className="flex flex-1 overflow-hidden bg-slate-50 mt-16 max-w-7xl mx-auto w-full border-x border-slate-100/60 shadow-sm relative">
-        
+
         {/* Left Subcategory Rail */}
         <div className="w-[100px] md:w-[150px] shrink-0 bg-white border-r border-slate-100 overflow-y-auto hide-scrollbar flex flex-col">
           <div className="p-3 border-b border-slate-50 shrink-0">
-            <Link 
-              href="/grocery" 
+            <Link
+              href="/grocery"
               className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-[#FF5C00] transition-colors uppercase tracking-widest"
             >
               <span className="material-symbols-outlined text-[14px]">arrow_back</span>
               Grocery
             </Link>
           </div>
-          
-          <button 
+
+          <button
             onClick={() => setActiveSub("All")}
             className={`flex flex-col md:flex-row items-center py-3 px-2 gap-2 border-l-[4px] transition-all text-left cursor-pointer ${activeSub === "All" ? 'bg-[#FFF1E6]/40 border-l-[#FF5C00]' : 'bg-white border-l-transparent hover:bg-slate-50'}`}
           >
@@ -152,8 +152,8 @@ export default function CategoryProductsPage() {
             const isActive = activeSub === sub;
             const subIcon = SUBCATEGORY_ICONS[sub] || SUBCATEGORY_ICONS["All"];
             return (
-              <button 
-                key={sub} 
+              <button
+                key={sub}
                 onClick={() => setActiveSub(sub)}
                 className={`flex flex-col md:flex-row items-center py-3 px-2 gap-2 border-l-[4px] transition-all text-left cursor-pointer ${isActive ? 'bg-[#FFF1E6]/40 border-l-[#FF5C00]' : 'bg-white border-l-transparent hover:bg-slate-50'}`}
               >
@@ -226,19 +226,19 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
         <div className="absolute -bottom-3 right-3 shrink-0">
           {qty > 0 ? (
             <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-md overflow-hidden font-black text-xs">
-              <button 
-                disabled={!isGroceryOpen}
+              <button
+                disabled={!isGroceryOpen || !prod.isAvailable}
                 onClick={(e) => {
                   e.stopPropagation();
                   updateQuantity(`groc-${prod._id}`, qty - 1);
                 }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 -
               </button>
               <span className="px-2.5 text-slate-800">{qty}</span>
-              <button 
-                disabled={!isGroceryOpen}
+              <button
+                disabled={!isGroceryOpen || !prod.isAvailable}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (qty >= prod.stockQuantity) {
@@ -247,14 +247,14 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   }
                   updateQuantity(`groc-${prod._id}`, qty + 1);
                 }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 +
               </button>
             </div>
           ) : (
-            <button 
-              disabled={prod.stockQuantity === 0 || !isGroceryOpen}
+            <button
+              disabled={!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen}
               onClick={(e) => {
                 e.stopPropagation();
                 addToCart({
@@ -270,13 +270,12 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   orderType: "grocery"
                 });
               }}
-              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${
-                (prod.stockQuantity === 0 || !isGroceryOpen) 
-                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none' 
+              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${(!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen)
+                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none'
                   : 'border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5'
-              }`}
+                }`}
             >
-              {prod.stockQuantity === 0 ? "Out of Stock" : !isGroceryOpen ? "Unavailable" : "Add"}
+              {!prod.isAvailable ? "Unavailable" : prod.stockQuantity === 0 ? "Out of Stock" : "Add"}
             </button>
           )}
         </div>
@@ -290,7 +289,7 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
           {prod.name}
         </h4>
         <span className="text-[10px] text-slate-400 font-bold mb-3">{prod.weightSize}</span>
-        
+
         <div className="mt-auto flex items-baseline gap-1.5">
           <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
           {prod.discountedPrice && (

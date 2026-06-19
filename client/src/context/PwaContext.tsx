@@ -125,8 +125,10 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Handle page refreshing when new worker activates
       let refreshing = false;
+      const hasControllerOnLoad = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
+        // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
+        if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
           refreshing = true;
           window.location.reload();
         }

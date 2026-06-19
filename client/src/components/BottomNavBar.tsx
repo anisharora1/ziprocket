@@ -33,6 +33,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
       {/* Home / Menu */}
       <Link
         href="/"
+        prefetch={false}
         className={`flex flex-col items-center justify-center rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90 ${homeTabActive ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
       >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: homeTabActive ? "'FILL' 1" : "'FILL' 0" }}>{homeTabIcon}</span>
@@ -42,6 +43,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
       {/* Search */}
       <Link
         href="/restaurants"
+        prefetch={false}
         className={`flex flex-col items-center justify-center rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90 ${activeTab === 'search' ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
       >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'search' ? "'FILL' 1" : "'FILL' 0" }}>search</span>
@@ -51,6 +53,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
       {/* Orders */}
       <Link
         href="/orders"
+        prefetch={false}
         className={`flex flex-col items-center justify-center rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90 ${activeTab === 'orders' ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
       >
         <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'orders' ? "'FILL' 1" : "'FILL' 0" }}>receipt_long</span>
@@ -89,14 +92,14 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
 
                 {/* Options */}
                 <div className="p-2 space-y-1">
-                  <Link href="/orders" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
+                  <Link href="/orders" prefetch={false} onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
                     <div className="bg-slate-50 group-hover:bg-[#FF5C00]/10 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-[#FF5C00] transition-colors">receipt_long</span>
                     </div>
                     <span className="text-[14px] font-bold">My Orders</span>
                   </Link>
 
-                  <Link href="/addresses" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
+                  <Link href="/addresses" prefetch={false} onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
                     <div className="bg-slate-50 group-hover:bg-[#FF5C00]/10 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-[#FF5C00] transition-colors">home_work</span>
                     </div>
@@ -105,13 +108,13 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
 
                   {user.role === 'customer' && (
                     <>
-                      <Link href="/register-partner" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
+                      <Link href="/register-partner" prefetch={false} onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
                         <div className="bg-slate-50 group-hover:bg-[#FF5C00]/10 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
                           <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-[#FF5C00] transition-colors">storefront</span>
                         </div>
                         <span className="text-[14px] font-bold">Become Restaurant Partner</span>
                       </Link>
-                      <Link href="/register-delivery" onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
+                      <Link href="/register-delivery" prefetch={false} onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
                         <div className="bg-slate-50 group-hover:bg-[#FF5C00]/10 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
                           <span className="material-symbols-outlined text-[18px] text-slate-400 group-hover:text-[#FF5C00] transition-colors">two_wheeler</span>
                         </div>
@@ -123,6 +126,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                   {(user.role === 'seller' || user.role === 'delivery' || user.role === 'admin' || user.role === 'grocery_moderator') && (
                     <Link 
                       href={user.role === 'grocery_moderator' ? '/moderator/dashboard' : `/${user.role}/dashboard`}
+                      prefetch={false}
                       onClick={() => setIsProfileOpen(false)}
                       className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]"
                     >
@@ -178,6 +182,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
       ) : (
         <Link
           href="/auth/login"
+          prefetch={false}
           className={`flex flex-col items-center justify-center rounded-xl px-3 py-1 transition-transform duration-200 active:scale-90 ${activeTab === 'profile' ? 'text-[#FF5C00] bg-[#FF5C00]/10' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900'}`}
         >
           <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'profile' ? "'FILL' 1" : "'FILL' 0" }}>person</span>

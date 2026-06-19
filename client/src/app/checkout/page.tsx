@@ -8,6 +8,7 @@ import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
+import OptimizedImage from "@/components/OptimizedImage";
 
 interface BillDetails {
     success?: boolean;
@@ -33,11 +34,11 @@ export default function CheckoutPage() {
     const router = useRouter();
     const [placingOrder, setPlacingOrder] = useState(false);
     const { cart, clearCart } = useCart();
-    const { 
-        isPlatformCurrentlyOpen, 
-        getPlatformStatusMessage, 
-        isGroceryCurrentlyOpen, 
-        getGroceryStatusMessage 
+    const {
+        isPlatformCurrentlyOpen,
+        getPlatformStatusMessage,
+        isGroceryCurrentlyOpen,
+        getGroceryStatusMessage
     } = usePlatform();
 
     const [vendorAvailability, setVendorAvailability] = useState<string>("open");
@@ -89,7 +90,7 @@ export default function CheckoutPage() {
     const [activeZones, setActiveZones] = useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('ONLINE');
     const { user } = useAuth();
-    const { location: userCoords, address: userAddress, pincode: userPincode } = useLocation();
+    const { location: userCoords, address: userAddress, pincode: userPincode, deliveryAddress: userDeliveryAddress, savedAddresses, selectedAddressId } = useLocation();
 
     // Custom address overrides during checkout review
     const [isAddressEditModalOpen, setIsAddressEditModalOpen] = useState(false);
@@ -104,6 +105,7 @@ export default function CheckoutPage() {
     const [landmark, setLandmark] = useState("");
     const [houseNo, setHouseNo] = useState("");
     const [street, setStreet] = useState("");
+    const [instructions, setInstructions] = useState("");
     const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [detectingGps, setDetectingGps] = useState(false);
     const [listeningField, setListeningField] = useState<string | null>(null);
@@ -112,6 +114,7 @@ export default function CheckoutPage() {
     const [customPhone, setCustomPhone] = useState<string | null>(null);
     const [customCoords, setCustomCoords] = useState<{ lat: number; lng: number } | null>(null);
     const [customPincode, setCustomPincode] = useState<string | null>(null);
+    const [customDeliveryAddress, setCustomDeliveryAddress] = useState<any | null>(null);
 
     // ── Coupon system states ────────────────────────────────────────────────────
     const [appliedCouponCode, setAppliedCouponCode] = useState<string>("");
@@ -180,15 +183,15 @@ export default function CheckoutPage() {
         if (!navigator.geolocation) {
             return setEditError("GPS is not supported by your browser / आपके ब्राउज़र में जीपीएस काम नहीं कर रहा है।");
         }
-        
+
         setDetectingGps(true);
         setEditError(null);
-        
+
         navigator.geolocation.getCurrentPosition(
             async (position) => {
                 const { latitude, longitude } = position.coords;
                 setGpsCoords({ lat: latitude, lng: longitude });
-                
+
                 try {
                     // Call reverse geocode wrapper securely on backend
                     const res = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
@@ -219,7 +222,7 @@ export default function CheckoutPage() {
                             const rPincode = addr.postcode || "";
                             const rVillage = addr.village || addr.suburb || addr.town || addr.city || "";
                             const rDistrict = addr.county || addr.district || "";
-                            
+
                             if (rPincode) setEditedPincode(rPincode);
                             if (rVillage) setVillage(rVillage);
                             if (rDistrict) setMohalla(rDistrict);
@@ -246,19 +249,30 @@ export default function CheckoutPage() {
         setLandmark("");
         setHouseNo("");
         setStreet("");
+        setInstructions("");
         
-        const existing = customAddressText || userAddress || "";
-        if (existing) {
-            const parts = existing.split(", ");
-            setVillage(parts.find(p => p.toLowerCase().includes("village:"))?.replace(/village:/i, "").trim() || "");
-            setLandmark(parts.find(p => p.toLowerCase().includes("near:"))?.replace(/near:/i, "").trim() || "");
-            setHouseNo(parts.find(p => p.toLowerCase().includes("house/flat no:"))?.replace(/house\/flat no:/i, "").trim() || "");
-            setStreet(parts.find(p => p.toLowerCase().includes("road:"))?.replace(/road:/i, "").trim() || "");
+        const da = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress);
+        if (da) {
+            setHouseNo(da.houseNumber || "");
+            setStreet(da.street || "");
+            setMohalla(da.locality || "");
+            setVillage(da.village || "");
+            setLandmark(da.landmark || "");
+            setInstructions(da.instructions || "");
+        } else {
+            const existing = customAddressText || userAddress || "";
+            if (existing) {
+                const parts = existing.split(", ");
+                setVillage(parts.find(p => p.toLowerCase().includes("village:"))?.replace(/village:/i, "").trim() || "");
+                setLandmark(parts.find(p => p.toLowerCase().includes("near:"))?.replace(/near:/i, "").trim() || "");
+                setHouseNo(parts.find(p => p.toLowerCase().includes("house/flat no:"))?.replace(/house\/flat no:/i, "").trim() || "");
+                setStreet(parts.find(p => p.toLowerCase().includes("road:"))?.replace(/road:/i, "").trim() || "");
+            }
         }
         
         setEditedPhone(customPhone || user?.phone || "");
-        setEditedPincode(userPincode || "");
-        setGpsCoords(null);
+        setEditedPincode(customPincode || userPincode || "");
+        setGpsCoords(customCoords || userCoords || null);
         setEditError(null);
         setIsAddressEditModalOpen(true);
     };
@@ -266,50 +280,50 @@ export default function CheckoutPage() {
     const handleSaveAddressEdit = async () => {
         const addressTextVal = [
             houseNo.trim() ? `House/Flat No: ${houseNo.trim()}` : "",
+            street.trim() ? `Road: ${street.trim()}` : "",
             mohalla.trim() ? `${mohalla.trim()}` : "",
             village.trim() ? `Village: ${village.trim()}` : "",
-            street.trim() ? `Road: ${street.trim()}` : "",
             landmark.trim() ? `Near: ${landmark.trim()}` : ""
         ].filter(Boolean).join(", ");
 
-        if (!village.trim()) return setEditError("Please enter village/town name / कृपया गांव/कस्बा का नाम दर्ज करें");
+        if (!village.trim()) return setEditError("Please enter village/town name / कृपया गांव का नाम दर्ज करें");
         if (!mohalla.trim()) return setEditError("Please enter mohalla/tola/ward / कृपया टोला/मोहल्ला/वार्ड दर्ज करें");
         if (!landmark.trim()) return setEditError("Nearby landmark is required for village delivery / नज़दीकी लैंडमार्क दर्ज करना आवश्यक है");
         if (!editedPhone.trim()) return setEditError("Phone number cannot be empty / फोन नंबर खाली नहीं हो सकता");
-        if (!editedPincode.trim()) return setEditError("Pincode is required / पिनकोड आवश्यक है");
         
         setValidatingEdit(true);
         setEditError(null);
         
         try {
-            // 1. Geocode text address on the backend securely
-            const geocodeRes = await apiClient.get(`/locations/geocode?address=${encodeURIComponent(addressTextVal + ", " + editedPincode + ", Bihar")}`);
-            if (!geocodeRes.data.success) {
-                throw new Error("Could not resolve address coordinates. Please try again. / दर्ज पते का स्थान नहीं मिल सका। कृपया पुनः प्रयास करें।");
+            // Use active GPS coordinates (either detected in modal, or fallback to custom coords, or session coords)
+            const activeLat = gpsCoords?.lat !== undefined ? gpsCoords.lat : (customCoords?.lat !== undefined ? customCoords.lat : userCoords?.lat);
+            const activeLng = gpsCoords?.lng !== undefined ? gpsCoords.lng : (customCoords?.lng !== undefined ? customCoords.lng : userCoords?.lng);
+
+            if (activeLat === undefined || activeLng === undefined) {
+                throw new Error("Coordinates are missing. Please lock your location using GPS first.");
             }
 
-            const { lat, lng } = geocodeRes.data.details;
-
-            // 2. Validate if GPS coordinates are too far from geocoded address coordinates (if GPS was active)
-            if (gpsCoords) {
-                const distance = calculateHaversine(gpsCoords.lat, gpsCoords.lng, lat, lng);
-                if (distance > 5) {
-                    throw new Error(`Entered address is too far from your current GPS location (${distance.toFixed(1)} km). Please enter your correct physical address. / दर्ज किया गया पता आपके वर्तमान जीपीएस स्थान से बहुत दूर है (${distance.toFixed(1)} किमी)।`);
-                }
-            }
-
-            // 3. Validate feasibility of coordinates against active zones on backend
+            // Validate feasibility of coordinates against active zones on backend
             const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-                userLat: lat,
-                userLng: lng,
+                userLat: activeLat,
+                userLng: activeLng,
                 pincode: editedPincode
             });
 
             if (feasibilityRes.data.success) {
                 setCustomAddressText(addressTextVal);
                 setCustomPhone(editedPhone);
-                setCustomCoords({ lat, lng });
+                setCustomCoords({ lat: activeLat, lng: activeLng });
                 setCustomPincode(editedPincode);
+                setCustomDeliveryAddress({
+                    houseNumber: houseNo.trim(),
+                    street: street.trim(),
+                    locality: mohalla.trim(),
+                    village: village.trim(),
+                    landmark: landmark.trim(),
+                    pincode: editedPincode,
+                    instructions: instructions.trim()
+                });
                 setIsAddressEditModalOpen(false);
             }
         } catch (err: any) {
@@ -419,7 +433,7 @@ export default function CheckoutPage() {
                 restaurantId: cart.orderType === 'food' ? cart.vendorId : undefined,
                 orderType: cart.orderType || 'food'
             });
-            
+
             if (res.data.success) {
                 setAppliedCouponCode(res.data.couponCode);
                 setCouponSuccessMessage(res.data.message);
@@ -472,10 +486,10 @@ export default function CheckoutPage() {
 
     const handlePlaceOrder = async () => {
         if (isCheckoutDisabled) {
-            showCard({ 
-                type: 'error', 
-                title: 'Ordering Unavailable', 
-                message: checkoutDisabledMessage || 'Checkout is currently disabled.' 
+            showCard({
+                type: 'error',
+                title: 'Ordering Unavailable',
+                message: checkoutDisabledMessage || 'Checkout is currently disabled.'
             });
             return;
         }
@@ -515,6 +529,8 @@ export default function CheckoutPage() {
                 price: c.price
             }));
 
+            const targetDeliveryAddress = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress) || undefined;
+
             // 1. Place the initial Order record on MongoDB
             const orderRes = await apiClient.post("/orders", {
                 user: user._id,
@@ -527,13 +543,14 @@ export default function CheckoutPage() {
                 address: {
                     fullAddress: targetAddress,
                     lat: targetCoords.lat,
-                    lng: targetCoords.lng
+                    lng: targetCoords.lng,
+                    deliveryAddress: targetDeliveryAddress
                 },
                 phone: customPhone || user?.phone || "",
                 orderType: cart.orderType,
                 couponCode: appliedCouponCode || undefined
             });
-            
+
             const mongoOrder = orderRes.data.order;
 
             // Handle COD Path directly
@@ -574,7 +591,7 @@ export default function CheckoutPage() {
                 handler: async function (response: any) {
                     try {
                         setPlacingOrder(true);
-                        
+
                         // 4. Secure cryptographic signature verification on server
                         const verifyRes = await apiClient.post("/payments/verify", {
                             orderId: mongoOrder._id,
@@ -876,7 +893,7 @@ export default function CheckoutPage() {
 
             <main className="px-4 py-5 space-y-5">
                 {/* Delivery Address */}
-                <div 
+                <div
                     onClick={handleOpenAddressEditModal}
                     className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-3 cursor-pointer hover:border-slate-200 transition-colors"
                 >
@@ -979,11 +996,12 @@ export default function CheckoutPage() {
                             <div key={item.id} className={`p-3.5 flex items-center justify-between ${index < cart.items.length - 1 ? 'border-b border-slate-100' : ''}`}>
                                 <div className="flex items-center gap-3">
                                     {item.img ? (
-                                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-50 shrink-0 border border-slate-100">
-                                            <img
+                                        <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-50 shrink-0 border border-slate-100 relative">
+                                            <OptimizedImage
                                                 src={item.img}
                                                 alt={item.name}
                                                 className="w-full h-full object-cover mix-blend-multiply"
+                                                preset="thumbnail"
                                             />
                                         </div>
                                     ) : (
@@ -1007,7 +1025,7 @@ export default function CheckoutPage() {
                 {/* Coupons & Loyalty System */}
                 <section className="space-y-3">
                     <h2 className="text-[14px] text-slate-600 px-1">Offers & Benefits</h2>
-                    
+
                     {appliedCouponCode ? (
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fadeIn">
                             <div className="flex items-center gap-3">
@@ -1022,7 +1040,7 @@ export default function CheckoutPage() {
                                     <p className="text-[13px] text-slate-700 font-bold mt-1">Saved ₹{billDetails?.discountAmount || 0} on this order</p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={handleRemoveCoupon}
                                 className="text-xs text-rose-600 font-extrabold hover:text-rose-700 uppercase tracking-wider transition-all px-3 py-1.5 hover:bg-rose-50 rounded-lg"
                             >
@@ -1043,7 +1061,7 @@ export default function CheckoutPage() {
                                     <p className="text-[12px] text-slate-600 mt-1 font-semibold line-clamp-1">{availableCoupons[0].description}</p>
                                 </div>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => handleApplyCoupon(availableCoupons[0].code)}
                                 disabled={applyingCoupon}
                                 className="px-4 py-2 bg-gradient-to-r from-[#FF5C00] to-[#e05200] text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-sm transition-all hover:scale-[1.02] active:scale-[0.98]"
@@ -1053,7 +1071,7 @@ export default function CheckoutPage() {
                         </div>
                     ) : null}
 
-                    <div 
+                    <div
                         onClick={() => setIsCouponDrawerOpen(true)}
                         className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex items-center justify-between gap-3 cursor-pointer hover:border-slate-200 transition-colors"
                     >
@@ -1064,9 +1082,9 @@ export default function CheckoutPage() {
                             <div>
                                 <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Coupons & Promo Offers</h3>
                                 <p className="text-[12px] text-slate-500 mt-1 font-medium">
-                                    {availableCoupons.length > 0 
-                                      ? `Select from ${availableCoupons.length} applicable coupons to save more` 
-                                      : "View restaurant and zone discount promos"}
+                                    {availableCoupons.length > 0
+                                        ? `Select from ${availableCoupons.length} applicable coupons to save more`
+                                        : "View restaurant and zone discount promos"}
                                 </p>
                             </div>
                         </div>
@@ -1079,11 +1097,10 @@ export default function CheckoutPage() {
                     <h2 className="text-[14px] text-slate-600 mb-3 px-1">Payment Method</h2>
                     <div className="space-y-3">
                         {/* ONLINE */}
-                        <div 
+                        <div
                             onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('ONLINE')}
-                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${
-                              (checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
-                            } ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
+                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${(checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
+                                } ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
@@ -1100,11 +1117,10 @@ export default function CheckoutPage() {
                         </div>
 
                         {/* CASH ON DELIVERY (COD) */}
-                        <div 
+                        <div
                             onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('COD')}
-                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${
-                              (checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
-                            } ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
+                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${(checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
+                                } ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
@@ -1142,7 +1158,7 @@ export default function CheckoutPage() {
                                 <span>Item Total</span>
                                 <span className="text-slate-900 font-medium">₹{(billDetails?.itemTotal ?? itemTotal).toFixed(2)}</span>
                             </div>
-                            
+
                             <div className="flex justify-between text-slate-600">
                                 <span>Delivery Fee</span>
                                 <span className="text-slate-900 font-medium">₹{activeDeliveryFee.toFixed(2)}</span>
@@ -1219,23 +1235,22 @@ export default function CheckoutPage() {
 
             {/* Bottom Fixed Action Bar */}
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 pb-safe z-50">
-                <button 
+                <button
                     onClick={handlePlaceOrder}
                     disabled={placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled}
-                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${
-                      placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
-                    }`}
+                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
+                        }`}
                 >
                     <span className="font-medium text-[15px]">
                         {isCheckoutDisabled
-                          ? 'Ordering is unavailable'
-                          : checkoutError 
-                            ? 'Outside Delivery Service Area' 
-                            : loadingBill 
-                              ? 'Calculating dynamic fares...' 
-                              : placingOrder 
-                                ? 'Processing...' 
-                                : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
+                            ? 'Ordering is unavailable'
+                            : checkoutError
+                                ? 'Outside Delivery Service Area'
+                                : loadingBill
+                                    ? 'Calculating dynamic fares...'
+                                    : placingOrder
+                                        ? 'Processing...'
+                                        : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
                     </span>
                     {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && <span className="material-symbols-outlined text-[20px]">arrow_forward</span>}
                 </button>
@@ -1254,7 +1269,7 @@ export default function CheckoutPage() {
                                 <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">डिलिवरी स्थान / Delivery Location</h3>
                                 <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">Bihar Rural Hyperlocal Logistics</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => setIsAddressEditModalOpen(false)}
                                 className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-450 transition-colors"
                             >
@@ -1458,17 +1473,31 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
 
-                            {/* Locked Pincode Field */}
+                            {/* Delivery Pincode Field */}
                             <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">पिनकोड (Delivery Pincode) (Locked)</label>
-                                <div className="flex bg-slate-100 border border-slate-200 rounded-2xl items-center cursor-not-allowed">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">पिनकोड (Delivery Pincode)</label>
+                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center">
                                     <input
                                         type="text"
                                         value={editedPincode}
-                                        disabled
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-400 outline-none cursor-not-allowed font-semibold"
+                                        onChange={(e) => setEditedPincode(e.target.value.replace(/\D/g, ""))}
+                                        placeholder="Pincode"
+                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 outline-none font-semibold"
                                     />
-                                    <span className="material-symbols-outlined text-slate-400 text-[18px] px-3.5" title="Pincode is locked to preserve delivery zone geofence center">lock</span>
+                                </div>
+                            </div>
+
+                            {/* Delivery Instructions Field */}
+                            <div className="space-y-1.5">
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">अतिरिक्त निर्देश (Additional Delivery Instructions)</label>
+                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center">
+                                    <textarea
+                                        value={instructions}
+                                        onChange={(e) => setInstructions(e.target.value)}
+                                        placeholder="जैसे: गेट पर छोड़ दें, घंटी बजाएं..."
+                                        rows={2}
+                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-850 outline-none font-semibold resize-none"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -1507,7 +1536,7 @@ export default function CheckoutPage() {
             {/* Sliding Coupons Drawer Modal */}
             {isCouponDrawerOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4">
-                    <div 
+                    <div
                         className="bg-white rounded-t-[32px] sm:rounded-[28px] w-full sm:w-[480px] max-h-[85vh] sm:max-h-[75vh] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col"
                         style={{ animation: 'slideUpCard 0.4s cubic-bezier(0.34,1.26,0.64,1) both' }}
                     >
@@ -1520,7 +1549,7 @@ export default function CheckoutPage() {
                                 <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">लागू कूपन / Available Coupons</h3>
                                 <p className="text-[11px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">Apply Promo for massive savings</p>
                             </div>
-                            <button 
+                            <button
                                 onClick={() => { setIsCouponDrawerOpen(false); setCouponError(null); }}
                                 className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-450 transition-colors"
                             >
@@ -1565,7 +1594,7 @@ export default function CheckoutPage() {
                                 <div className="space-y-3.5">
                                     <h4 className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">✅ लागू करने के लिए उपलब्ध (Applicable Coupons)</h4>
                                     {availableCoupons.map((coupon) => (
-                                        <div 
+                                        <div
                                             key={coupon._id}
                                             className="bg-emerald-50/30 border border-dashed border-emerald-350 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden"
                                         >
@@ -1586,7 +1615,7 @@ export default function CheckoutPage() {
                                                     <span className="material-symbols-outlined text-[14px]">check_circle</span>
                                                     Eligible for this order
                                                 </span>
-                                                <button 
+                                                <button
                                                     onClick={() => handleApplyCoupon(coupon.code)}
                                                     disabled={applyingCoupon}
                                                     className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-transform active:scale-95 shrink-0 shadow-sm"
@@ -1604,7 +1633,7 @@ export default function CheckoutPage() {
                                 <div className="space-y-3.5">
                                     <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">⚠️ अयोग्य कूपन (Unapplicable Coupons)</h4>
                                     {unapplicableCoupons.map((coupon) => (
-                                        <div 
+                                        <div
                                             key={coupon._id}
                                             className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 relative opacity-70"
                                         >

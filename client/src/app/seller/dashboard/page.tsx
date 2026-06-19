@@ -4,7 +4,12 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
-import SellerLiveOrders from "./components/SellerLiveOrders";
+import dynamic from "next/dynamic";
+
+const SellerLiveOrders = dynamic(() => import("./components/SellerLiveOrders"), {
+  ssr: false,
+  loading: () => <div className="p-4 text-center text-slate-500">Loading Live Orders...</div>
+});
 
 export default function SellerDashboardPage() {
   const [restaurant, setRestaurant] = useState<any>(null);

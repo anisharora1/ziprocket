@@ -1,5 +1,5 @@
 import express from "express";
-import { requestOtp, verifyOtp, logout } from "../controllers/authController";
+import { requestOtp, verifyOtp, logout, refreshToken } from "../controllers/authController";
 import { protect } from "../middleware/authMiddleware";
 import { uploadSingle } from "../middleware/uploadMiddleware";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
@@ -12,6 +12,7 @@ const router = express.Router();
 router.post("/request-otp", otpRequestLimiter, requestOtp);
 router.post("/verify-otp", otpVerificationLimiter, loginLimiter, verifyOtp);
 router.post("/logout", protect, logout);
+router.post("/refresh", protect, refreshToken);
 
 // Protected route to get user profile details
 router.get("/me", protect, async (req, res) => {

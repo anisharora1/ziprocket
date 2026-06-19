@@ -11,6 +11,7 @@ if (isEnabled) {
             password: process.env.REDIS_PASSWORD || undefined,
             lazyConnect: true,
             maxRetriesPerRequest: 1,
+            enableOfflineQueue: false, // Prevent command queueing when Redis is offline to avoid server blocking
             retryStrategy(times) {
                 // Return a delay after which to retry, max 2000ms
                 return Math.min(times * 100, 2000);
@@ -42,7 +43,7 @@ export const getClient = (): Redis | null => redisClient;
  * Get a value by key
  */
 export const get = async (key: string): Promise<string | null> => {
-    if (!redisClient) return null;
+    if (!redisClient || redisClient.status !== "ready") return null;
     try {
         return await redisClient.get(key);
     } catch (error: any) {
@@ -55,7 +56,7 @@ export const get = async (key: string): Promise<string | null> => {
  * Set a key with optional TTL (in seconds)
  */
 export const set = async (key: string, value: string, ttlSeconds?: number): Promise<void> => {
-    if (!redisClient) return;
+    if (!redisClient || redisClient.status !== "ready") return;
     try {
         if (ttlSeconds && ttlSeconds > 0) {
             await redisClient.set(key, value, "EX", ttlSeconds);
@@ -92,7 +93,7 @@ export const getJson = async <T>(key: string): Promise<T | null> => {
  * Delete a key
  */
 export const del = async (key: string): Promise<void> => {
-    if (!redisClient) return;
+    if (!redisClient || redisClient.status !== "ready") return;
     try {
         await redisClient.del(key);
     } catch (error: any) {
@@ -104,7 +105,7 @@ export const del = async (key: string): Promise<void> => {
  * Increment a key's integer value
  */
 export const incr = async (key: string): Promise<number> => {
-    if (!redisClient) return 0;
+    if (!redisClient || redisClient.status !== "ready") return 0;
     try {
         return await redisClient.incr(key);
     } catch (error: any) {
@@ -117,7 +118,7 @@ export const incr = async (key: string): Promise<number> => {
  * Set expiration for a key (in seconds)
  */
 export const expire = async (key: string, seconds: number): Promise<void> => {
-    if (!redisClient) return;
+    if (!redisClient || redisClient.status !== "ready") return;
     try {
         await redisClient.expire(key, seconds);
     } catch (error: any) {
@@ -129,7 +130,7 @@ export const expire = async (key: string, seconds: number): Promise<void> => {
  * Delete keys by pattern (using non-blocking SCAN in production)
  */
 export const deletePattern = async (pattern: string): Promise<void> => {
-    if (!redisClient) return;
+    if (!redisClient || redisClient.status !== "ready") return;
     try {
         let cursor = "0";
         do {

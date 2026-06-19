@@ -276,7 +276,12 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             deliveryCharge,
             paymentMethod,
             distance: calculatedDistance,
-            address,
+            address: {
+                fullAddress: address.fullAddress,
+                lat: address.lat,
+                lng: address.lng,
+                deliveryAddress: address.deliveryAddress || undefined
+            },
             whatsappOrder,
             deliveryZone,
             moderator: assignedModerator,

@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 
-interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "src"> {
+interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "src" | "sizes"> {
   src: string;
   alt: string;
   preset?: "thumbnail" | "card" | "large" | "avatar";
   width?: number | string;
   height?: number | string;
   priority?: boolean;
+  sizes?: string;
 }
 
 /**
@@ -55,66 +56,98 @@ export const getOptimizedUnsplashUrl = (
 
   try {
     const parsedUrl = new URL(url);
-    parsedUrl.searchParams.set("auto", "format");
-    parsedUrl.searchParams.set("q", "80");
+    const searchParams = parsedUrl.searchParams;
 
+    // Set default auto-format and quality
+    searchParams.set("auto", "format");
+    if (!searchParams.has("q")) {
+      searchParams.set("q", "80");
+    }
+
+    // Apply preset sizing
     switch (preset) {
       case "thumbnail":
-        parsedUrl.searchParams.set("w", "150");
-        parsedUrl.searchParams.set("h", "150");
-        parsedUrl.searchParams.set("fit", "crop");
+        searchParams.set("w", "150");
+        searchParams.set("h", "150");
+        searchParams.set("fit", "crop");
         break;
       case "avatar":
-        parsedUrl.searchParams.set("w", "100");
-        parsedUrl.searchParams.set("h", "100");
-        parsedUrl.searchParams.set("fit", "crop");
+        searchParams.set("w", "100");
+        searchParams.set("h", "100");
+        searchParams.set("fit", "crop");
+        searchParams.set("facepad", "2");
         break;
       case "card":
-        parsedUrl.searchParams.set("w", "400");
-        parsedUrl.searchParams.set("h", "300");
-        parsedUrl.searchParams.set("fit", "crop");
+        searchParams.set("w", "400");
+        searchParams.set("h", "300");
+        searchParams.set("fit", "crop");
         break;
       case "large":
-        parsedUrl.searchParams.set("w", "1000");
-        parsedUrl.searchParams.delete("h");
-        parsedUrl.searchParams.delete("fit");
+        searchParams.set("w", "1000");
         break;
     }
+
     return parsedUrl.toString();
   } catch (e) {
     return url;
   }
 };
 
+export const getOptimizedSrc = (
+  src: string,
+  preset: "thumbnail" | "card" | "large" | "avatar" = "card"
+): string => {
+  if (!src) return src;
+  if (src.includes("res.cloudinary.com")) {
+    return getOptimizedCloudinaryUrl(src, preset);
+  } else if (src.includes("images.unsplash.com")) {
+    return getOptimizedUnsplashUrl(src, preset);
+  }
+  return src;
+};
+
 export default function OptimizedImage({
   src,
   alt,
   preset = "card",
-  className = "",
   width,
   height,
-  priority,
+  className = "",
+  priority = false,
   loading,
+  sizes,
   ...props
 }: OptimizedImageProps) {
-  const [loaded, setLoaded] = useState(false);
-  const [optimizedSrc, setOptimizedSrc] = useState(src);
-
-  useEffect(() => {
-    if (src) {
-      if (src.includes("res.cloudinary.com")) {
-        setOptimizedSrc(getOptimizedCloudinaryUrl(src, preset));
-      } else if (src.includes("images.unsplash.com")) {
-        setOptimizedSrc(getOptimizedUnsplashUrl(src, preset));
-      } else {
-        setOptimizedSrc(src);
-      }
-    }
-  }, [src, preset]);
+  const [loaded, setLoaded] = useState(priority); // Priority images start visible (no opacity fade)
+  const optimizedSrc = getOptimizedSrc(src, preset);
 
   const useFill = !width && !height;
   const parsedWidth = width ? Number(width) : undefined;
   const parsedHeight = height ? Number(height) : undefined;
+
+  // Compute smart responsive sizes defaults based on the image preset to save bandwidth
+  let computedSizes = undefined;
+  if (useFill) {
+    if (sizes) {
+      computedSizes = sizes;
+    } else {
+      switch (preset) {
+        case "thumbnail":
+          computedSizes = "80px";
+          break;
+        case "avatar":
+          computedSizes = "100px";
+          break;
+        case "card":
+          // Standard card width is 160px on mobile, ~220px on desktop (min/max bounds)
+          computedSizes = "(max-width: 768px) 160px, (max-width: 1200px) 220px, 300px";
+          break;
+        case "large":
+          computedSizes = "(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1000px";
+          break;
+      }
+    }
+  }
 
   return (
     <div className={`relative overflow-hidden bg-slate-100 ${className}`}>
@@ -133,7 +166,7 @@ export default function OptimizedImage({
         height={useFill ? undefined : parsedHeight}
         priority={priority}
         loading={priority ? undefined : (loading || "lazy")}
-        sizes={useFill ? "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" : undefined}
+        sizes={computedSizes}
         onLoad={() => setLoaded(true)}
         className={`transition-opacity duration-300 ${
           className.includes("object-contain") ? "object-contain" : "object-cover"

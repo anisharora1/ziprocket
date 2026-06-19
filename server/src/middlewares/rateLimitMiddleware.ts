@@ -118,10 +118,10 @@ const handleLimitReached = (limiterName: string) => {
     };
 };
 
-// 1. Global API Limiter: 100 requests per 15 minutes
+// 1. Global API Limiter: 2000 requests per 15 minutes
 export const globalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100,
+    max: 2000,
     standardHeaders: true,
     legacyHeaders: false,
     store: new SafeDynamicStore("global"),

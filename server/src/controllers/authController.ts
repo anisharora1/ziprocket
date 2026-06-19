@@ -66,7 +66,7 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
  */
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { token, phone, otp, role = "customer", name = "User" } = req.body;
+        const { token, phone, otp, role = "customer", name = "User", isPwa = false } = req.body;
 
         let cleanPhone10 = "";
         let firebaseUid = undefined;
@@ -213,9 +213,9 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
         // 3. Generate Custom JWT
         const jwtToken = jwt.sign(
-            { id: user._id, role: user.role },
+            { id: user._id, role: user.role, isPwa: !!isPwa },
             process.env.JWT_SECRET || "fallback_secret",
-            { expiresIn: "30d" }
+            { expiresIn: isPwa ? "3650d" : "10d" }
         );
 
         res.status(200).json({
@@ -248,6 +248,57 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
         res.status(200).json({ success: true, message: "Logged out successfully" });
     } catch (error: any) {
         console.error("logout error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * Refresh Auth Token
+ */
+export const refreshToken = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const user = req.user;
+        if (!user) {
+            res.status(401).json({ success: false, message: "Not authorized, user not found" });
+            return;
+        }
+
+        // Determine if PWA from request body, headers, or previous token payload
+        let isPwa = req.body.isPwa;
+        
+        // If not explicitly passed, try to infer from authorization token or User Agent
+        if (isPwa === undefined && req.headers.authorization) {
+            const token = req.headers.authorization.split(" ")[1];
+            try {
+                const decoded = jwt.decode(token) as any;
+                isPwa = decoded?.isPwa;
+            } catch (e) {}
+        }
+        
+        if (isPwa === undefined) {
+            const userAgent = req.headers["user-agent"] || "";
+            isPwa = /standalone|pwa/i.test(userAgent);
+        }
+
+        // Generate a fresh JWT
+        const jwtToken = jwt.sign(
+            { id: user._id, role: user.role, isPwa: !!isPwa },
+            process.env.JWT_SECRET || "fallback_secret",
+            { expiresIn: isPwa ? "3650d" : "10d" }
+        );
+
+        res.status(200).json({
+            success: true,
+            token: jwtToken,
+            user: {
+                _id: user._id,
+                name: user.name,
+                phone: user.phone,
+                role: user.role
+            }
+        });
+    } catch (error: any) {
+        console.error("refreshToken error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

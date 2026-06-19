@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
+import OptimizedImage from "@/components/OptimizedImage";
 
 export default function CartPage() {
     const { cart, updateQuantity, clearCart, addToCart } = useCart();
@@ -186,8 +187,8 @@ export default function CartPage() {
                                 {cart.items.map((item) => (
                                     <div key={item.id} className="flex items-center gap-3 p-3.5">
                                         {item.img ? (
-                                            <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50">
-                                                <img src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
+                                            <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50 relative">
+                                                <OptimizedImage src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
                                             </div>
                                         ) : (
                                             <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100/50 flex items-center justify-center shrink-0">
@@ -251,9 +252,9 @@ export default function CartPage() {
                                         >
                                             <div>
                                                 {/* Image */}
-                                                <div className="w-full h-24 rounded-lg bg-slate-50 overflow-hidden mb-2 border border-slate-100/50 flex items-center justify-center">
+                                                <div className="w-full h-24 rounded-lg bg-slate-50 overflow-hidden mb-2 border border-slate-100/50 flex items-center justify-center relative">
                                                     {item.images?.[0] ? (
-                                                        <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" />
+                                                        <OptimizedImage src={item.images[0]} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
                                                     ) : (
                                                         <span className="material-symbols-outlined text-slate-300 text-[24px]">
                                                             {cart.orderType === 'grocery' ? 'local_mall' : 'fastfood'}

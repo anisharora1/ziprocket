@@ -25,40 +25,40 @@ interface Restaurant {
   };
 }
 
+// In-memory cache to persist restaurants by zoneId across page navigations
+let cachedRestaurantsByZone: Record<string, Restaurant[]> = {};
+let cachedRestaurantsFetchedZones: Record<string, boolean> = {};
+
 export default function RestaurantList() {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [zoneName, setZoneName] = useState<string | null>(null);
-  const [feasibilityError, setFeasibilityError] = useState<string | null>(null);
-  const { location: userCoords, pincode: userPincode } = useLocation();
+  const { location: userCoords, pincode: userPincode, zoneId, zoneName, error: feasibilityError, isLocationLoaded } = useLocation();
   const { settings, loading: platformLoading, getPlatformStatusMessage } = usePlatform();
 
+  const cacheKey = zoneId || "all";
+
+  const [restaurants, setRestaurants] = useState<Restaurant[]>(
+    cachedRestaurantsByZone[cacheKey] || []
+  );
+  
+  const [loading, setLoading] = useState(
+    isLocationLoaded ? !cachedRestaurantsFetchedZones[cacheKey] : true
+  );
+
+  // Sync state if location loaded and cache key changes or is already populated
   useEffect(() => {
-    const loadZoneAndRestaurants = async () => {
+    if (isLocationLoaded) {
+      setRestaurants(cachedRestaurantsByZone[cacheKey] || []);
+      setLoading(!cachedRestaurantsFetchedZones[cacheKey]);
+    }
+  }, [cacheKey, isLocationLoaded]);
+
+  useEffect(() => {
+    if (!isLocationLoaded) return;
+
+    const loadRestaurants = async (isBackground = false) => {
       try {
-        setLoading(true);
-        setFeasibilityError(null);
-        let zoneId = "";
-        let resolvedZoneName = "";
-
-        if (userCoords?.lat && userCoords?.lng) {
-          try {
-            const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-              userLat: userCoords.lat,
-              userLng: userCoords.lng,
-              pincode: userPincode || ""
-            });
-            if (feasibilityRes.data.success) {
-              zoneId = feasibilityRes.data.zoneId;
-              resolvedZoneName = feasibilityRes.data.zoneName;
-              setZoneName(resolvedZoneName);
-            }
-          } catch (err: any) {
-            console.error("User is outside operational bounds or feasibility fetch failed:", err);
-            setFeasibilityError(err.response?.data?.message || "Outside delivery radius");
-          }
+        if (!isBackground) {
+          setLoading(true);
         }
-
         // Fetch restaurants, filtered by zoneId if resolved, else fetch all approved
         const url = zoneId 
           ? `/restaurants?status=approved&isActive=true&deliveryZone=${zoneId}`
@@ -66,7 +66,10 @@ export default function RestaurantList() {
 
         const res = await apiClient.get(url);
         if (res.data.success) {
-          setRestaurants(res.data.restaurants || []);
+          const list = res.data.restaurants || [];
+          setRestaurants(list);
+          cachedRestaurantsByZone[cacheKey] = list;
+          cachedRestaurantsFetchedZones[cacheKey] = true;
         }
       } catch (err) {
         console.error("Failed to fetch restaurant listing:", err);
@@ -75,10 +78,11 @@ export default function RestaurantList() {
       }
     };
 
-    loadZoneAndRestaurants();
-  }, [userCoords, userPincode]);
+    const hasCache = cachedRestaurantsFetchedZones[cacheKey];
+    loadRestaurants(hasCache);
+  }, [cacheKey, isLocationLoaded]);
 
-  if (loading || platformLoading) {
+  if (loading) {
     // Premium loading skeletons
     return (
       <section className="space-y-md">
@@ -106,7 +110,7 @@ export default function RestaurantList() {
     <section className="space-y-md">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h2 className="font-h1 text-h1 text-slate-800">Restaurants Around You</h2>
+          <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Restaurants Around You</h2>
           {zoneName && (
             <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
               <span className="material-symbols-outlined text-[14px]">location_on</span>
@@ -140,6 +144,7 @@ export default function RestaurantList() {
           {restaurants.map((restaurant) => (
             <Link 
               href={`/restaurants/${restaurant._id}`} 
+              prefetch={false}
               key={restaurant._id} 
               className="block bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/70 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 active:scale-[0.98] group"
             >

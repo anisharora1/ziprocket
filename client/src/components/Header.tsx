@@ -52,13 +52,13 @@ export default function Header() {
 
         {/* Middle: Desktop Navigation (Hidden on mobile) */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link href="/" className="text-sm font-semibold text-[#FF5C00] transition-colors">
+          <Link href="/" prefetch={false} className="text-sm font-semibold text-[#FF5C00] transition-colors">
             Home
           </Link>
-          <Link href="/restaurants" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+          <Link href="/restaurants" prefetch={false} className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
             Search
           </Link>
-          <Link href="/orders" className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+          <Link href="/orders" prefetch={false} className="text-sm font-semibold text-slate-600 hover:text-slate-900 transition-colors">
             Orders
           </Link>
         </nav>
@@ -67,13 +67,13 @@ export default function Header() {
         <div className="relative" ref={dropdownRef}>
           {token && user ? (
             <>
-              <div 
+              <div
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-200 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer hover:shadow-md flex items-center justify-center overflow-hidden"
               >
                 <span className="material-symbols-outlined text-slate-500">person</span>
               </div>
-              
+
               {/* Profile Dropdown */}
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200 z-[100]">
@@ -84,25 +84,25 @@ export default function Header() {
                       {user.role}
                     </div>
                   </div>
-                  
+
                   <div className="py-2">
-                    <Link href="/orders" className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
+                    <Link href="/orders" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-slate-400">receipt_long</span>
                       My Orders
                     </Link>
-                    <Link href="/addresses" className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
+                    <Link href="/addresses" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
                       <span className="material-symbols-outlined text-[18px] text-slate-400">home_work</span>
                       Saved Addresses
                     </Link>
-                    
+
                     {user.role === 'customer' && (
                       <>
                         <div className="h-px bg-slate-100 my-2"></div>
-                        <Link href="/register-partner" className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
+                        <Link href="/register-partner" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
                           <span className="material-symbols-outlined text-[18px] text-orange-500">storefront</span>
                           Become Restaurant Partner
                         </Link>
-                        <Link href="/register-delivery" className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
+                        <Link href="/register-delivery" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
                           <span className="material-symbols-outlined text-[18px] text-emerald-500">two_wheeler</span>
                           Become Delivery Boy
                         </Link>
@@ -112,8 +112,9 @@ export default function Header() {
                     {(user.role === 'seller' || user.role === 'delivery' || user.role === 'admin' || user.role === 'grocery_moderator') && (
                       <>
                         <div className="h-px bg-slate-100 my-2"></div>
-                        <Link 
+                        <Link
                           href={user.role === 'grocery_moderator' ? '/moderator/dashboard' : `/${user.role}/dashboard`}
+                          prefetch={false}
                           className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors"
                         >
                           <span className="material-symbols-outlined text-[18px] text-[#FF5C00]">dashboard</span>
@@ -122,7 +123,7 @@ export default function Header() {
                       </>
                     )}
                   </div>
-                  
+
                   {/* PWA Install Card */}
                   {!isInstalled && mounted && (
                     <div className="mx-3 my-2 p-3.5 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-2">
@@ -148,7 +149,7 @@ export default function Header() {
                   )}
 
                   <div className="border-t border-slate-100 pt-2 pb-1">
-                    <button 
+                    <button
                       onClick={() => {
                         setIsDropdownOpen(false);
                         logout();
@@ -163,7 +164,7 @@ export default function Header() {
               )}
             </>
           ) : (
-            <Link href="/auth/login" className="px-5 py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md shadow-[#FF5C00]/20">
+            <Link href="/auth/login" prefetch={false} className="px-5 py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-bold rounded-xl transition-all active:scale-95 shadow-md shadow-[#FF5C00]/20">
               Login
             </Link>
           )}

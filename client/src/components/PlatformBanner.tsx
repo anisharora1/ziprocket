@@ -54,12 +54,11 @@ export default function PlatformBanner() {
 
   return (
     <>
-      <div 
-        className={`w-full text-center py-2.5 px-4 text-[13px] font-bold z-[100] flex items-center justify-center gap-2 border-b transition-all duration-300 shadow-sm animate-slideDown select-none shrink-0 ${
-          isMaintenance || isPlatformClosed
-            ? "bg-rose-50 border-rose-100 text-rose-700"
-            : "bg-[#FFF1E6] border-[#FFE2CC] text-[#FF5C00]"
-        }`}
+      <div
+        className={`w-full text-center py-2.5 px-4 text-[13px] font-bold z-[100] flex items-center justify-center gap-2 border-b transition-all duration-300 shadow-sm animate-slideDown select-none shrink-0 ${isMaintenance || isPlatformClosed
+          ? "bg-rose-50 border-rose-100 text-rose-700"
+          : "bg-[#FFF1E6] border-[#FFE2CC] text-[#FF5C00]"
+          }`}
       >
         <span className="material-symbols-outlined text-[18px] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
           {icon}

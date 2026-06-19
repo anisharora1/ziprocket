@@ -27,47 +27,47 @@ interface Product {
 }
 
 const CATEGORIES = [
-  { 
-    id: "Vegetables & Fruits", 
-    name: "Fruits & Veggies", 
-    image: "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50" 
+  {
+    id: "Vegetables & Fruits",
+    name: "Fruits & Veggies",
+    image: "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   },
-  { 
-    id: "Dairy & Bread", 
-    name: "Dairy & Bread", 
-    image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50" 
+  {
+    id: "Dairy & Bread",
+    name: "Dairy & Bread",
+    image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50"
   },
-  { 
-    id: "Atta, Rice & Dals", 
-    name: "Atta & Flours", 
-    image: "https://images.unsplash.com/photo-1574316071802-0d684efa7bf5?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50" 
+  {
+    id: "Atta, Rice & Dals",
+    name: "Atta & Flours",
+    image: "https://images.unsplash.com/photo-1574316071802-0d684efa7bf5?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
   },
-  { 
-    id: "Munchies", 
-    name: "Munchies", 
-    image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50" 
+  {
+    id: "Munchies",
+    name: "Munchies",
+    image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   },
-  { 
-    id: "Cold Drinks & Juices", 
-    name: "Drinks & Juices", 
-    image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50" 
+  {
+    id: "Cold Drinks & Juices",
+    name: "Drinks & Juices",
+    image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50"
   },
-  { 
-    id: "Household Essentials", 
-    name: "Household", 
-    image: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50" 
+  {
+    id: "Household Essentials",
+    name: "Household",
+    image: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
   },
-  { 
-    id: "Personal Care", 
-    name: "Personal Care", 
-    image: "https://images.unsplash.com/photo-1607006342411-92346cf57b4e?auto=format&fit=crop&w=150&h=150&q=80", 
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50" 
+  {
+    id: "Personal Care",
+    name: "Personal Care",
+    image: "https://images.unsplash.com/photo-1607006342411-92346cf57b4e?auto=format&fit=crop&w=150&h=150&q=80",
+    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   }
 ];
 
@@ -78,7 +78,7 @@ export default function GroceryPage() {
   const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [recentProducts, setRecentProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Search state
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Product[]>([]);
@@ -148,11 +148,11 @@ export default function GroceryPage() {
       <Header />
 
       <main className="mt-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 animate-in fade-in duration-300">
-        
+
         {/* Quick Commerce Search Banner */}
         <div className="bg-gradient-to-br from-[#FF5C00] via-[#FF5C00] to-[#E05200] rounded-2xl p-6 md:p-8 text-white relative overflow-hidden shadow-lg shadow-[#FF5C00]/15">
           <div className="absolute inset-0 bg-grid-white opacity-5 pointer-events-none"></div>
-          
+
           <div className="max-w-[576px] relative z-10 space-y-4">
             <span className="inline-block px-3 py-1 bg-white/20 text-white font-extrabold text-[10px] rounded-full uppercase tracking-widest">
               Delivery in 10 Minutes
@@ -163,16 +163,17 @@ export default function GroceryPage() {
             <p className="text-orange-50 text-sm font-semibold">
               Get fresh vegetables, dairy, household items and munchies delivered in tier-3 cities!
             </p>
-            
+
             {/* Instant Search Bar */}
-            <div className="flex bg-white text-slate-800 border border-slate-200/50 rounded-2xl overflow-hidden focus-within:ring-4 focus-within:ring-[#FF5C00]/10 shadow-md transition-all">
+            <div className="flex items-center bg-white text-slate-800 border border-slate-200/50 rounded-2xl overflow-hidden focus-within:ring-4 focus-within:ring-[#FF5C00]/10 shadow-md transition-all">
               <span className="material-symbols-outlined text-slate-400 text-[20px] flex items-center pl-4 pr-2">search</span>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder="Search fresh vegetables, oils, milk or snacks..."
                 value={searchQuery}
                 onChange={(e) => handleSearch(e.target.value)}
                 className="w-full py-4 bg-transparent text-sm font-bold focus:outline-none placeholder:text-slate-300 text-slate-900"
+                suppressHydrationWarning={true}
               />
             </div>
           </div>
@@ -200,14 +201,14 @@ export default function GroceryPage() {
               <h3 className="font-extrabold text-slate-800 text-base">
                 Search Results for "{searchQuery}"
               </h3>
-              <button 
+              <button
                 onClick={() => handleSearch("")}
                 className="text-xs font-bold text-slate-400 hover:text-slate-600"
               >
                 Clear Search
               </button>
             </div>
-            
+
             {searchResults.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs font-bold">
                 <span className="material-symbols-outlined text-[32px] text-slate-200 block mb-2">shopping_bag</span>
@@ -229,7 +230,7 @@ export default function GroceryPage() {
             <h2 className="text-[13px] font-semibold text-slate-800 tracking-wide uppercase">Shop by Category</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-4">
               {CATEGORIES.map((cat) => (
-                <Link 
+                <Link
                   key={cat.id}
                   href={`/grocery/category/${encodeURIComponent(cat.id)}`}
                   className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 hover:shadow-[0_4px_20px_rgba(255,92,0,0.06)] hover:border-[#FF5C00]/20 transition-all duration-300 group cursor-pointer"
@@ -259,7 +260,7 @@ export default function GroceryPage() {
                 <span className="material-symbols-outlined text-[14px]">chevron_right</span>
               </Link>
             </div>
-            
+
             {loading ? (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -284,7 +285,7 @@ export default function GroceryPage() {
         {!searchQuery && (
           <div className="space-y-4">
             <h2 className="text-[13px] font-semibold text-slate-800 tracking-wide uppercase">New Arrivals in Store</h2>
-            
+
             {loading ? (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {[1, 2, 3, 4, 5].map((i) => (
@@ -340,19 +341,19 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
         <div className="absolute -bottom-3 right-3 shrink-0">
           {qty > 0 ? (
             <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-md overflow-hidden font-black text-xs">
-              <button 
-                disabled={!isGroceryOpen}
+              <button
+                disabled={!isGroceryOpen || !prod.isAvailable}
                 onClick={(e) => {
                   e.stopPropagation();
                   updateQuantity(`groc-${prod._id}`, qty - 1);
                 }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 -
               </button>
               <span className="px-2.5 text-slate-800">{qty}</span>
-              <button 
-                disabled={!isGroceryOpen}
+              <button
+                disabled={!isGroceryOpen || !prod.isAvailable}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (qty >= prod.stockQuantity) {
@@ -361,14 +362,14 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   }
                   updateQuantity(`groc-${prod._id}`, qty + 1);
                 }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${!isGroceryOpen ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 +
               </button>
             </div>
           ) : (
-            <button 
-              disabled={prod.stockQuantity === 0 || !isGroceryOpen}
+            <button
+              disabled={!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen}
               onClick={(e) => {
                 e.stopPropagation();
                 addToCart({
@@ -384,13 +385,12 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
                   orderType: "grocery"
                 });
               }}
-              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${
-                (prod.stockQuantity === 0 || !isGroceryOpen) 
-                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none' 
+              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${(!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen)
+                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none'
                   : 'border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5'
-              }`}
+                }`}
             >
-              {prod.stockQuantity === 0 ? "Out of Stock" : !isGroceryOpen ? "Unavailable" : "Add"}
+              {!prod.isAvailable ? "Unavailable" : prod.stockQuantity === 0 ? "Out of Stock" : "Add"}
             </button>
           )}
         </div>
@@ -405,7 +405,7 @@ function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; 
           {prod.name}
         </h4>
         <span className="text-[10px] text-slate-400 font-bold mb-3">{prod.weightSize}</span>
-        
+
         <div className="mt-auto flex items-baseline gap-1.5">
           <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
           {prod.discountedPrice && (
@@ -443,7 +443,7 @@ function PromotionalCarousel() {
           const activeBanners = (res.data.promotions || []).filter(
             (p: any) => p.isActive && p.targetType === "grocery"
           );
-          
+
           if (activeBanners.length > 0) {
             const mapped = activeBanners.map((p: any, idx: number) => {
               const bgGradients = [
@@ -487,15 +487,15 @@ function PromotionalCarousel() {
     const interval = setInterval(() => {
       if (!containerRef.current) return;
       const container = containerRef.current;
-      
+
       const cardWidth = container.clientWidth;
       const maxScroll = container.scrollWidth - container.clientWidth;
-      
+
       let nextScroll = container.scrollLeft + cardWidth;
       if (nextScroll > maxScroll + 10) {
         nextScroll = 0;
       }
-      
+
       container.scrollTo({
         left: nextScroll,
         behavior: "smooth"
@@ -538,7 +538,7 @@ function PromotionalCarousel() {
 
       {/* Mobile view: Auto-scrolling, swipable snap carousel */}
       <div className="block md:hidden relative group">
-        <div 
+        <div
           ref={containerRef}
           onScroll={handleScroll}
           onMouseEnter={() => setIsPaused(true)}
@@ -548,8 +548,8 @@ function PromotionalCarousel() {
           className="flex overflow-x-auto no-scrollbar snap-x snap-mandatory gap-4 pb-4 scroll-smooth w-full"
         >
           {banners.map((banner) => (
-            <div 
-              key={banner.id} 
+            <div
+              key={banner.id}
               className="w-full shrink-0 snap-center px-1"
             >
               <BannerCard banner={banner} isMobile />
@@ -593,7 +593,7 @@ function BannerCard({ banner, isMobile = false }: { banner: Banner; isMobile?: b
           {banner.desc}
         </p>
       </div>
-      
+
       <div className="mt-4 relative z-10">
         {banner.href ? (
           <span className="inline-block px-4 py-2 bg-white text-[#FF5C00] font-extrabold text-xs rounded-xl shadow-md transition-all active:scale-95 group-hover/card:bg-slate-50">

@@ -22,6 +22,15 @@ interface AddressData {
   };
   isDefault: boolean;
   deliveryZone?: string;
+  deliveryAddress?: {
+    houseNumber: string;
+    street?: string;
+    locality: string;
+    village: string;
+    landmark: string;
+    pincode?: string;
+    instructions?: string;
+  };
 }
 
 const emptyAddress: AddressData = {
@@ -87,11 +96,27 @@ export default function AddressesPage() {
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
+  const [houseNumber, setHouseNumber] = useState('');
+  const [street, setStreet] = useState('');
+  const [locality, setLocality] = useState('');
+  const [village, setVillage] = useState('');
+  const [landmark, setLandmark] = useState('');
+  const [pincodeField, setPincodeField] = useState('');
+  const [instructions, setInstructions] = useState('');
+  const [gpsLoading, setGpsLoading] = useState(false);
+
   const handleOpenCreate = () => {
     setCurrentAddress(emptyAddress);
     setSearchQuery('');
     setSuggestions([]);
     setValidationError(null);
+    setHouseNumber('');
+    setStreet('');
+    setLocality('');
+    setVillage('');
+    setLandmark('');
+    setPincodeField('');
+    setInstructions('');
     setIsModalOpen(true);
   };
 
@@ -100,7 +125,86 @@ export default function AddressesPage() {
     setSearchQuery(addr.fullAddress);
     setSuggestions([]);
     setValidationError(null);
+
+    const da = addr.deliveryAddress;
+    setHouseNumber(da?.houseNumber || '');
+    setStreet(da?.street || '');
+    setLocality(da?.locality || '');
+    setVillage(da?.village || addr.city || '');
+    setLandmark(da?.landmark || '');
+    setPincodeField(da?.pincode || addr.pincode || '');
+    setInstructions(da?.instructions || '');
+
     setIsModalOpen(true);
+  };
+
+  const handleDetectGPS = () => {
+    if (!navigator.geolocation) {
+      setValidationError("Geolocation is not supported by your browser");
+      return;
+    }
+
+    setGpsLoading(true);
+    setValidationError(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        try {
+          // Check feasibility with coordinates first
+          const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
+            userLat: latitude,
+            userLng: longitude
+          });
+
+          if (!feasibilityRes.data.success) {
+            setValidationError("This location lies outside our operational service geofence bounds.");
+            setGpsLoading(false);
+            return;
+          }
+
+          // Prefill reverse-geocoded address fields
+          let prefillPincode = '';
+          let prefillVillage = '';
+          let prefillLocality = '';
+          let fullAddress = 'GPS Coordinates';
+
+          try {
+            const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+            if (geocodeRes.data.success) {
+              const details = geocodeRes.data.details;
+              fullAddress = details.fullAddress || 'GPS Coordinates';
+              prefillPincode = details.pincode || '';
+              prefillVillage = details.city || '';
+              prefillLocality = details.fullAddress?.split(',')[0] || '';
+            }
+          } catch (err) {
+            console.warn("Reverse geocode failed, prefilling empty fields.");
+          }
+
+          setCurrentAddress(prev => ({
+            ...prev,
+            fullAddress,
+            location: { lat: latitude, lng: longitude }
+          }));
+
+          setLocality(prefillLocality);
+          setVillage(prefillVillage);
+          setPincodeField(prefillPincode);
+          setSearchQuery(fullAddress);
+        } catch (err: any) {
+          console.error("Zone check failed:", err);
+          setValidationError(err.response?.data?.message || "Sorry, you are currently outside our delivery service area.");
+        } finally {
+          setGpsLoading(false);
+        }
+      },
+      (err) => {
+        console.error("GPS error:", err);
+        setValidationError("GPS coordinates access permission was denied");
+        setGpsLoading(false);
+      }
+    );
   };
 
   const handleSelectSuggestion = async (placeId: string) => {
@@ -121,6 +225,9 @@ export default function AddressesPage() {
           location: { lat, lng }
         }));
         
+        setLocality(fullAddress?.split(',')[0] || '');
+        setVillage(city || '');
+        setPincodeField(pincode || '');
         setSearchQuery(fullAddress);
         setSuggestions([]);
 
@@ -177,18 +284,50 @@ export default function AddressesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentAddress.fullAddress) {
-      alert("Please select a valid address from the search suggestions.");
+    if (!currentAddress.location || currentAddress.location.lat === undefined) {
+      alert("Please select a location using GPS or search autocomplete prediction first.");
+      return;
+    }
+
+    if (!houseNumber.trim()) {
+      alert("House Number / Name is required");
+      return;
+    }
+    if (!locality.trim()) {
+      alert("Area / Locality is required");
+      return;
+    }
+    if (!village.trim()) {
+      alert("Village / City is required");
+      return;
+    }
+    if (!landmark.trim()) {
+      alert("Landmark is required");
       return;
     }
 
     setSaving(true);
     try {
+      const payload = {
+        label: currentAddress.label,
+        location: currentAddress.location,
+        deliveryAddress: {
+          houseNumber: houseNumber.trim(),
+          street: street.trim(),
+          locality: locality.trim(),
+          village: village.trim(),
+          landmark: landmark.trim(),
+          pincode: pincodeField.trim(),
+          instructions: instructions.trim()
+        },
+        isDefault: currentAddress.isDefault
+      };
+
       let res;
       if (currentAddress._id) {
-        res = await apiClient.put(`/addresses/${currentAddress._id}`, currentAddress);
+        res = await apiClient.put(`/addresses/${currentAddress._id}`, payload);
       } else {
-        res = await apiClient.post("/addresses", currentAddress);
+        res = await apiClient.post("/addresses", payload);
       }
 
       if (res.data.success) {
@@ -381,7 +520,7 @@ export default function AddressesPage() {
             </div>
 
             {/* Form Scroll Area */}
-            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
               
               {/* Autocomplete Places Search */}
               <div className="relative space-y-2">
@@ -399,7 +538,7 @@ export default function AddressesPage() {
                     <button 
                       type="button"
                       onClick={() => setSearchQuery('')}
-                      className="absolute right-4 text-slate-400 hover:text-slate-600"
+                      className="absolute right-4 text-slate-400 hover:text-slate-650"
                     >
                       <span className="material-symbols-outlined text-[16px]">cancel</span>
                     </button>
@@ -430,47 +569,121 @@ export default function AddressesPage() {
                 )}
               </div>
 
-              {/* Resolved Address Details */}
-              {currentAddress.fullAddress && (
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 space-y-3.5">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Resolved Address</span>
-                    <p className="text-xs font-bold text-slate-700 leading-relaxed">{currentAddress.fullAddress}</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">City</span>
-                      <p className="text-xs font-bold text-slate-700">{currentAddress.city || "Not parsed"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">State</span>
-                      <p className="text-xs font-bold text-slate-700">{currentAddress.state || "Not parsed"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Country</span>
-                      <p className="text-xs font-bold text-slate-700">{currentAddress.country || "India"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pincode</span>
-                      <p className="text-xs font-bold text-slate-900 uppercase tracking-wide">{currentAddress.pincode || "Not parsed"}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Coordinates</span>
-                      <p className="text-[11px] font-bold text-slate-500">
-                        {currentAddress.location.lat.toFixed(4)}, {currentAddress.location.lng.toFixed(4)}
-                      </p>
-                    </div>
-                  </div>
+              {/* GPS Onboarding Button */}
+              <button
+                type="button"
+                onClick={handleDetectGPS}
+                disabled={gpsLoading}
+                className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-md font-bold text-xs uppercase tracking-wider disabled:opacity-50"
+              >
+                {gpsLoading ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                    Detecting GPS Location...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined text-[18px]">my_location</span>
+                    Lock Current GPS Location
+                  </>
+                )}
+              </button>
 
-                  {validationError && (
-                    <div className="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5 mt-2">
-                      <span className="material-symbols-outlined text-[16px] text-rose-500">warning</span>
-                      <span>{validationError}</span>
-                    </div>
-                  )}
+              {/* Validation Warnings */}
+              {validationError && (
+                <div className="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[16px] text-rose-500">warning</span>
+                  <span>{validationError}</span>
                 </div>
               )}
+
+              {/* House Number */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">House Number / House Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={houseNumber}
+                  onChange={(e) => setHouseNumber(e.target.value)}
+                  placeholder="e.g. House No. 152 / Main Chowk"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-800"
+                />
+              </div>
+
+              {/* Street / Gali */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Street / Gali (Optional)</label>
+                <input
+                  type="text"
+                  value={street}
+                  onChange={(e) => setStreet(e.target.value)}
+                  placeholder="e.g. Gali No. 3 / Main Road"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-800"
+                />
+              </div>
+
+              {/* Locality */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Area / Locality *</label>
+                <input
+                  type="text"
+                  required
+                  value={locality}
+                  onChange={(e) => setLocality(e.target.value)}
+                  placeholder="e.g. Main Chowk / Ward 5"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-800"
+                />
+              </div>
+
+              {/* Village / City */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Village / City *</label>
+                <input
+                  type="text"
+                  required
+                  value={village}
+                  onChange={(e) => setVillage(e.target.value)}
+                  placeholder="e.g. Rampur Village / Amritsar"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-800"
+                />
+              </div>
+
+              {/* Landmark */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block font-bold text-orange-650">Nearby Landmark *</label>
+                <input
+                  type="text"
+                  required
+                  value={landmark}
+                  onChange={(e) => setLandmark(e.target.value)}
+                  placeholder="e.g. Near Government School"
+                  className="w-full p-3 bg-slate-50 border border-[#FF5C00]/30 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-black text-slate-900"
+                />
+              </div>
+
+              {/* Pincode */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Pincode (Optional)</label>
+                <input
+                  type="text"
+                  value={pincodeField}
+                  onChange={(e) => setPincodeField(e.target.value.replace(/\D/g, ''))}
+                  placeholder="e.g. 147001"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-800"
+                />
+              </div>
+
+              {/* Instructions */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">Delivery Instructions (Optional)</label>
+                <textarea
+                  value={instructions}
+                  onChange={(e) => setInstructions(e.target.value)}
+                  placeholder="e.g. Ring bell / Leave at gate"
+                  rows={2}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:border-[#FF5C00] text-xs font-semibold text-slate-850 resize-none"
+                />
+              </div>
 
               {/* Label Toggle Home / Work / Other */}
               <div className="space-y-2">
@@ -531,7 +744,7 @@ export default function AddressesPage() {
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={saving || !currentAddress.fullAddress}
+                disabled={saving || !currentAddress.location || !houseNumber.trim() || !locality.trim() || !village.trim() || !landmark.trim()}
                 className="py-3.5 px-6 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider rounded-2xl shadow-lg shadow-[#FF5C00]/25 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1.5"
               >
                 {saving ? (

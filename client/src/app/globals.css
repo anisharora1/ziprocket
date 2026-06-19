@@ -91,6 +91,7 @@ body {
 }
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
 }
 
 /* Custom Spacing Token Utilities to prevent container collapsing and restore original screen spacing scale */
