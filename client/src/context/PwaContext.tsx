@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { sendGAEvent } from '@next/third-parties/google';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -52,6 +53,12 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     const installed = checkIsInstalled();
     setIsInstalled(installed);
 
+    // Track the platform mode (PWA standalone vs Browser) in Google Analytics
+    sendGAEvent({
+      event: 'platform_launch',
+      platform_mode: installed ? 'pwa' : 'browser',
+    });
+
     // 1. Listen for beforeinstallprompt event
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
@@ -77,6 +84,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       setDeferredPrompt(null);
       localStorage.removeItem('pwa-first-visit-dismissed');
       console.log('ZipRocket PWA was successfully installed');
+      sendGAEvent({ event: 'pwa_install', status: 'success' });
     };
 
     window.addEventListener('appinstalled', handleAppInstalled);
@@ -150,6 +158,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     }
 
     deferredPrompt.prompt();
+    sendGAEvent({ event: 'pwa_prompt_shown' });
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
@@ -157,10 +166,12 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       setIsInstalled(true);
       setShowFirstVisitModal(false);
       setDeferredPrompt(null);
+      sendGAEvent({ event: 'pwa_prompt_accepted' });
     } else {
       console.log('User dismissed the PWA install prompt');
       // Dismiss the first-visit modal if it is active so we don't annoy them
       dismissFirstVisitModal();
+      sendGAEvent({ event: 'pwa_prompt_dismissed' });
     }
   };
 

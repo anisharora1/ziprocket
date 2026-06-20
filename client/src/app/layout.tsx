@@ -8,6 +8,7 @@ import { PlatformProvider } from "@/context/PlatformContext";
 import LocationPromptModal from "@/components/DynamicLocationPromptModal";
 import { PwaProvider } from "@/context/PwaContext";
 import PwaManager from "@/components/DynamicPwaManager";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -76,6 +77,7 @@ export default function RootLayout({
             </PlatformProvider>
           </LocationProvider>
         </PwaProvider>
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-SXXC7PQQKH"} />
       </body>
     </html>
   );
