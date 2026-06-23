@@ -25,8 +25,9 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "ZipRocket",
-  description: "ZipRocket - Fast food and groceries delivery",
+  title: "ZipRocket - Fast Food & Grocery Delivery Platform",
+  description: "ZipRocket is a fast food and grocery delivery platform that helps customers order from nearby restaurants and stores with quick doorstep delivery.",
+  keywords: ["ZipRocket", "fast food delivery", "grocery delivery", "food delivery app", "online food order", "quick delivery", "nearby restaurants", "local stores"],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -35,6 +36,22 @@ export const metadata: Metadata = {
   },
   formatDetection: {
     telephone: false,
+  },
+
+  openGraph: {
+    title: "ZipRocket - Fast Food & Grocery Delivery",
+    description:
+      "Order food, groceries, and daily essentials online with ZipRocket.",
+    siteName: "ZipRocket",
+    type: "website",
+    locale: "en_IN",
+  },
+
+  twitter: {
+    card: "summary_large_image",
+    title: "ZipRocket - Fast Food & Grocery Delivery",
+    description:
+      "Order food, groceries, and daily essentials online with ZipRocket.",
   },
   icons: {
     icon: '/icon-192x192.png',
