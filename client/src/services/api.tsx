@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getFriendlyErrorMessage } from "@/utils/errorHandler";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
@@ -20,6 +21,20 @@ apiClient.interceptors.request.use((config) => {
 }, (error) => {
   return Promise.reject(error);
 });
+
+// Response interceptor to map technical/raw errors to friendly ones
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const friendlyMessage = getFriendlyErrorMessage(error);
+    error.message = friendlyMessage;
+    if (error.response && error.response.data) {
+      error.response.data.message = friendlyMessage;
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 // Caching and Deduplication cache stores
 interface CacheEntry {

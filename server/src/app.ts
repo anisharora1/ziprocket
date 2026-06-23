@@ -6,6 +6,7 @@ import helmetMiddleware from "./middlewares/helmetMiddleware";
 import securityHeadersMiddleware from "./middlewares/securityHeadersMiddleware";
 import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import { nosqlSanitizer, xssSanitizer } from "./middlewares/authSecurityMiddleware";
+import { errorHandler } from "./middleware/errorHandler";
 
 import authRoutes from "./routes/authRoutes";
 import adminRoutes from "./routes/adminRoutes";
@@ -80,12 +81,6 @@ app.get("/", (req, res) => {
 });
 
 // Global Error Handler to catch Multer and other unhandled errors
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error("Global Error Handler caught:", err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || "Internal Server Error",
-  });
-});
+app.use(errorHandler);
 
 export default app;

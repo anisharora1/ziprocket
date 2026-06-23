@@ -6,6 +6,7 @@ import { apiClient } from '@/services/api';
 import Link from 'next/link';
 import { signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
 import { auth } from '@/services/firebase';
+import { getFriendlyErrorMessage } from '@/utils/errorHandler';
 
 export default function LoginPage() {
   const [step, setStep] = useState<1 | 2>(1);
@@ -127,7 +128,7 @@ export default function LoginPage() {
         setTimer(30);
         setError(`Firebase Auth issue (${err.code || 'error'}). Switched to Dev Bypass: Enter "123456" as the OTP.`);
       } else {
-        setError(err.message || 'Failed to send verification code. Please try again.');
+        setError(getFriendlyErrorMessage(err));
       }
     } finally {
       setLoading(false);
@@ -180,7 +181,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Verification Error:', err);
-      setError(err.response?.data?.message || err.message || 'Invalid verification code. Please try again.');
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }

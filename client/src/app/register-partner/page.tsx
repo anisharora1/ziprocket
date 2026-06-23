@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { apiClient } from "@/services/api";
+import { getFriendlyErrorMessage } from "@/utils/errorHandler";
 
 type Step = 1 | 2 | 3;
 
@@ -16,10 +18,9 @@ export default function RestaurantPartnerForm() {
   useEffect(() => {
     const fetchZones = async () => {
       try {
-        const res = await fetch("http://localhost:5000/api/delivery-zones");
-        const data = await res.json();
-        if (data.success) {
-          setZones(data.zones.filter((z: any) => z.isActive) || []);
+        const res = await apiClient.get("/delivery-zones");
+        if (res.data.success) {
+          setZones(res.data.zones.filter((z: any) => z.isActive) || []);
         }
       } catch (err) {
         console.error("Failed to load active delivery zones:", err);
@@ -86,24 +87,16 @@ export default function RestaurantPartnerForm() {
         return;
       }
 
-      const res = await fetch("http://localhost:5000/api/applications/restaurant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`
-        },
-        body: JSON.stringify(formData),
-      });
+      const res = await apiClient.post("/applications/restaurant", formData);
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.data && res.data.success) {
         setIsSuccess(true);
       } else {
-        alert(data.message || "Failed to submit application.");
+        alert(res.data?.message || "Failed to submit application.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert("An error occurred while submitting.");
+      alert(getFriendlyErrorMessage(err));
     } finally {
       setIsSubmitting(false);
     }
