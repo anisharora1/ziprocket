@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Header from "@/components/Header";
 import DynamicSearchBar from "@/components/DynamicSearchBar";
 import HeroCarouselPlaceholder from "@/components/HeroCarouselPlaceholder";
@@ -9,11 +10,96 @@ import FloatingCartButton from "@/components/DynamicFloatingCartButton";
 import BottomNavBar from "@/components/DynamicBottomNavBar";
 import FirstVisitInstallModal from "@/components/DynamicFirstVisitInstallModal";
 
+export const metadata: Metadata = {
+  title: "ZipRocket - Fast Food & Grocery Delivery Platform",
+  description: "Order food and groceries online with ZipRocket. Get lightning-fast 10-minute grocery delivery and hot meals from your favorite local restaurants.",
+  alternates: {
+    canonical: "https://ziprocket.in",
+  },
+};
+
 export default function Home() {
+  const localBusinessSchema = {
+    "@context": "https://schema.org",
+    "@type": "LocalBusiness",
+    "@id": "https://ziprocket.in/#localbusiness",
+    "name": "ZipRocket Delivery Service",
+    "image": "https://ziprocket.in/logo.png",
+    "url": "https://ziprocket.in",
+    "telephone": "+91-9117662441",
+    "priceRange": "₹10-₹50",
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "Benipatti, Benipatti Bazar",
+      "addressLocality": "Benipatti",
+      "addressRegion": "Bihar",
+      "postalCode": "847223",
+      "addressCountry": "IN"
+    },
+    "geo": {
+      "@type": "GeoCoordinates",
+      "latitude": 26.443352,
+      "longitude": 85.902705
+    },
+    "openingHoursSpecification": {
+      "@type": "OpeningHoursSpecification",
+      "dayOfWeek": [
+        "Monday",
+        "Tuesday",
+        "Wednesday",
+        "Thursday",
+        "Friday",
+        "Saturday",
+        "Sunday"
+      ],
+      "opens": "08:00",
+      "closes": "21:00"
+    }
+  };
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "What is ZipRocket?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ZipRocket is a fast food and grocery delivery platform operating in tier-3 cities, offering lightning-fast grocery deliveries and on-demand hot food deliveries from local restaurants."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "How fast does ZipGrocery deliver?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ZipGrocery items are delivered to your doorstep in 30 minutes or less from our local stores."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Are there delivery fees on ZipRocket?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Delivery fees on ZipRocket are kept minimal to serve local communities, and we offer frequent free delivery promotions for both food and groceries."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="bg-surface text-on-surface pb-24 min-h-screen w-full">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(localBusinessSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <Header />
-      
+
       <main className="pt-20 mt-4 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-xl w-full">
         <DynamicSearchBar />
         {/* Hero Carousel: SSR placeholder ensures LCP image is in initial HTML.
@@ -27,7 +113,7 @@ export default function Home() {
         <TopRated />
         <RestaurantList />
       </main>
-      
+
       <BottomNavBar />
       <FloatingCartButton />
       <FirstVisitInstallModal />

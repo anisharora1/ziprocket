@@ -25,6 +25,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://ziprocket.in"),
   title: "ZipRocket - Fast Food & Grocery Delivery Platform",
   description: "ZipRocket is a fast food and grocery delivery platform that helps customers order from nearby restaurants and stores with quick doorstep delivery.",
   keywords: ["ZipRocket", "fast food delivery", "grocery delivery", "food delivery app", "online food order", "quick delivery", "nearby restaurants", "local stores"],
@@ -37,11 +38,15 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: false,
   },
+  alternates: {
+    canonical: "/",
+  },
 
   openGraph: {
-    title: "ZipRocket - Fast Food & Grocery Delivery",
+    title: "ZipRocket - Fast Food & Grocery Delivery Platform",
     description:
-      "Order food, groceries, and daily essentials online with ZipRocket.",
+      "Order food, groceries, and daily essentials online with ZipRocket. Quick doorstep delivery in tier-3 cities.",
+    url: "https://ziprocket.in",
     siteName: "ZipRocket",
     type: "website",
     locale: "en_IN",
@@ -49,9 +54,9 @@ export const metadata: Metadata = {
 
   twitter: {
     card: "summary_large_image",
-    title: "ZipRocket - Fast Food & Grocery Delivery",
+    title: "ZipRocket - Fast Food & Grocery Delivery Platform",
     description:
-      "Order food, groceries, and daily essentials online with ZipRocket.",
+      "Order food, groceries, and daily essentials online with ZipRocket. Quick doorstep delivery in tier-3 cities.",
   },
   icons: {
     icon: '/icon-192x192.png',
@@ -65,6 +70,47 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "@id": "https://ziprocket.in/#organization",
+    "name": "ZipRocket",
+    "url": "https://ziprocket.in",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://ziprocket.in/logo.png",
+      "width": "512",
+      "height": "512"
+    },
+    "sameAs": [
+      "https://www.facebook.com/ziprocket",
+      "https://www.instagram.com/ziprocket.in"
+    ],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+91-9117662441",
+      "contactType": "customer service",
+      "areaServed": "IN",
+      "availableLanguage": ["en", "hi"]
+    }
+  };
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "@id": "https://ziprocket.in/#website",
+    "name": "ZipRocket",
+    "url": "https://ziprocket.in",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://ziprocket.in/restaurants?q={search_term_string}"
+      },
+      "query-input": "required name=search_term_string"
+    }
+  };
+
   return (
     <html
       lang="en"
@@ -78,6 +124,14 @@ export default function RootLayout({
         <link
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
