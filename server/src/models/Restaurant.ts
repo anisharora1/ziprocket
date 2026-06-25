@@ -1,5 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
+import { normalizeDoc, normalizeUpdatePayload } from "../utils/normalization";
 
 export interface IRestaurantImage {
     url: string;
@@ -141,5 +142,24 @@ restaurantSchema.index(
     { name: "text", ownerName: "text", cuisines: "text", "location.address": "text" },
     { weights: { name: 10, cuisines: 5, "location.address": 2, ownerName: 1 }, name: "RestaurantTextSearch" }
 );
+
+const restaurantSchemaFields = {
+    name: "title" as const,
+    cuisines: "title" as const
+};
+
+restaurantSchema.pre("save", function(this: any, next: any) {
+    normalizeDoc(this, restaurantSchemaFields);
+    next();
+});
+
+const restaurantUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
+restaurantUpdateHooks.forEach(hook => {
+    restaurantSchema.pre(hook as any, function(this: any, next: any) {
+        const update = this.getUpdate();
+        normalizeUpdatePayload(update, restaurantSchemaFields);
+        next();
+    });
+});
 
 export default mongoose.model<IRestaurant>("Restaurant", restaurantSchema);

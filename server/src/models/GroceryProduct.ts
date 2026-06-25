@@ -1,5 +1,6 @@
 import mongoose, { Schema } from "mongoose";
 import { BaseDocument } from "../types/common";
+import { normalizeDoc, normalizeUpdatePayload } from "../utils/normalization";
 
 export interface IGroceryProductImage {
     url: string;
@@ -84,5 +85,27 @@ groceryProductSchema.index(
     { name: "text", brand: "text", description: "text", category: "text", subcategory: "text" },
     { weights: { name: 10, brand: 5, category: 3, subcategory: 2, description: 1 }, name: "GroceryProductTextSearchV2" }
 );
+
+const groceryProductSchemaFields = {
+    name: "title" as const,
+    description: "sentence" as const,
+    category: "title" as const,
+    subcategory: "title" as const,
+    brand: "title" as const
+};
+
+groceryProductSchema.pre("save", function(this: any, next: any) {
+    normalizeDoc(this, groceryProductSchemaFields);
+    next();
+});
+
+const groceryProductUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
+groceryProductUpdateHooks.forEach(hook => {
+    groceryProductSchema.pre(hook as any, function(this: any, next: any) {
+        const update = this.getUpdate();
+        normalizeUpdatePayload(update, groceryProductSchemaFields);
+        next();
+    });
+});
 
 export default mongoose.model<IGroceryProduct>("GroceryProduct", groceryProductSchema);

@@ -1,5 +1,6 @@
 import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
+import { normalizeDoc, normalizeUpdatePayload } from "../utils/normalization";
 
 export interface IMenuItemImage {
     url: string;
@@ -68,5 +69,25 @@ menuItemSchema.index(
     { name: "text", description: "text", category: "text" },
     { weights: { name: 10, category: 3, description: 1 }, name: "MenuItemTextSearch" }
 );
+
+const menuItemSchemaFields = {
+    name: "title" as const,
+    description: "sentence" as const,
+    category: "title" as const
+};
+
+menuItemSchema.pre("save", function(this: any, next: any) {
+    normalizeDoc(this, menuItemSchemaFields);
+    next();
+});
+
+const menuItemUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
+menuItemUpdateHooks.forEach(hook => {
+    menuItemSchema.pre(hook as any, function(this: any, next: any) {
+        const update = this.getUpdate();
+        normalizeUpdatePayload(update, menuItemSchemaFields);
+        next();
+    });
+});
 
 export default mongoose.model<IMenuItem>("MenuItem", menuItemSchema);

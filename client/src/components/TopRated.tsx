@@ -82,7 +82,7 @@ export default function TopRated() {
         }
 
         const assembled: any[] = [];
-        
+
         // Add all active sponsored restaurant ads first
         activeRestaurantAds.forEach((ad: Promotion) => {
           if (ad.restaurant) {
@@ -153,13 +153,13 @@ export default function TopRated() {
           Sponsor Choices
         </span>
       </div>
-      
+
       <div className="overflow-x-auto no-scrollbar flex gap-md -mx-md px-md pb-2">
         {featuredItems.map((restaurant) => (
-          <Link 
-            href={`/restaurants/${restaurant._id}`} 
+          <Link
+            href={`/restaurants/${restaurant._id}`}
             prefetch={false}
-            key={restaurant._id} 
+            key={restaurant._id}
             className="block min-w-[160px] md:min-w-[220px] max-w-[160px] md:max-w-[220px] bg-white rounded-2xl overflow-hidden border border-slate-100/70 shadow-sm relative shrink-0 transition-transform hover:-translate-y-0.5 active:scale-95 duration-200"
           >
             {restaurant.isAd && (
@@ -167,19 +167,19 @@ export default function TopRated() {
                 {restaurant.badgeText || "SPONSORED"}
               </div>
             )}
-            
-            <OptimizedImage 
-              className="h-28 w-full object-cover" 
+
+            <OptimizedImage
+              className="h-28 w-full object-cover"
               src={restaurant.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=300"}
               alt={restaurant.name}
               preset="card"
             />
-            
+
             <div className="p-3 space-y-1">
               <p className="font-bold text-[14px] text-slate-800 truncate leading-snug">
                 {restaurant.name}
               </p>
-              
+
               <div className="flex items-center justify-between text-slate-450 text-[11px] font-semibold mt-1">
                 <div className="flex items-center gap-0.5 text-amber-500">
                   <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
