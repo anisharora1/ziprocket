@@ -16,7 +16,8 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
     selectedAddressId,
     fetchLocation,
     setSelectedAddress,
-    loadSavedAddresses
+    loadSavedAddresses,
+    setCustomLocation
   } = useLocation();
 
   const [step, setStep] = useState<'select' | 'form'>('select');
@@ -80,51 +81,39 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        let prefillPincode = '';
+        let city = 'Unknown';
+        let state = 'Bihar';
+        let country = 'India';
+        let fullAddress = 'Address unavailable';
+
         try {
-          // Check feasibility with coordinates first
-          const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-            userLat: latitude,
-            userLng: longitude
-          });
-
-          if (!feasibilityRes.data.success) {
-            setAddressError("This location lies outside our operational service geofence bounds.");
-            setGpsLoading(false);
-            return;
+          const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+          if (geocodeRes.data.success) {
+            const details = geocodeRes.data.details;
+            prefillPincode = details.pincode || '';
+            city = details.city || 'Unknown';
+            state = details.state || 'Bihar';
+            country = details.country || 'India';
+            fullAddress = details.fullAddress || 'Address unavailable';
           }
+        } catch (err) {
+          console.warn("Reverse geocode failed.");
+        }
 
-          const zoneId = feasibilityRes.data.zoneId;
-
-          // Prefill reverse-geocoded address fields
-          let prefillPincode = '';
-          let prefillVillage = '';
-          let prefillLocality = '';
-
-          try {
-            const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-            if (geocodeRes.data.success) {
-              const details = geocodeRes.data.details;
-              prefillPincode = details.pincode || '';
-              prefillVillage = details.city || '';
-              prefillLocality = details.fullAddress?.split(',')[0] || '';
-            }
-          } catch (err) {
-            console.warn("Reverse geocode failed, prefilling empty fields.");
-          }
-
-          setTempCoords({ lat: latitude, lng: longitude });
-          setTempZoneId(zoneId);
-          setHouseNumber('');
-          setStreet('');
-          setLocality(prefillLocality);
-          setVillage(prefillVillage);
-          setLandmark('');
-          setPincode(prefillPincode);
-          setInstructions('');
-          setStep('form');
+        try {
+          await setCustomLocation(
+            { lat: latitude, lng: longitude },
+            fullAddress,
+            prefillPincode || null,
+            city || null,
+            state || null,
+            country || null
+          );
+          onClose();
         } catch (err: any) {
-          console.error("Zone check failed:", err);
-          setAddressError(err.response?.data?.message || "Sorry, you are currently outside our delivery service area.");
+          console.error("Set custom location failed:", err);
+          setAddressError(err.message || "Failed to set location.");
         } finally {
           setGpsLoading(false);
         }
@@ -143,40 +132,19 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
       setSearching(true);
       setAddressError(null);
       const res = await apiClient.get(`/locations/place-details?placeId=${placeId}`);
-      
+
       if (res.data.success) {
-        const { fullAddress, lat, lng, pincode, city } = res.data.details;
-        
-        // Resolve delivery zone feasibility dynamically
-        let zoneId = undefined;
-        try {
-          const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-            userLat: lat,
-            userLng: lng,
-            pincode: pincode || ""
-          });
-          if (feasibilityRes.data.success) {
-            zoneId = feasibilityRes.data.zoneId;
-          }
-        } catch (zErr) {
-          setAddressError("This location lies outside our operational geofence limits.");
-        }
+        const { fullAddress, lat, lng, pincode, city, state, country } = res.data.details;
 
-        if (!zoneId) {
-          alert("Selected address lies outside our delivery limits. You won't be able to checkout.");
-          return;
-        }
-
-        setTempCoords({ lat, lng });
-        setTempZoneId(zoneId);
-        setHouseNumber('');
-        setStreet('');
-        setLocality(fullAddress?.split(',')[0] || '');
-        setVillage(city || '');
-        setLandmark('');
-        setPincode(pincode || '');
-        setInstructions('');
-        setStep('form');
+        await setCustomLocation(
+          { lat, lng },
+          fullAddress,
+          pincode || null,
+          city || null,
+          state || null,
+          country || null
+        );
+        onClose();
       }
     } catch (err: any) {
       console.error("Failed to select place suggestion:", err);
@@ -261,7 +229,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
         fullAddress,
         pincode: pincode || "000000",
         city: village || "Unknown",
-        state: "Punjab",
+        state: "Bihar",
         deliveryZone: tempZoneId,
         isDefault: false
       };
@@ -273,7 +241,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
   return (
     <div className="fixed inset-0 bg-slate-900/60 z-[99999] flex items-center justify-center p-0 sm:p-4 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 w-[512px] max-w-full h-full sm:h-[90vh] sm:rounded-3xl shadow-2xl flex flex-col justify-between overflow-hidden animate-in slide-in-from-bottom duration-300">
-        
+
         {/* Header */}
         <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 shrink-0">
           <div>
@@ -284,7 +252,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
               {step === 'select' ? 'Select a saved address or search manually' : 'Provide manual details for accurate delivery'}
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500"
           >
@@ -295,13 +263,13 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
         {/* Modal Body */}
         {step === 'select' ? (
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-            
+
             {/* Autocomplete Input Search */}
             <div className="relative">
               <label className="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Search Address</label>
               <div className="relative flex items-center">
                 <span className="material-symbols-outlined text-slate-400 absolute left-4 text-[20px]">search</span>
-                <input 
+                <input
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -309,7 +277,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                   className="w-full pl-11 pr-10 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/10 focus:border-[#FF5C00] transition-all text-xs font-semibold text-slate-900 dark:text-white"
                 />
                 {searchQuery && (
-                  <button 
+                  <button
                     onClick={() => setSearchQuery('')}
                     className="absolute right-4 text-slate-400 hover:text-slate-600"
                   >
@@ -385,19 +353,17 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                     if (addr.label === 'Other') icon = 'home_work';
 
                     return (
-                      <div 
+                      <div
                         key={addr._id}
                         onClick={() => handleSelectSavedAddress(addr)}
-                        className={`p-4 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-start ${
-                          isSelected 
-                            ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/15' 
-                            : 'border-slate-100 dark:border-slate-800 hover:border-slate-200'
-                        }`}
+                        className={`p-4 bg-white dark:bg-slate-900 border rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-start ${isSelected
+                          ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/15'
+                          : 'border-slate-100 dark:border-slate-800 hover:border-slate-200'
+                          }`}
                       >
                         <div className="flex gap-3">
-                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                            isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
-                          }`}>
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                            }`}>
                             <span className="material-symbols-outlined text-[18px]">{icon}</span>
                           </div>
                           <div>
@@ -410,9 +376,8 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                             <p className="text-[12px] text-slate-500 mt-1.5 leading-snug line-clamp-2 pr-4">{addr.fullAddress}</p>
                           </div>
                         </div>
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                          isSelected ? 'border-[#FF5C00]' : 'border-slate-300'
-                        }`}>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-[#FF5C00]' : 'border-slate-300'
+                          }`}>
                           {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
                         </div>
                       </div>
@@ -424,7 +389,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
           </div>
         ) : (
           <form onSubmit={handleSaveAddressForm} className="flex-1 overflow-y-auto p-6 space-y-4">
-            
+
             {/* House / Flat No */}
             <div className="space-y-1.5">
               <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">House Number / House Name *</label>
@@ -522,11 +487,10 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                     type="button"
                     key={label}
                     onClick={() => setAddressLabel(label)}
-                    className={`py-3 rounded-2xl text-xs font-black uppercase tracking-wider border transition-all ${
-                      addressLabel === label 
-                        ? 'bg-[#FF5C00] border-[#FF5C00] text-white shadow-md' 
-                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
-                    }`}
+                    className={`py-3 rounded-2xl text-xs font-black uppercase tracking-wider border transition-all ${addressLabel === label
+                      ? 'bg-[#FF5C00] border-[#FF5C00] text-white shadow-md'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
                   >
                     {label}
                   </button>

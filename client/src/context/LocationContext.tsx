@@ -50,6 +50,14 @@ interface LocationContextType {
   setSelectedAddress: (addr: SavedAddress | null) => void;
   saveAndSelectAddress: (addrPayload: any) => Promise<boolean>;
   loadSavedAddresses: () => Promise<void>;
+  setCustomLocation: (
+    coords: Location,
+    fullAddress: string,
+    pincode: string | null,
+    city: string | null,
+    state: string | null,
+    country: string | null
+  ) => Promise<void>;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -117,7 +125,6 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     const initializeLocation = async () => {
       const storedLocation = localStorage.getItem('ziprocket_location');
-      const hasPrompted = localStorage.getItem('ziprocket_location_prompted');
 
       if (storedLocation) {
         try {
@@ -140,17 +147,36 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         } catch (e) {
           console.error("Failed to parse stored location");
         }
-      } else if (!hasPrompted) {
-        setIsFirstTime(true);
       }
 
       // Check if token exists to fetch saved address book
       const token = localStorage.getItem('token');
+      let defaultAddressSelected = false;
       if (token) {
-        await loadSavedAddresses();
+        try {
+          const res = await apiClient.get("/addresses");
+          if (res.data.success) {
+            const list = res.data.addresses || [];
+            setSavedAddresses(list);
+            
+            // Auto-select default address if no coordinates are active in session
+            const defaultAddr = list.find((a: SavedAddress) => a.isDefault);
+            if (defaultAddr && !storedLocation) {
+              await setSelectedAddress(defaultAddr);
+              defaultAddressSelected = true;
+            }
+          }
+        } catch (err) {
+          console.error("Failed to load saved addresses:", err);
+        }
       }
 
-      setIsLocationLoaded(true);
+      // If no stored location and no default address was selected, auto-detect location
+      if (!storedLocation && !defaultAddressSelected) {
+        fetchLocation();
+      } else {
+        setIsLocationLoaded(true);
+      }
     };
 
     initializeLocation();
@@ -238,6 +264,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     if (!navigator.geolocation) {
       setError('Geolocation is not supported by your browser');
       setIsLoading(false);
+      setIsFirstTime(true);
+      setIsLocationLoaded(true);
       return;
     }
 
@@ -279,6 +307,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
             } catch (zErr) {
               console.warn("User is outside delivery limits.");
               setError("Sorry, you are currently outside our delivery service area.");
+              setZoneId(null);
+              setZoneName(null);
             }
 
             localStorage.setItem('ziprocket_location', JSON.stringify({
@@ -300,17 +330,76 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           setError("Failed to resolve your coordinates address");
           setAddress('Address unavailable');
           localStorage.setItem('ziprocket_location', JSON.stringify({ coords: newCoords, address: 'Address unavailable' }));
+          setIsFirstTime(true);
           dismissPrompt();
         } finally {
           setIsLoading(false);
+          setIsLocationLoaded(true);
         }
       },
       (err) => {
         console.error("Geolocation error:", err);
         setError('GPS coordinates access permission was denied');
         setIsLoading(false);
+        setIsFirstTime(true);
+        setIsLocationLoaded(true);
       }
     );
+  };
+
+  // 6. Manual Location Setter (resolves geocoded places)
+  const setCustomLocation = async (
+    coords: Location,
+    fullAddress: string,
+    pin: string | null,
+    c: string | null,
+    s: string | null,
+    co: string | null
+  ) => {
+    setLocation(coords);
+    setAddress(fullAddress);
+    setPincode(pin);
+    setCity(c);
+    setState(s);
+    setCountry(co);
+    setSelectedAddressId(null);
+    setDeliveryAddress(null);
+
+    let zId = null;
+    let zName = null;
+    try {
+      const zoneRes = await apiClient.post("/delivery-zones/check-feasibility", {
+        userLat: coords.lat,
+        userLng: coords.lng,
+        pincode: pin || ""
+      });
+      if (zoneRes.data.success) {
+        zId = zoneRes.data.zoneId;
+        zName = zoneRes.data.zoneName;
+        setZoneId(zId);
+        setZoneName(zName);
+        setError(null);
+      }
+    } catch (zErr: any) {
+      console.warn("User is outside delivery limits.");
+      setError("Sorry, you are currently outside our delivery service area.");
+      setZoneId(null);
+      setZoneName(null);
+    }
+
+    localStorage.setItem('ziprocket_location', JSON.stringify({
+      coords,
+      address: fullAddress,
+      pincode: pin,
+      city: c,
+      state: s,
+      country: co,
+      zoneId: zId,
+      zoneName: zName,
+      selectedAddressId: null,
+      deliveryAddress: null
+    }));
+    dismissPrompt();
   };
 
   return (
@@ -334,7 +423,8 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       dismissPrompt,
       setSelectedAddress,
       saveAndSelectAddress,
-      loadSavedAddresses
+      loadSavedAddresses,
+      setCustomLocation
     }}>
       {children}
     </LocationContext.Provider>

@@ -97,6 +97,71 @@ export const getPlaceDetails = async (placeId: string) => {
 };
 
 // 3. Google Geocoding API (Reverse Geocode GPS coordinates) with Nominatim Fallback
+// Helper to perform reverse-lookup using modern Places API v1 searchNearby (works with referer restrictions)
+export const getReverseGeocodeFromPlacesAPI = async (lat: number, lng: number) => {
+    try {
+        const url = "https://places.googleapis.com/v1/places:searchNearby";
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": GOOGLE_API_KEY || "",
+                "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.addressComponents",
+                "Referer": FRONTEND_REFERER
+            },
+            body: JSON.stringify({
+                locationRestriction: {
+                    circle: {
+                        center: { latitude: lat, longitude: lng },
+                        radius: 120.0
+                    }
+                },
+                maxResultCount: 5
+            })
+        });
+        const data = await res.json() as any;
+        
+        if (data && data.places && data.places.length > 0) {
+            // Find first place with valid components
+            for (const place of data.places) {
+                if (place.addressComponents && place.addressComponents.length > 0) {
+                    let pincode = "";
+                    let city = "";
+                    let state = "";
+                    let country = "";
+                    
+                    for (const comp of place.addressComponents) {
+                        if (comp.types.includes("postal_code")) pincode = comp.longText;
+                        if (comp.types.includes("locality") || comp.types.includes("sublocality") || comp.types.includes("administrative_area_level_2")) {
+                            if (!city) city = comp.longText;
+                        }
+                        if (comp.types.includes("administrative_area_level_1")) state = comp.longText;
+                        if (comp.types.includes("country")) country = comp.longText;
+                    }
+                    
+                    // Regex pincode fallback from formattedAddress
+                    if (!pincode && place.formattedAddress) {
+                        const match = place.formattedAddress.match(/\b\d{6}\b/);
+                        if (match) pincode = match[0];
+                    }
+                    
+                    return {
+                        fullAddress: place.formattedAddress || place.displayName?.text || "",
+                        pincode,
+                        city: city || "Unknown",
+                        state: state || "Punjab",
+                        country: country || "India"
+                    };
+                }
+            }
+        }
+    } catch (err) {
+        console.error("Google Places searchNearby fallback failed:", err);
+    }
+    return null;
+};
+
+// 3. Google Geocoding API (Reverse Geocode GPS coordinates) with Nominatim Fallback
 export const getReverseGeocode = async (lat: number, lng: number) => {
     try {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`;
@@ -143,10 +208,14 @@ export const getReverseGeocode = async (lat: number, lng: number) => {
                 country: country || "India"
             };
         } else {
-            console.warn(`Google Geocoding failed with status: ${data.status}. Trying Nominatim fallback.`);
+            console.warn(`Google Geocoding failed with status: ${data.status}. Trying Places searchNearby fallback.`);
+            const placesFallback = await getReverseGeocodeFromPlacesAPI(lat, lng);
+            if (placesFallback) return placesFallback;
         }
     } catch (err) {
-        console.error("Google Geocoding failed with exception. Trying Nominatim fallback:", err);
+        console.error("Google Geocoding failed with exception. Trying Places searchNearby fallback:", err);
+        const placesFallback = await getReverseGeocodeFromPlacesAPI(lat, lng);
+        if (placesFallback) return placesFallback;
     }
     
     // Robust fallback to OpenStreetMap Nominatim API (Free and no API Key/Referrer restriction)

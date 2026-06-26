@@ -9,6 +9,9 @@ import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
+import dynamic from "next/dynamic";
+
+const LocationSelectorModal = dynamic(() => import("@/components/LocationSelectorModal"), { ssr: false });
 
 interface BillDetails {
     success?: boolean;
@@ -90,7 +93,17 @@ export default function CheckoutPage() {
     const [activeZones, setActiveZones] = useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('ONLINE');
     const { user } = useAuth();
-    const { location: userCoords, address: userAddress, pincode: userPincode, deliveryAddress: userDeliveryAddress, savedAddresses, selectedAddressId } = useLocation();
+    const { 
+        location: userCoords, 
+        address: userAddress, 
+        pincode: userPincode, 
+        city: userCity, 
+        deliveryAddress: userDeliveryAddress, 
+        savedAddresses, 
+        selectedAddressId,
+        setSelectedAddress,
+        loadSavedAddresses
+    } = useLocation();
 
     // Custom address overrides during checkout review
     const [isAddressEditModalOpen, setIsAddressEditModalOpen] = useState(false);
@@ -98,6 +111,13 @@ export default function CheckoutPage() {
     const [editedPincode, setEditedPincode] = useState("");
     const [editError, setEditError] = useState<string | null>(null);
     const [validatingEdit, setValidatingEdit] = useState(false);
+
+    // Swiggy-style checkout address states
+    const [checkoutAddressStep, setCheckoutAddressStep] = useState<'select' | 'form'>('select');
+    const [floor, setFloor] = useState("");
+    const [addressLabel, setAddressLabel] = useState<string>('Home');
+    const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+    const [showInstructions, setShowInstructions] = useState(false);
 
     // Rural friendly address fields
     const [village, setVillage] = useState("");
@@ -244,92 +264,144 @@ export default function CheckoutPage() {
     };
 
     const handleOpenAddressEditModal = () => {
-        setVillage("");
-        setMohalla("");
-        setLandmark("");
-        setHouseNo("");
-        setStreet("");
-        setInstructions("");
-        
-        const da = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress);
-        if (da) {
-            setHouseNo(da.houseNumber || "");
-            setStreet(da.street || "");
-            setMohalla(da.locality || "");
-            setVillage(da.village || "");
-            setLandmark(da.landmark || "");
-            setInstructions(da.instructions || "");
-        } else {
-            const existing = customAddressText || userAddress || "";
-            if (existing) {
-                const parts = existing.split(", ");
-                setVillage(parts.find(p => p.toLowerCase().includes("village:"))?.replace(/village:/i, "").trim() || "");
-                setLandmark(parts.find(p => p.toLowerCase().includes("near:"))?.replace(/near:/i, "").trim() || "");
-                setHouseNo(parts.find(p => p.toLowerCase().includes("house/flat no:"))?.replace(/house\/flat no:/i, "").trim() || "");
-                setStreet(parts.find(p => p.toLowerCase().includes("road:"))?.replace(/road:/i, "").trim() || "");
-            }
-        }
-        
+        setEditError(null);
+        setGpsCoords(customCoords || userCoords || null);
         setEditedPhone(customPhone || user?.phone || "");
         setEditedPincode(customPincode || userPincode || "");
-        setGpsCoords(customCoords || userCoords || null);
-        setEditError(null);
+
+        // Prefill locality and village from context / active location
+        setMohalla(userAddress || "");
+        setVillage(userCity || "");
+        
+        // Floor and House No
+        setHouseNo("");
+        setFloor("");
+        setStreet("");
+        setLandmark("");
+        setInstructions("");
+        setAddressLabel("Home");
+        setShowInstructions(false);
+
+        if (savedAddresses.length > 0) {
+            setCheckoutAddressStep('select');
+        } else {
+            setCheckoutAddressStep('form');
+        }
         setIsAddressEditModalOpen(true);
     };
 
+    // Auto-sync context coordinates and address changes to form inputs
+    useEffect(() => {
+        if (isAddressEditModalOpen && checkoutAddressStep === 'form') {
+            if (userAddress) setMohalla(userAddress);
+            if (userCity) setVillage(userCity);
+            if (userPincode) setEditedPincode(userPincode);
+            if (userCoords) setGpsCoords(userCoords);
+        }
+    }, [userAddress, userCity, userPincode, userCoords, isAddressEditModalOpen, checkoutAddressStep]);
+
+    const handleSelectSavedAddress = async (addr: any) => {
+        await setSelectedAddress(addr);
+        // Clear overrides
+        setCustomAddressText(null);
+        setCustomPhone(null);
+        setCustomCoords(null);
+        setCustomPincode(null);
+        setCustomDeliveryAddress(null);
+        setIsAddressEditModalOpen(false);
+    };
+
     const handleSaveAddressEdit = async () => {
+        if (!mohalla.trim()) return setEditError("Area/Locality is required. Click 'Change' to select location.");
+        if (!village.trim()) return setEditError("Village/City is required.");
+        if (!houseNo.trim()) return setEditError("Building / Floor is required.");
+        if (!editedPhone.trim()) return setEditError("Phone number is required.");
+        if (editedPhone.length < 10) return setEditError("Please enter a valid 10-digit mobile number.");
+
+        // Landmark defaults to "N/A" if empty to satisfy backend validation
+        const finalLandmark = landmark.trim() || "N/A";
+
+        // Combine house number and floor if floor is entered
+        const combinedHouseNo = floor.trim() ? `${houseNo.trim()}, Floor: ${floor.trim()}` : houseNo.trim();
+
         const addressTextVal = [
-            houseNo.trim() ? `House/Flat No: ${houseNo.trim()}` : "",
+            combinedHouseNo ? `House/Flat No: ${combinedHouseNo}` : "",
             street.trim() ? `Road: ${street.trim()}` : "",
             mohalla.trim() ? `${mohalla.trim()}` : "",
             village.trim() ? `Village: ${village.trim()}` : "",
-            landmark.trim() ? `Near: ${landmark.trim()}` : ""
+            finalLandmark && finalLandmark !== "N/A" ? `Near: ${finalLandmark}` : ""
         ].filter(Boolean).join(", ");
 
-        if (!village.trim()) return setEditError("Please enter village/town name / कृपया गांव का नाम दर्ज करें");
-        if (!mohalla.trim()) return setEditError("Please enter mohalla/tola/ward / कृपया टोला/मोहल्ला/वार्ड दर्ज करें");
-        if (!landmark.trim()) return setEditError("Nearby landmark is required for village delivery / नज़दीकी लैंडमार्क दर्ज करना आवश्यक है");
-        if (!editedPhone.trim()) return setEditError("Phone number cannot be empty / फोन नंबर खाली नहीं हो सकता");
-        
         setValidatingEdit(true);
         setEditError(null);
-        
-        try {
-            // Use active GPS coordinates (either detected in modal, or fallback to custom coords, or session coords)
-            const activeLat = gpsCoords?.lat !== undefined ? gpsCoords.lat : (customCoords?.lat !== undefined ? customCoords.lat : userCoords?.lat);
-            const activeLng = gpsCoords?.lng !== undefined ? gpsCoords.lng : (customCoords?.lng !== undefined ? customCoords.lng : userCoords?.lng);
 
-            if (activeLat === undefined || activeLng === undefined) {
-                throw new Error("Coordinates are missing. Please lock your location using GPS first.");
+        const activeLat = gpsCoords?.lat ?? userCoords?.lat;
+        const activeLng = gpsCoords?.lng ?? userCoords?.lng;
+
+        if (activeLat === undefined || activeLng === undefined) {
+            setEditError("Location coordinates are missing.");
+            setValidatingEdit(false);
+            return;
+        }
+
+        const payload = {
+            label: addressLabel === "Office" || addressLabel === "Work" ? "Work" : addressLabel === "House" || addressLabel === "Home" ? "Home" : addressLabel,
+            location: { lat: activeLat, lng: activeLng },
+            deliveryAddress: {
+                houseNumber: combinedHouseNo,
+                street: street.trim(),
+                locality: mohalla.trim(),
+                village: village.trim(),
+                landmark: finalLandmark,
+                pincode: editedPincode,
+                instructions: instructions.trim()
+            },
+            isDefault: false
+        };
+
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const res = await apiClient.post("/addresses", payload);
+                if (res.data.success) {
+                    await loadSavedAddresses();
+                    // Select the newly created address
+                    await setSelectedAddress(res.data.address);
+                    // Clear overrides in checkout state
+                    setCustomAddressText(null);
+                    setCustomPhone(null);
+                    setCustomCoords(null);
+                    setCustomPincode(null);
+                    setCustomDeliveryAddress(null);
+                    setIsAddressEditModalOpen(false);
+                }
+            } catch (err: any) {
+                console.error("Failed to save address:", err);
+                setEditError(err.response?.data?.message || "Failed to save address details.");
+            } finally {
+                setValidatingEdit(false);
             }
-
-            // Validate feasibility of coordinates against active zones on backend
-            const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-                userLat: activeLat,
-                userLng: activeLng,
-                pincode: editedPincode
-            });
-
-            if (feasibilityRes.data.success) {
-                setCustomAddressText(addressTextVal);
-                setCustomPhone(editedPhone);
-                setCustomCoords({ lat: activeLat, lng: activeLng });
-                setCustomPincode(editedPincode);
-                setCustomDeliveryAddress({
-                    houseNumber: houseNo.trim(),
-                    street: street.trim(),
-                    locality: mohalla.trim(),
-                    village: village.trim(),
-                    landmark: landmark.trim(),
-                    pincode: editedPincode,
-                    instructions: instructions.trim()
-                });
-                setIsAddressEditModalOpen(false);
-            }
-        } catch (err: any) {
-            console.error("Address validation failed:", err);
-            setEditError(err.response?.data?.message || err.message || "Sorry, this location is currently outside our delivery area. / क्षमा करें, यह स्थान हमारे डिलीवरी क्षेत्र से बाहर है।");
-        } finally {
+        } else {
+            // Guest Flow
+            const guestAddress: any = {
+                _id: "guest-manual-coords",
+                label: addressLabel === "Office" ? "Work" : addressLabel,
+                location: { lat: activeLat, lng: activeLng },
+                deliveryAddress: payload.deliveryAddress,
+                fullAddress: addressTextVal,
+                pincode: editedPincode || "000000",
+                city: village || "Unknown",
+                state: "Punjab",
+                deliveryZone: billDetails?.zoneId || null,
+                isDefault: false
+            };
+            await setSelectedAddress(guestAddress);
+            setCustomAddressText(addressTextVal);
+            setCustomPhone(editedPhone);
+            setCustomCoords({ lat: activeLat, lng: activeLng });
+            setCustomPincode(editedPincode);
+            setCustomDeliveryAddress(payload.deliveryAddress);
+            setIsAddressEditModalOpen(false);
             setValidatingEdit(false);
         }
     };
@@ -519,6 +591,19 @@ export default function CheckoutPage() {
             return;
         }
 
+        const targetDeliveryAddress = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress) || undefined;
+
+        if (!targetDeliveryAddress || !targetDeliveryAddress.houseNumber || !targetDeliveryAddress.landmark) {
+            showCard({
+                type: 'warning',
+                title: 'Detailed Address Required',
+                message: 'Please provide detailed delivery address details (House No, Landmark, etc.) to place your order.',
+                onAction: () => handleOpenAddressEditModal(),
+                actionLabel: 'Add Address Details'
+            });
+            return;
+        }
+
         setPlacingOrder(true);
         try {
             // Format items for backend schema
@@ -528,8 +613,6 @@ export default function CheckoutPage() {
                 quantity: c.quantity,
                 price: c.price
             }));
-
-            const targetDeliveryAddress = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress) || undefined;
 
             // 1. Place the initial Order record on MongoDB
             const orderRes = await apiClient.post("/orders", {
@@ -1262,12 +1345,14 @@ export default function CheckoutPage() {
             {/* Premium Glassmorphic Address & Phone Edit Modal */}
             {isAddressEditModalOpen && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[28px] w-[460px] max-w-[92vw] min-w-[320px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col shrink-0">
+                    <div className="bg-white rounded-[28px] w-[460px] max-w-[92vw] min-w-[320px] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-100 flex flex-col shrink-0 animate-in fade-in zoom-in-95 duration-200">
                         {/* Modal Header */}
                         <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-50">
                             <div>
-                                <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">डिलिवरी स्थान / Delivery Location</h3>
-                                <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">Bihar Rural Hyperlocal Logistics</p>
+                                <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">
+                                    {checkoutAddressStep === 'select' ? 'डिलिवरी पता चुनें / Select Delivery Address' : 'Location Details'}
+                                </h3>
+                                <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">ZipRocket Hyperlocal Logistics</p>
                             </div>
                             <button
                                 onClick={() => setIsAddressEditModalOpen(false)}
@@ -1278,256 +1363,269 @@ export default function CheckoutPage() {
                         </div>
 
                         {/* Modal Content */}
-                        <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                            {editError && (
-                                <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex gap-2.5 items-start text-rose-700">
-                                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
-                                    <p className="text-[12px] font-bold leading-relaxed">{editError}</p>
-                                </div>
-                            )}
+                        {checkoutAddressStep === 'select' ? (
+                            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                                <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Select a Saved Address</h4>
+                                {savedAddresses.length === 0 ? (
+                                    <div className="bg-slate-50 rounded-2xl p-6 text-center text-xs text-slate-400 font-semibold border border-slate-100">
+                                        No saved addresses found.
+                                    </div>
+                                ) : (
+                                    <div className="space-y-3">
+                                        {savedAddresses.map((addr) => {
+                                            const isSelected = selectedAddressId === addr._id;
+                                            let icon = 'home';
+                                            if (addr.label === 'Work') icon = 'work';
+                                            if (addr.label === 'Other') icon = 'home_work';
 
-                            {/* Autodetect Current GPS Location Button */}
-                            <div className="space-y-2">
+                                            return (
+                                                <div 
+                                                    key={addr._id}
+                                                    onClick={() => handleSelectSavedAddress(addr)}
+                                                    className={`p-4 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-start ${
+                                                        isSelected 
+                                                            ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/15' 
+                                                            : 'border-slate-100 hover:border-slate-200'
+                                                    }`}
+                                                >
+                                                    <div className="flex gap-3">
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                                                            isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-550'
+                                                        }`}>
+                                                            <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-[14px] text-slate-800 leading-none">{addr.label}</span>
+                                                                {addr.isDefault && (
+                                                                    <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase tracking-wider rounded">Default</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-[12px] text-slate-500 mt-1.5 leading-snug line-clamp-2 pr-4">{addr.fullAddress}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                        isSelected ? 'border-[#FF5C00]' : 'border-slate-300'
+                                                    }`}>
+                                                        {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                                 <button
                                     type="button"
-                                    onClick={handleDetectGPS}
-                                    disabled={detectingGps}
-                                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-md font-bold text-xs uppercase tracking-wider"
+                                    onClick={() => setCheckoutAddressStep('form')}
+                                    className="w-full mt-4 py-3.5 bg-[#FF5C00]/10 hover:bg-[#FF5C00]/15 text-[#FF5C00] rounded-2xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                                 >
-                                    {detectingGps ? (
-                                        <>
-                                            <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
-                                            स्थान खोज रहे हैं... / Detecting GPS Location...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span className="material-symbols-outlined text-[18px]">my_location</span>
-                                            जीपीएस से अपना स्थान लोड करें / Use Current Location (GPS)
-                                        </>
-                                    )}
+                                    <span className="material-symbols-outlined text-[18px]">add</span>
+                                    Add New Delivery Address
                                 </button>
-                                <p className="text-[9px] text-slate-400 font-bold text-center uppercase tracking-wide">
-                                    Auto-detects coordinates, village name, and pincode
-                                </p>
                             </div>
-
-                            {/* Static GPS Preview Coordinates Pin */}
-                            {gpsCoords && (
-                                <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-3.5 flex flex-col items-center justify-center gap-2">
-                                    <div className="relative flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-[32px] text-emerald-600 animate-bounce">location_on</span>
-                                        <span className="absolute w-8 h-8 rounded-full bg-emerald-500/20 animate-ping" />
+                        ) : (
+                            <div className="p-6 space-y-4.5 max-h-[60vh] overflow-y-auto">
+                                {editError && (
+                                    <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex gap-2.5 items-start text-rose-700">
+                                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                                        <p className="text-[12px] font-bold leading-relaxed">{editError}</p>
                                     </div>
-                                    <p className="text-[10px] text-emerald-700 font-black uppercase tracking-wider">जीपीएस लोकेशन लॉक सक्रिय / GPS Location Lock Active</p>
-                                    <p className="text-[10px] text-slate-500 font-bold mt-0.5">Lat: {gpsCoords.lat.toFixed(5)} • Lng: {gpsCoords.lng.toFixed(5)}</p>
-                                </div>
-                            )}
+                                )}
 
-                            {/* Village / Town Field */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                                    <span>गांव / कस्बा का नाम (Village / Town Name) *</span>
-                                    {listeningField === "village" && <span className="text-[9px] text-rose-500 font-bold animate-pulse">● रिकॉर्ड हो रहा है (Listening)...</span>}
-                                </label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
-                                    <input
-                                        type="text"
-                                        value={village}
-                                        onChange={(e) => setVillage(e.target.value)}
-                                        placeholder="जैसे: रामपुर, बेनीपट्टी (e.g. Rampur)"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleVoiceInput("village", setVillage)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${listeningField === "village" ? "bg-rose-100 text-rose-600" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
-                                        title="बोलकर दर्ज करें (Voice Input)"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">mic</span>
-                                    </button>
+                                {/* Tag segmented control */}
+                                <div className="bg-[#f0f0f4] rounded-full p-1 flex justify-between gap-1 w-full">
+                                    {([
+                                        { id: 'Home', label: 'House', icon: 'home' },
+                                        { id: 'Work', label: 'Office', icon: 'work' },
+                                        { id: 'Other', label: 'Other', icon: 'near_me' }
+                                    ] as const).map((tag) => {
+                                        const isActive = 
+                                            (tag.id === 'Home' && (addressLabel === 'Home' || addressLabel === 'House')) ||
+                                            (tag.id === 'Work' && (addressLabel === 'Work' || addressLabel === 'Office')) ||
+                                            (tag.id === 'Other' && (addressLabel !== 'Home' && addressLabel !== 'House' && addressLabel !== 'Work' && addressLabel !== 'Office'));
+                                        
+                                        return (
+                                            <button
+                                                type="button"
+                                                key={tag.id}
+                                                onClick={() => {
+                                                    if (tag.id === 'Home') setAddressLabel('Home');
+                                                    else if (tag.id === 'Work') setAddressLabel('Work');
+                                                    else setAddressLabel('Other');
+                                                }}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all ${
+                                                    isActive 
+                                                        ? 'bg-[#FF5C00] text-white shadow-sm' 
+                                                        : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                                                }`}
+                                            >
+                                                <span className="material-symbols-outlined text-[16px]">{tag.icon}</span>
+                                                <span>{tag.label}</span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                            </div>
 
-                            {/* Mohalla / Tola / Ward */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                                    <span>मोहल्ला / टोला / वार्ड संख्या (Tola / Mohalla / Ward) *</span>
-                                    {listeningField === "mohalla" && <span className="text-[9px] text-rose-500 font-bold animate-pulse">● रिकॉर्ड हो रहा है (Listening)...</span>}
-                                </label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
-                                    <input
-                                        type="text"
-                                        value={mohalla}
-                                        onChange={(e) => setMohalla(e.target.value)}
-                                        placeholder="जैसे: वार्ड नं. 5, हनुमान नगर (e.g. Ward No. 5)"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleVoiceInput("mohalla", setMohalla)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${listeningField === "mohalla" ? "bg-rose-100 text-rose-600" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
-                                        title="बोलकर दर्ज करें (Voice Input)"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">mic</span>
-                                    </button>
-                                </div>
-                            </div>
-
-                            {/* Landmark Requirement Field */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                                    <span>नज़दीकी लैंडमार्क (Nearby Landmark) *</span>
-                                    {listeningField === "landmark" && <span className="text-[9px] text-rose-500 font-bold animate-pulse">● रिकॉर्ड हो रहा है (Listening)...</span>}
-                                </label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
-                                    <input
-                                        type="text"
-                                        value={landmark}
-                                        onChange={(e) => setLandmark(e.target.value)}
-                                        placeholder="जैसे: सरकारी स्कूल के पास, हनुमान मंदिर, पंचायत भवन"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none font-semibold text-orange-950"
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleVoiceInput("landmark", setLandmark)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${listeningField === "landmark" ? "bg-rose-100 text-rose-600" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
-                                        title="बोलकर दर्ज करें (Voice Input)"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">mic</span>
-                                    </button>
-                                </div>
-                                <p className="text-[10px] text-emerald-700 leading-relaxed font-bold">
-                                    ℹ️ Please enter a nearby landmark for faster delivery in village areas. / ग्रामीण क्षेत्रों में तेज़ी से डिलीवरी के लिए नज़दीकी लैंडमार्क आवश्यक है।
-                                </p>
-                            </div>
-
-                            {/* Phone Number Field */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">संपर्क मोबाइल नंबर (Contact Phone Number) *</label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all">
-                                    <span className="text-[13px] text-slate-450 font-bold px-3.5 border-r border-slate-200">+91</span>
-                                    <input
-                                        type="tel"
-                                        maxLength={10}
-                                        value={editedPhone}
-                                        onChange={(e) => setEditedPhone(e.target.value.replace(/\D/g, ""))}
-                                        placeholder="10-digit mobile number"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Flat / House No. (Optional) */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                                    <span>मकान नंबर / फ्लैट (House No. / Flat) - वैकल्पिक (Optional)</span>
-                                    {listeningField === "houseNo" && <span className="text-[9px] text-rose-500 font-bold animate-pulse">● रिकॉर्ड हो रहा है (Listening)...</span>}
-                                </label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
+                                {/* Building / Floor input */}
+                                <div className="space-y-1">
                                     <input
                                         type="text"
                                         value={houseNo}
                                         onChange={(e) => setHouseNo(e.target.value)}
-                                        placeholder="जैसे: हाउस नं. 14, लाल मकान (e.g. 14, Blue House)"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none"
+                                        placeholder="Building / Floor *"
+                                        className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleVoiceInput("houseNo", setHouseNo)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${listeningField === "houseNo" ? "bg-rose-100 text-rose-600" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
-                                        title="बोलकर दर्ज करें (Voice Input)"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">mic</span>
-                                    </button>
                                 </div>
-                            </div>
 
-                            {/* Street / Road Name (Optional) */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest flex items-center justify-between">
-                                    <span>सड़क / मार्ग (Street / Road) - वैकल्पिक (Optional)</span>
-                                    {listeningField === "street" && <span className="text-[9px] text-rose-500 font-bold animate-pulse">● रिकॉर्ड हो रहा है (Listening)...</span>}
-                                </label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
+                                {/* Street input */}
+                                <div className="space-y-1">
                                     <input
                                         type="text"
                                         value={street}
                                         onChange={(e) => setStreet(e.target.value)}
-                                        placeholder="जैसे: मुख्य मार्ग, काली मंदिर रोड (e.g. Main Chowk Road)"
-                                        disabled={validatingEdit}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none"
+                                        placeholder="Street (Recommended)"
+                                        className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
-                                    <button
-                                        type="button"
-                                        onClick={() => handleVoiceInput("street", setStreet)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${listeningField === "street" ? "bg-rose-100 text-rose-600" : "bg-slate-100 hover:bg-slate-200 text-slate-500"}`}
-                                        title="बोलकर दर्ज करें (Voice Input)"
-                                    >
-                                        <span className="material-symbols-outlined text-[18px]">mic</span>
-                                    </button>
                                 </div>
-                            </div>
 
-                            {/* Delivery Pincode Field */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">पिनकोड (Delivery Pincode)</label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center">
+                                {/* Area / Locality block with map preview */}
+                                <div className="relative border border-slate-200 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.015)]">
+                                    <span className="absolute -top-2 left-4 bg-white px-1.5 text-[11px] font-bold text-slate-400 tracking-wide">
+                                        Area/Locality
+                                    </span>
+                                    <div className="text-[13px] text-slate-550 font-semibold leading-relaxed pr-2 max-w-[70%] text-left select-none">
+                                        {mohalla || userAddress || "No location selected"}
+                                    </div>
+                                    
+                                    {/* Mini map thumbnail */}
+                                    <div 
+                                        onClick={() => setIsLocationModalOpen(true)}
+                                        className="w-[72px] h-[72px] rounded-xl border border-slate-200 bg-slate-50 relative overflow-hidden cursor-pointer flex flex-col items-center justify-center hover:border-[#FF5C00]/50 transition-colors shadow-sm shrink-0"
+                                        style={{
+                                            backgroundImage: `radial-gradient(circle, #e2e8f0 10%, transparent 11%), radial-gradient(circle, #f1f5f9 20%, transparent 21%)`,
+                                            backgroundSize: '12px 12px',
+                                            backgroundColor: '#f8fafc'
+                                        }}
+                                        title="Click to change location"
+                                    >
+                                        {/* CSS Grid-like Roads visual */}
+                                        <div className="absolute inset-0 opacity-20 pointer-events-none">
+                                            <div className="absolute top-1/2 left-0 w-full h-[3px] bg-slate-400"></div>
+                                            <div className="absolute top-0 left-1/3 w-[3px] h-full bg-slate-400"></div>
+                                            <div className="absolute top-1/4 left-2/3 w-[3px] h-full bg-slate-400"></div>
+                                        </div>
+                                        
+                                        {/* Pin Marker */}
+                                        <span 
+                                            className="material-symbols-outlined text-[24px] text-[#FF5C00] relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.15)] animate-bounce" 
+                                            style={{ fontVariationSettings: "'FILL' 1" }}
+                                        >
+                                            location_on
+                                        </span>
+                                        
+                                        {/* Change text tag */}
+                                        <span className="absolute bottom-1 text-[9px] font-black text-[#FF5C00] uppercase tracking-wider bg-white/95 px-1.5 py-0.5 rounded shadow-sm z-10 border border-slate-100">
+                                            Change
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Save address as input */}
+                                <div className="space-y-1">
                                     <input
                                         type="text"
-                                        value={editedPincode}
-                                        onChange={(e) => setEditedPincode(e.target.value.replace(/\D/g, ""))}
-                                        placeholder="Pincode"
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 outline-none font-semibold"
+                                        value={addressLabel === 'Home' ? 'Home' : addressLabel === 'Work' ? 'Work' : addressLabel}
+                                        onChange={(e) => setAddressLabel(e.target.value)}
+                                        placeholder="Save address as *"
+                                        className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
                                 </div>
-                            </div>
 
-                            {/* Delivery Instructions Field */}
-                            <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest block">अतिरिक्त निर्देश (Additional Delivery Instructions)</label>
-                                <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center">
-                                    <textarea
-                                        value={instructions}
-                                        onChange={(e) => setInstructions(e.target.value)}
-                                        placeholder="जैसे: गेट पर छोड़ दें, घंटी बजाएं..."
-                                        rows={2}
-                                        className="w-full bg-transparent p-3.5 text-[13px] text-slate-850 outline-none font-semibold resize-none"
-                                    />
+                                {/* Phone Number input */}
+                                <div className="space-y-1">
+                                    <div className="flex bg-white border border-slate-200 rounded-xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.015)]">
+                                        <span className="text-[13px] text-slate-450 font-bold px-4 border-r border-slate-200">+91</span>
+                                        <input
+                                            type="tel"
+                                            maxLength={10}
+                                            value={editedPhone}
+                                            onChange={(e) => setEditedPhone(e.target.value.replace(/\D/g, ""))}
+                                            placeholder="Contact Phone Number *"
+                                            className="w-full bg-transparent p-3.5 px-4 text-[14px] text-slate-800 placeholder-slate-400 outline-none font-semibold"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Collapsible instructions */}
+                                <div className="pt-1">
+                                    {!showInstructions ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowInstructions(true)}
+                                            className="text-left text-[11.5px] font-bold text-[#FF5C00] hover:text-[#e05200] transition-colors flex items-center gap-1.5 pl-1"
+                                        >
+                                            <span className="material-symbols-outlined text-[15px]">description</span>
+                                            Add Delivery Instructions (Optional)
+                                        </button>
+                                    ) : (
+                                        <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest block pl-1">
+                                                Delivery Instructions
+                                            </label>
+                                            <textarea
+                                                value={instructions}
+                                                onChange={(e) => setInstructions(e.target.value)}
+                                                placeholder="e.g. Keep at gate / Call before arrival"
+                                                rows={2}
+                                                className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none font-semibold resize-none focus:border-[#FF5C00] transition-all"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Modal Footer */}
-                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-                            <button
-                                onClick={() => setIsAddressEditModalOpen(false)}
-                                disabled={validatingEdit}
-                                className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-550 text-xs font-black uppercase tracking-wider transition-all"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveAddressEdit}
-                                disabled={validatingEdit || !village.trim() || !mohalla.trim() || !landmark.trim() || !editedPhone.trim()}
-                                className="px-5 py-2.5 rounded-xl bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                                {validatingEdit ? (
-                                    <>
-                                        <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
-                                        Verifying...
-                                    </>
-                                ) : (
-                                    <>
-                                        <span className="material-symbols-outlined text-[16px]">save</span>
-                                        Save Changes
-                                    </>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
+                            <div>
+                                {checkoutAddressStep === 'form' && savedAddresses.length > 0 && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setCheckoutAddressStep('select')}
+                                        className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-550 text-xs font-black uppercase tracking-wider transition-all"
+                                    >
+                                        Back
+                                    </button>
                                 )}
-                            </button>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={() => setIsAddressEditModalOpen(false)}
+                                    disabled={validatingEdit}
+                                    className="px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-550 text-xs font-black uppercase tracking-wider transition-all"
+                                >
+                                    Cancel
+                                </button>
+                                {checkoutAddressStep === 'form' && (
+                                    <button
+                                        onClick={handleSaveAddressEdit}
+                                        disabled={validatingEdit || !village.trim() || !mohalla.trim() || !editedPhone.trim() || !houseNo.trim()}
+                                        className="px-5 py-2.5 rounded-xl bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        {validatingEdit ? (
+                                            <>
+                                                <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                                                Saving...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <span className="material-symbols-outlined text-[16px]">save</span>
+                                                Confirm Address
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1666,6 +1764,9 @@ export default function CheckoutPage() {
                     </div>
                 </div>
             )}
+
+            {/* Location Selector Modal for Change button */}
+            <LocationSelectorModal isOpen={isLocationModalOpen} onClose={() => setIsLocationModalOpen(false)} />
         </div>
     );
 }
