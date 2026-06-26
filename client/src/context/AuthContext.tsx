@@ -77,8 +77,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
         // Rehydrate immediate token and user in memory and client defaults
         setToken(storedToken);
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
         apiClient.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+
+        // Silently fetch fresh user profile from backend to update role or details
+        apiClient.get('/auth/me')
+          .then((res) => {
+            if (res.data.success && res.data.user) {
+              const freshUser = res.data.user;
+              setUser(freshUser);
+              localStorage.setItem('user', JSON.stringify(freshUser));
+            }
+          })
+          .catch((err) => {
+            console.error('[Auth] Failed to refresh profile on startup:', err);
+            // If the token is invalid/unauthorized (e.g. status 401 or 403), perform logout
+            if (err.response?.status === 401 || err.response?.status === 403) {
+              logout();
+            }
+          });
 
         // If the token is expiring in less than 3 days, refresh it in the background
         const threeDaysInSec = 3 * 24 * 60 * 60;

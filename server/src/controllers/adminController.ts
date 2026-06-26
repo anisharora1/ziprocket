@@ -419,7 +419,28 @@ export const createGroceryModerator = async (req: Request, res: Response): Promi
         // Check if user already exists
         let user = await User.findOne({ phone });
         if (user) {
-            res.status(400).json({ success: false, message: "User with this phone number already exists" });
+            if (user.role === "grocery_moderator") {
+                res.status(400).json({ success: false, message: "User with this phone number is already a grocery moderator" });
+                return;
+            }
+
+            // Promote existing user to grocery_moderator
+            user.role = "grocery_moderator";
+            user.name = name;
+            user.assignedZones = assignedZones;
+            user.approvalStatus = "approved";
+            await user.save();
+
+            // Invalidate session cache in Redis
+            await sessionCacheService.deleteSession(user._id.toString());
+
+            const populatedModerator = await User.findById(user._id).populate("assignedZones", "name center radiusKm pincodes");
+
+            res.status(200).json({
+                success: true,
+                message: "Existing user promoted to Grocery Moderator successfully",
+                moderator: populatedModerator
+            });
             return;
         }
 
