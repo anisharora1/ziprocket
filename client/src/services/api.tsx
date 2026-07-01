@@ -26,6 +26,17 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Log the actual original error with request context to the console
+    console.error("[API Client Error Log]:", {
+      message: error.message,
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      backendMessage: error.response?.data?.message || error.response?.data?.error,
+      data: error.config?.data,
+      response: error.response?.data,
+    });
+
     const friendlyMessage = getFriendlyErrorMessage(error);
     error.message = friendlyMessage;
     if (error.response && error.response.data) {

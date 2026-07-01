@@ -168,6 +168,12 @@ export function getFriendlyErrorMessage(error: any): string {
     if (status === 429) {
       return "Too many attempts. Please wait a few minutes and try again.";
     }
+    if (status === 400) {
+      if (backendMessage && isFriendlyMessage(backendMessage)) {
+        return backendMessage;
+      }
+      return "Invalid request. Please check your inputs.";
+    }
     if (status === 401 || status === 403) {
       // Keep customized auth messages if they are clean (e.g. "Your application is pending admin approval...")
       if (backendMessage && isFriendlyMessage(backendMessage)) {
