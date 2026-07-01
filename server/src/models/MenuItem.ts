@@ -76,17 +76,15 @@ const menuItemSchemaFields = {
     category: "title" as const
 };
 
-menuItemSchema.pre("save", function(this: any, next: any) {
+menuItemSchema.pre("save", function(this: any) {
     normalizeDoc(this, menuItemSchemaFields);
-    next();
 });
 
 const menuItemUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
 menuItemUpdateHooks.forEach(hook => {
-    menuItemSchema.pre(hook as any, function(this: any, next: any) {
+    menuItemSchema.pre(hook as any, function(this: any) {
         const update = this.getUpdate();
         normalizeUpdatePayload(update, menuItemSchemaFields);
-        next();
     });
 });
 

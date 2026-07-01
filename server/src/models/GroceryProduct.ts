@@ -94,17 +94,15 @@ const groceryProductSchemaFields = {
     brand: "title" as const
 };
 
-groceryProductSchema.pre("save", function(this: any, next: any) {
+groceryProductSchema.pre("save", function(this: any) {
     normalizeDoc(this, groceryProductSchemaFields);
-    next();
 });
 
 const groceryProductUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
 groceryProductUpdateHooks.forEach(hook => {
-    groceryProductSchema.pre(hook as any, function(this: any, next: any) {
+    groceryProductSchema.pre(hook as any, function(this: any) {
         const update = this.getUpdate();
         normalizeUpdatePayload(update, groceryProductSchemaFields);
-        next();
     });
 });
 

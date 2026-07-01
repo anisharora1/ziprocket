@@ -148,17 +148,15 @@ const restaurantSchemaFields = {
     cuisines: "title" as const
 };
 
-restaurantSchema.pre("save", function(this: any, next: any) {
+restaurantSchema.pre("save", function(this: any) {
     normalizeDoc(this, restaurantSchemaFields);
-    next();
 });
 
 const restaurantUpdateHooks = ["findOneAndUpdate", "updateOne", "updateMany"];
 restaurantUpdateHooks.forEach(hook => {
-    restaurantSchema.pre(hook as any, function(this: any, next: any) {
+    restaurantSchema.pre(hook as any, function(this: any) {
         const update = this.getUpdate();
         normalizeUpdatePayload(update, restaurantSchemaFields);
-        next();
     });
 });
 
