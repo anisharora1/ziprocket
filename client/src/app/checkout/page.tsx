@@ -6,6 +6,7 @@ import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
+import { getHighAccuracyGPSFix } from "@/utils/geolocation";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
@@ -173,9 +174,7 @@ export default function CheckoutPage() {
 
             setListeningField(fieldName);
 
-            recognition.onstart = () => {
-                console.log("Voice recognition active for", fieldName);
-            };
+            recognition.onstart = () => {};
 
             recognition.onresult = (event: any) => {
                 const speechToText = event.results[0][0].transcript;
@@ -183,7 +182,9 @@ export default function CheckoutPage() {
             };
 
             recognition.onerror = (err: any) => {
-                console.error("Speech recognition error:", err);
+                if (process.env.NODE_ENV !== "production") {
+                    console.error("Speech recognition error:", err);
+                }
                 alert("Could not recognize voice. Please try again. / आवाज़ पहचानी नहीं जा सकी। पुनः प्रयास करें।");
                 setListeningField(null);
             };
@@ -444,7 +445,7 @@ export default function CheckoutPage() {
                     userId: user?._id || undefined
                 };
                 const res = await apiClient.post("/delivery-zones/calculate-bill", payload);
-                if (res.data.success) {
+                if (res.data.success && res.data.isDeliverable !== false) {
                     setBillDetails(res.data);
                     if (appliedCouponCode && res.data.couponError) {
                         setCouponError(res.data.couponError);
@@ -454,6 +455,10 @@ export default function CheckoutPage() {
                         setCouponSuccessMessage(`Coupon '${appliedCouponCode}' applied successfully!`);
                         setCouponError(null);
                     }
+                    setCheckoutError(null);
+                } else {
+                    setCheckoutError(res.data.message || "Selected location is outside our operational service geofence bounds.");
+                    setBillDetails(null);
                 }
             } catch (err: any) {
                 console.error("Failed to calculate dynamic checkout fares:", err);

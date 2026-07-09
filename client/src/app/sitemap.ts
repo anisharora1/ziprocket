@@ -47,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     if (res.ok) {
       const data = await res.json();
-      const restaurants = data.restaurants || [];
+      const restaurants = data.restaurants || data.data?.restaurants || [];
       restaurantRoutes = restaurants.map((r: any) => ({
         url: `${baseUrl}/restaurants/${r._id}`,
         lastModified: new Date(r.updatedAt || new Date()),

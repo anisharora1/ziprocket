@@ -9,8 +9,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     });
     if (res.ok) {
       const data = await res.json();
-      if (data.success && data.restaurant) {
-        const rest = data.restaurant;
+      const rest = data.restaurant || data.data?.restaurant;
+      if (data.success && rest) {
         return {
           title: `${rest.name} - Menu & Order Food Online | ZipRocket`,
           description: `Order delicious food online from ${rest.name} in ${rest.location?.address || 'your area'}. View menu, ratings, delivery details and customer reviews on ZipRocket.`,
@@ -49,7 +49,7 @@ export default async function RestaurantDetailLayout({
     if (res.ok) {
       const data = await res.json();
       if (data.success) {
-        restaurant = data.restaurant;
+        restaurant = data.restaurant || data.data?.restaurant;
       }
     }
   } catch (error) {

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useLocation } from '@/context/LocationContext';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/services/api';
+import { getHighAccuracyGPSFix } from '@/utils/geolocation';
 import Header from '@/components/Header';
 import BottomNavBar from '@/components/BottomNavBar';
 
@@ -138,73 +139,73 @@ export default function AddressesPage() {
     setIsModalOpen(true);
   };
 
-  const handleDetectGPS = () => {
-    if (!navigator.geolocation) {
-      setValidationError("Geolocation is not supported by your browser");
-      return;
-    }
-
+  const handleDetectGPS = async () => {
     setGpsLoading(true);
     setValidationError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        try {
-          // Check feasibility with coordinates first
-          const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
-            userLat: latitude,
-            userLng: longitude
-          });
+    try {
+      const fix = await getHighAccuracyGPSFix({
+        desiredAccuracyMeters: 20,
+        maxWaitTimeMs: 5000,
+        accuracyThresholdMeters: 150
+      });
 
-          if (!feasibilityRes.data.success) {
-            setValidationError("This location lies outside our operational service geofence bounds.");
-            setGpsLoading(false);
-            return;
-          }
+      const latitude = fix.coords.latitude;
+      const longitude = fix.coords.longitude;
 
-          // Prefill reverse-geocoded address fields
-          let prefillPincode = '';
-          let prefillVillage = '';
-          let prefillLocality = '';
-          let fullAddress = 'GPS Coordinates';
+      // Check feasibility with coordinates first
+      const feasibilityRes = await apiClient.post("/delivery-zones/check-feasibility", {
+        userLat: latitude,
+        userLng: longitude
+      });
 
-          try {
-            const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-            if (geocodeRes.data.success) {
-              const details = geocodeRes.data.details;
-              fullAddress = details.fullAddress || 'GPS Coordinates';
-              prefillPincode = details.pincode || '';
-              prefillVillage = details.city || '';
-              prefillLocality = details.fullAddress?.split(',')[0] || '';
-            }
-          } catch (err) {
-            console.warn("Reverse geocode failed, prefilling empty fields.");
-          }
-
-          setCurrentAddress(prev => ({
-            ...prev,
-            fullAddress,
-            location: { lat: latitude, lng: longitude }
-          }));
-
-          setLocality(prefillLocality);
-          setVillage(prefillVillage);
-          setPincodeField(prefillPincode);
-          setSearchQuery(fullAddress);
-        } catch (err: any) {
-          console.error("Zone check failed:", err);
-          setValidationError(err.response?.data?.message || "Sorry, you are currently outside our delivery service area.");
-        } finally {
-          setGpsLoading(false);
-        }
-      },
-      (err) => {
-        console.error("GPS error:", err);
-        setValidationError("GPS coordinates access permission was denied");
+      if (!feasibilityRes.data.success || feasibilityRes.data.isDeliverable === false) {
+        setValidationError(feasibilityRes.data.message || "This location lies outside our operational service geofence bounds.");
         setGpsLoading(false);
+        return;
       }
-    );
+
+      // Prefill reverse-geocoded address fields
+      let prefillPincode = '';
+      let prefillVillage = '';
+      let prefillLocality = '';
+      let fullAddress = 'GPS Coordinates';
+
+      try {
+        const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+        if (geocodeRes.data.success) {
+          const details = geocodeRes.data.details;
+          fullAddress = details.fullAddress || 'GPS Coordinates';
+          prefillPincode = details.pincode || '';
+          prefillVillage = details.city || '';
+          
+          const components = fullAddress.split(', ');
+          if (components.length > 2) {
+            prefillLocality = components.slice(0, components.length - 2).join(', ');
+          } else {
+            prefillLocality = fullAddress;
+          }
+        }
+      } catch (err) {
+        console.warn("Reverse geocode failed, prefilling empty fields.");
+      }
+
+      setCurrentAddress(prev => ({
+        ...prev,
+        fullAddress,
+        location: { lat: latitude, lng: longitude }
+      }));
+
+      setLocality(prefillLocality);
+      setVillage(prefillVillage);
+      setPincodeField(prefillPincode);
+      setSearchQuery(fullAddress);
+    } catch (err: any) {
+      console.error("GPS detection failed:", err);
+      setValidationError(err.message || "Failed to detect stable GPS signal.");
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   const handleSelectSuggestion = async (placeId: string) => {
@@ -238,8 +239,8 @@ export default function AddressesPage() {
             userLng: lng,
             pincode: pincode || ""
           });
-          if (!feasibilityRes.data.success) {
-            setValidationError("This location lies outside our operational service geofence bounds.");
+          if (!feasibilityRes.data.success || feasibilityRes.data.isDeliverable === false) {
+            setValidationError(feasibilityRes.data.message || "This location lies outside our operational service geofence bounds.");
           }
         } catch (zErr) {
           setValidationError("This location lies outside our operational service geofence bounds.");

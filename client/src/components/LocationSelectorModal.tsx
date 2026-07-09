@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from '@/context/LocationContext';
 import { apiClient } from '@/services/api';
+import { getHighAccuracyGPSFix } from '@/utils/geolocation';
 
 interface LocationSelectorModalProps {
   isOpen: boolean;
@@ -69,61 +70,54 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
   if (!isOpen) return null;
 
   // Handle Current Geolocation GPS Signal Check
-  const handleDetectGPS = () => {
-    if (!navigator.geolocation) {
-      setAddressError("Geolocation is not supported by your browser");
-      return;
-    }
-
+  const handleDetectGPS = async () => {
     setGpsLoading(true);
     setAddressError(null);
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        let prefillPincode = '';
-        let city = 'Unknown';
-        let state = 'Bihar';
-        let country = 'India';
-        let fullAddress = 'Address unavailable';
+    try {
+      const fix = await getHighAccuracyGPSFix({
+        desiredAccuracyMeters: 20,
+        maxWaitTimeMs: 5000,
+        accuracyThresholdMeters: 150
+      });
 
-        try {
-          const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-          if (geocodeRes.data.success) {
-            const details = geocodeRes.data.details;
-            prefillPincode = details.pincode || '';
-            city = details.city || 'Unknown';
-            state = details.state || 'Bihar';
-            country = details.country || 'India';
-            fullAddress = details.fullAddress || 'Address unavailable';
-          }
-        } catch (err) {
-          console.warn("Reverse geocode failed.");
-        }
+      const latitude = fix.coords.latitude;
+      const longitude = fix.coords.longitude;
+      let prefillPincode = '';
+      let city = 'Unknown';
+      let state = 'Bihar';
+      let country = 'India';
+      let fullAddress = 'Address unavailable';
 
-        try {
-          await setCustomLocation(
-            { lat: latitude, lng: longitude },
-            fullAddress,
-            prefillPincode || null,
-            city || null,
-            state || null,
-            country || null
-          );
-          onClose();
-        } catch (err: any) {
-          console.error("Set custom location failed:", err);
-          setAddressError(err.message || "Failed to set location.");
-        } finally {
-          setGpsLoading(false);
+      try {
+        const geocodeRes = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+        if (geocodeRes.data.success) {
+          const details = geocodeRes.data.details;
+          prefillPincode = details.pincode || '';
+          city = details.city || 'Unknown';
+          state = details.state || 'Bihar';
+          country = details.country || 'India';
+          fullAddress = details.fullAddress || 'Address unavailable';
         }
-      },
-      (err) => {
-        console.error("GPS error:", err);
-        setAddressError("GPS coordinates access permission was denied");
-        setGpsLoading(false);
+      } catch (err) {
+        console.warn("Reverse geocode failed.");
       }
-    );
+
+      await setCustomLocation(
+        { lat: latitude, lng: longitude },
+        fullAddress,
+        prefillPincode || null,
+        city || null,
+        state || null,
+        country || null
+      );
+      onClose();
+    } catch (err: any) {
+      console.error("GPS detection failed:", err);
+      setAddressError(err.message || "Failed to detect stable GPS signal.");
+    } finally {
+      setGpsLoading(false);
+    }
   };
 
   // Handle autocomplete suggestion click and resolve place details

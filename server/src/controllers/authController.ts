@@ -45,7 +45,11 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
         // Increment resend counter
         await otpCacheService.incrementResendAttempts(cleanPhone);
 
-        console.log(`[requestOtp] Generated OTP for +91${cleanPhone}: ${otpCode} (Expires in 5m)`);
+        if (process.env.NODE_ENV !== "production") {
+            console.log(`[requestOtp] Generated OTP for +91${cleanPhone}: ${otpCode} (Expires in 5m)`);
+        } else {
+            console.log(`[requestOtp] Generated OTP for +91${cleanPhone}: [REDACTED] (Expires in 5m)`);
+        }
 
         // Return OTP in response in development/test environment for easy client testing
         const isDev = process.env.NODE_ENV !== "production";

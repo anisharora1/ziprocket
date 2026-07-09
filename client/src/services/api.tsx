@@ -11,6 +11,13 @@ export const apiClient = axios.create({
   },
 });
 
+if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+  console.log = () => {};
+  console.info = () => {};
+  console.warn = () => {};
+  console.error = () => {};
+}
+
 // Request interceptor to attach authentication token
 apiClient.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -24,18 +31,31 @@ apiClient.interceptors.request.use((config) => {
 
 // Response interceptor to map technical/raw errors to friendly ones
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // If the response is in our standard envelope, we merge data back into response.data
+    if (response.data && response.data.success === true && response.data.data !== undefined) {
+      const { success, message, data } = response.data;
+      response.data = {
+        success,
+        message,
+        ...data
+      };
+    }
+    return response;
+  },
   (error) => {
-    // Log the actual original error with request context to the console
-    console.error("[API Client Error Log]:", {
-      message: error.message,
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      backendMessage: error.response?.data?.message || error.response?.data?.error,
-      data: error.config?.data,
-      response: error.response?.data,
-    });
+    // Log the actual original error with request context to the console (only in development)
+    if (process.env.NODE_ENV !== "production") {
+      console.error("[API Client Error Log]:", {
+        message: error.message,
+        url: error.config?.url,
+        method: error.config?.method,
+        status: error.response?.status,
+        backendMessage: error.response?.data?.message || error.response?.data?.error,
+        data: error.config?.data,
+        response: error.response?.data,
+      });
+    }
 
     const friendlyMessage = getFriendlyErrorMessage(error);
     error.message = friendlyMessage;

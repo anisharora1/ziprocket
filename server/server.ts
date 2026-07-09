@@ -1,6 +1,11 @@
 // server/server.ts
 import 'dotenv/config';
 
+if (process.env.NODE_ENV === "production") {
+    console.log = () => {};
+    console.debug = () => {};
+}
+
 import app from "./src/app";
 import dbConnect from "./src/config/dbConnect";
 

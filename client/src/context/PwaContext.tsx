@@ -83,7 +83,6 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       setShowFirstVisitModal(false);
       setDeferredPrompt(null);
       localStorage.removeItem('pwa-first-visit-dismissed');
-      console.log('ZipRocket PWA was successfully installed');
       sendGAEvent({ event: 'pwa_install', status: 'success' });
     };
 
@@ -153,7 +152,6 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
 
   const installApp = async () => {
     if (!deferredPrompt) {
-      console.warn('Install prompt is not available yet.');
       return;
     }
 
@@ -162,13 +160,11 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     const { outcome } = await deferredPrompt.userChoice;
     
     if (outcome === 'accepted') {
-      console.log('User accepted the PWA install prompt');
       setIsInstalled(true);
       setShowFirstVisitModal(false);
       setDeferredPrompt(null);
       sendGAEvent({ event: 'pwa_prompt_accepted' });
     } else {
-      console.log('User dismissed the PWA install prompt');
       // Dismiss the first-visit modal if it is active so we don't annoy them
       dismissFirstVisitModal();
       sendGAEvent({ event: 'pwa_prompt_dismissed' });

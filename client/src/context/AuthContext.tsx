@@ -112,7 +112,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               localStorage.setItem('token', newToken);
               localStorage.setItem('user', JSON.stringify(newUser));
               apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
-              console.log('[Auth] Token silently refreshed successfully.');
             }
           } catch (err: any) {
             console.error('[Auth] Failed to refresh token silently:', err);

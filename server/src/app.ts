@@ -26,8 +26,12 @@ import recommendationRoutes from "./routes/recommendationRoutes";
 import searchRoutes from "./routes/searchRoutes";
 import promotionsRoutes from "./routes/promotionsRoutes";
 import platformRoutes from "./routes/platformRoutes";
+import { responseStandardizer } from "./middlewares/responseStandardizer";
 
 const app = express();
+
+// Enable Response Standardizer early in the middleware stack
+app.use(responseStandardizer);
 
 // Set trust proxy to true (1) if behind a load balancer (Haproxy, Nginx, AWS ALB, etc.)
 // This ensures express-rate-limit correctly resolves client IP addresses rather than the load balancer's IP.

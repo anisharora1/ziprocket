@@ -1,6 +1,7 @@
 'use client';
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { apiClient } from '@/services/api';
+import { getHighAccuracyGPSFix } from '@/utils/geolocation';
 
 interface Location {
   lat: number;
@@ -90,13 +91,16 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         userLng: lng,
         pincode: pin || ""
       });
-      if (res.data.success) {
+      if (res.data.success && res.data.isDeliverable) {
         setZoneId(res.data.zoneId);
         setZoneName(res.data.zoneName);
         setError(null);
+      } else {
+        setError(res.data.message || "Outside active operating radius");
+        setZoneId(null);
+        setZoneName(null);
       }
     } catch (err: any) {
-      console.warn("Location lies outside delivery zones:", err.response?.data?.message);
       setError(err.response?.data?.message || "Outside active operating radius");
       setZoneId(null);
       setZoneName(null);
@@ -258,93 +262,84 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   };
 
   // 5. Automatic GPS Location Autodetect using Google Geocoding Wrapper API on Backend
-  const fetchLocation = () => {
+  const fetchLocation = async () => {
     setIsLoading(true);
     setError(null);
-    if (!navigator.geolocation) {
-      setError('Geolocation is not supported by your browser');
-      setIsLoading(false);
-      setIsFirstTime(true);
-      setIsLocationLoaded(true);
-      return;
-    }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        const newCoords = { lat: latitude, lng: longitude };
-        setLocation(newCoords);
+    try {
+      const fix = await getHighAccuracyGPSFix({
+        desiredAccuracyMeters: 20,
+        maxWaitTimeMs: 5000,
+        accuracyThresholdMeters: 150
+      });
 
+      const latitude = fix.coords.latitude;
+      const longitude = fix.coords.longitude;
+      const newCoords = { lat: latitude, lng: longitude };
+      setLocation(newCoords);
+
+      // Query secure geocoding wrapper on the backend
+      const response = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+      if (response.data.success) {
+        const { fullAddress, pincode: pin, city: c, state: s, country: co } = response.data.details;
+        
+        setAddress(fullAddress);
+        setPincode(pin || null);
+        setCity(c || null);
+        setState(s || null);
+        setCountry(co || null);
+        setSelectedAddressId(null); // GPS Override unsets address ID
+        setDeliveryAddress(null); // Reset until manual address is captured
+
+        // Resolve operational zone and save
+        let zId = null;
+        let zName = null;
         try {
-          // Query secure geocoding wrapper on the backend
-          const response = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-          if (response.data.success) {
-            const { fullAddress, pincode: pin, city: c, state: s, country: co } = response.data.details;
-            
-            setAddress(fullAddress);
-            setPincode(pin || null);
-            setCity(c || null);
-            setState(s || null);
-            setCountry(co || null);
-            setSelectedAddressId(null); // GPS Override unsets address ID
-            setDeliveryAddress(null); // Reset until manual address is captured
-
-            // Resolve operational zone and save
-            let zId = null;
-            let zName = null;
-            try {
-              const zoneRes = await apiClient.post("/delivery-zones/check-feasibility", {
-                userLat: latitude,
-                userLng: longitude,
-                pincode: pin || ""
-              });
-              if (zoneRes.data.success) {
-                zId = zoneRes.data.zoneId;
-                zName = zoneRes.data.zoneName;
-                setZoneId(zId);
-                setZoneName(zName);
-              }
-            } catch (zErr) {
-              console.warn("User is outside delivery limits.");
-              setError("Sorry, you are currently outside our delivery service area.");
-              setZoneId(null);
-              setZoneName(null);
-            }
-
-            localStorage.setItem('ziprocket_location', JSON.stringify({
-              coords: newCoords,
-              address: fullAddress,
-              pincode: pin,
-              city: c,
-              state: s,
-              country: co,
-              zoneId: zId,
-              zoneName: zName,
-              selectedAddressId: null,
-              deliveryAddress: null
-            }));
+          const zoneRes = await apiClient.post("/delivery-zones/check-feasibility", {
+            userLat: latitude,
+            userLng: longitude,
+            pincode: pin || ""
+          });
+          if (zoneRes.data.success && zoneRes.data.isDeliverable) {
+            zId = zoneRes.data.zoneId;
+            zName = zoneRes.data.zoneName;
+            setZoneId(zId);
+            setZoneName(zName);
+          } else {
+            setError(zoneRes.data.message || "Sorry, you are currently outside our delivery service area.");
+            setZoneId(null);
+            setZoneName(null);
           }
-          dismissPrompt();
-        } catch (err: any) {
-          console.error("Geocoding failed:", err);
-          setError("Failed to resolve your coordinates address");
-          setAddress('Address unavailable');
-          localStorage.setItem('ziprocket_location', JSON.stringify({ coords: newCoords, address: 'Address unavailable' }));
-          setIsFirstTime(true);
-          dismissPrompt();
-        } finally {
-          setIsLoading(false);
-          setIsLocationLoaded(true);
+        } catch (zErr) {
+          setError("Sorry, you are currently outside our delivery service area.");
+          setZoneId(null);
+          setZoneName(null);
         }
-      },
-      (err) => {
-        console.error("Geolocation error:", err);
-        setError('GPS coordinates access permission was denied');
-        setIsLoading(false);
-        setIsFirstTime(true);
-        setIsLocationLoaded(true);
+
+        localStorage.setItem('ziprocket_location', JSON.stringify({
+          coords: newCoords,
+          address: fullAddress,
+          pincode: pin,
+          city: c,
+          state: s,
+          country: co,
+          zoneId: zId,
+          zoneName: zName,
+          selectedAddressId: null,
+          deliveryAddress: null
+        }));
       }
-    );
+      dismissPrompt();
+    } catch (err: any) {
+      console.error("Geocoding failed:", err);
+      setError(err.message || "Failed to resolve your coordinates address");
+      setAddress('Address unavailable');
+      setIsFirstTime(true);
+      dismissPrompt();
+    } finally {
+      setIsLoading(false);
+      setIsLocationLoaded(true);
+    }
   };
 
   // 6. Manual Location Setter (resolves geocoded places)
@@ -373,15 +368,18 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         userLng: coords.lng,
         pincode: pin || ""
       });
-      if (zoneRes.data.success) {
+      if (zoneRes.data.success && zoneRes.data.isDeliverable) {
         zId = zoneRes.data.zoneId;
         zName = zoneRes.data.zoneName;
         setZoneId(zId);
         setZoneName(zName);
         setError(null);
+      } else {
+        setError(zoneRes.data.message || "Sorry, you are currently outside our delivery service area.");
+        setZoneId(null);
+        setZoneName(null);
       }
     } catch (zErr: any) {
-      console.warn("User is outside delivery limits.");
       setError("Sorry, you are currently outside our delivery service area.");
       setZoneId(null);
       setZoneName(null);

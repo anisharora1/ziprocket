@@ -1,3 +1,15 @@
+import * as redisService from "../services/redisService";
+import {
+    cleanPlusCode,
+    isIncompleteAddress,
+    fetchNearbyPlaces,
+    getBestLandmark,
+    extractGoogleComponents,
+    extractNominatimComponents,
+    buildCombinedAddress,
+    buildRuralAddressString
+} from "./ruralGeocoding";
+
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const FRONTEND_REFERER = "http://localhost:3000/";
 
@@ -163,97 +175,136 @@ export const getReverseGeocodeFromPlacesAPI = async (lat: number, lng: number) =
 
 // 3. Google Geocoding API (Reverse Geocode GPS coordinates) with Nominatim Fallback
 export const getReverseGeocode = async (lat: number, lng: number) => {
+    const roundedLat = lat.toFixed(4);
+    const roundedLng = lng.toFixed(4);
+    const cacheKey = `geocode:reverse:${roundedLat}:${roundedLng}`;
+
+    // 1. Try cache first
+    try {
+        const cached = await redisService.getJson<any>(cacheKey);
+        if (cached) {
+            console.log(`[Cache Hit] Reverse geocode for key: ${cacheKey}`);
+            return cached;
+        }
+    } catch (cErr: any) {
+        console.warn("Failed to read reverse geocode cache:", cErr.message);
+    }
+
+    console.log(`[Cache Miss] Resolving reverse geocode for lat: ${lat}, lng: ${lng}`);
+
+    let details: {
+        fullAddress: string;
+        pincode: string;
+        city: string;
+        state: string;
+        country: string;
+    } | null = null;
+
+    // 2. Try Google Geocoding API
     try {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`;
-        // Try Google Geocoding API with Referer header in case they have a referrer whitelist
         const res = await fetch(url, { headers: { "Referer": FRONTEND_REFERER } });
         const data = await res.json() as any;
-        
+
         if (data.status === "OK" && data.results && data.results.length > 0) {
-            let pincode = "";
-            let city = "";
-            let state = "";
-            let country = "";
+            const firstResult = data.results[0];
+            const formatted = firstResult.formatted_address || "";
+            const components = extractGoogleComponents(data.results);
             
-            // Scan across all results to extract components
-            for (const result of data.results) {
-                if (result.address_components) {
-                    for (const comp of result.address_components) {
-                        if (!pincode && comp.types.includes("postal_code")) pincode = comp.long_name;
-                        if (!city && (comp.types.includes("locality") || comp.types.includes("sublocality") || comp.types.includes("administrative_area_level_2"))) {
-                            city = comp.long_name;
-                        }
-                        if (!state && comp.types.includes("administrative_area_level_1")) state = comp.long_name;
-                        if (!country && comp.types.includes("country")) country = comp.long_name;
-                    }
-                }
+            let finalAddress = "";
+            const pincode = components.postalCode || "";
+            const city = components.village || components.locality || "Unknown";
+            const state = components.state || "Punjab";
+            const country = "India";
+
+            // Detect if the address is a plus code or incomplete rural address
+            if (isIncompleteAddress(firstResult.address_components || [], formatted)) {
+                console.log("[Rural Geocode] Incomplete address/Plus Code detected. Running landmark pipeline...");
+                
+                // Fetch nearby places for landmark search
+                const nearbyPlaces = await fetchNearbyPlaces(lat, lng);
+                const bestLandmark = getBestLandmark(nearbyPlaces, lat, lng);
+                
+                // Build landmark-based rural address using buildRuralAddressString
+                finalAddress = buildRuralAddressString(components, bestLandmark?.name);
+            } else {
+                finalAddress = cleanPlusCode(formatted);
             }
-            
-            // Regex pincode fallback from formatted addresses of results
-            if (!pincode) {
-                for (const result of data.results) {
-                    const match = (result.formatted_address || "").match(/\b\d{6}\b/);
-                    if (match) {
-                        pincode = match[0];
-                        break;
-                    }
-                }
-            }
-            
-            return {
-                fullAddress: data.results[0].formatted_address || "",
-                pincode,
-                city: city || "Unknown",
-                state: state || "Bihar",
-                country: country || "India"
-            };
-        } else {
-            console.warn(`Google Geocoding failed with status: ${data.status}. Trying Places searchNearby fallback.`);
-            const placesFallback = await getReverseGeocodeFromPlacesAPI(lat, lng);
-            if (placesFallback) return placesFallback;
-        }
-    } catch (err) {
-        console.error("Google Geocoding failed with exception. Trying Places searchNearby fallback:", err);
-        const placesFallback = await getReverseGeocodeFromPlacesAPI(lat, lng);
-        if (placesFallback) return placesFallback;
-    }
-    
-    // Robust fallback to OpenStreetMap Nominatim API (Free and no API Key/Referrer restriction)
-    try {
-        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
-        const res = await fetch(url, {
-            headers: {
-                "User-Agent": "ZipRocket/1.0"
-            }
-        });
-        const data = await res.json() as any;
-        
-        if (data && data.address) {
-            const fullAddress = data.display_name || "";
-            let pincode = data.address.postcode || "";
-            const city = data.address.town || data.address.city || data.address.village || data.address.suburb || data.address.state_district || data.address.county || "Unknown";
-            const state = data.address.state || "Bihar";
-            const country = data.address.country || "India";
-            
-            // Regex pincode fallback
-            if (!pincode) {
-                const match = fullAddress.match(/\b\d{6}\b/);
-                if (match) pincode = match[0];
-            }
-            
-            return {
-                fullAddress,
+
+            details = {
+                fullAddress: finalAddress,
                 pincode,
                 city,
                 state,
                 country
             };
+        } else {
+            console.warn(`Google Geocoding failed with status: ${data.status}. Trying Places fallback.`);
         }
     } catch (err) {
-        console.error("Nominatim fallback reverse geocode failed too:", err);
+        console.error("Google Geocoding failed with exception:", err);
     }
-    
-    throw new Error("No address found for these coordinates");
+
+    // 3. Try Places searchNearby Fallback if Geocoding API failed
+    if (!details) {
+        try {
+            console.log("[Fallback] Trying Google Places searchNearby reverse lookup...");
+            const placesFallback = await getReverseGeocodeFromPlacesAPI(lat, lng);
+            if (placesFallback) {
+                const cleanedAddr = cleanPlusCode(placesFallback.fullAddress);
+                details = {
+                    ...placesFallback,
+                    fullAddress: cleanedAddr
+                };
+            }
+        } catch (err) {
+            console.error("Google Places searchNearby fallback failed:", err);
+        }
+    }
+
+    // 4. Try OpenStreetMap Nominatim Fallback if both Google APIs failed
+    if (!details) {
+        try {
+            console.log("[Fallback] Trying OpenStreetMap Nominatim reverse lookup...");
+            const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`;
+            const res = await fetch(url, { headers: { "User-Agent": "ZipRocket/1.0" } });
+            const data = await res.json() as any;
+
+            if (data && data.address) {
+                const displayName = data.display_name || "";
+                const components = extractNominatimComponents(data.address, displayName);
+
+                // For Nominatim, check if we need to search landmarks
+                const nearbyPlaces = await fetchNearbyPlaces(lat, lng);
+                const bestLandmark = getBestLandmark(nearbyPlaces, lat, lng);
+
+                const finalAddress = buildRuralAddressString(components, bestLandmark?.name);
+
+                details = {
+                    fullAddress: finalAddress,
+                    pincode: components.postalCode || "",
+                    city: components.village || components.locality || "Unknown",
+                    state: components.state || "Punjab",
+                    country: "India"
+                };
+            }
+        } catch (err) {
+            console.error("Nominatim fallback reverse geocode failed:", err);
+        }
+    }
+
+    if (!details) {
+        throw new Error("No address found for these coordinates");
+    }
+
+    // Cache the resolved details in Redis for 24 hours
+    try {
+        await redisService.setJson(cacheKey, details, 86400);
+    } catch (cErr: any) {
+        console.warn("Failed to write reverse geocode to cache:", cErr.message);
+    }
+
+    return details;
 };
 
 // 4. Google Distance Matrix API (Compute driving route parameters) with Haversine Fallback

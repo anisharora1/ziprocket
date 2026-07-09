@@ -182,10 +182,14 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
         const applicableZone = await findApplicableZone(userLat, userLng, pincode, addressText);
 
         if (!applicableZone) {
-            res.status(400).json({ 
-                success: false, 
-                message: "Sorry, you are currently outside our delivery service area." 
-            });
+            const responsePayload = {
+                success: true,
+                isDeliverable: false,
+                message: "Sorry, you are currently outside our delivery service area."
+            };
+            // Cache the feasibility calculation for 10 minutes
+            await redisService.setJson(feasibilityKey, responsePayload, 600);
+            res.status(200).json(responsePayload);
             return;
         }
 
@@ -258,8 +262,9 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         );
         
         if (!activeZone) {
-            res.status(400).json({ 
-                success: false, 
+            res.status(200).json({ 
+                success: true, 
+                isDeliverable: false,
                 message: "Selected location lies outside our operational delivery limits. You won't be able to checkout." 
             });
             return;
