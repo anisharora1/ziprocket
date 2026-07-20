@@ -9,6 +9,7 @@ import { useCart } from "@/context/CartContext";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
 import { usePlatform } from "@/context/PlatformContext";
+import ProductCard from "@/components/ProductCard";
 
 interface Product {
   _id: string;
@@ -228,22 +229,36 @@ export default function GroceryPage() {
         {!searchQuery && (
           <div className="space-y-4">
             <h2 className="text-[13px] font-semibold text-slate-800 tracking-wide uppercase">Shop by Category</h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-4">
-              {CATEGORIES.map((cat) => (
-                <Link
-                  key={cat.id}
-                  href={`/grocery/category/${encodeURIComponent(cat.id)}`}
-                  className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 hover:shadow-[0_4px_20px_rgba(255,92,0,0.06)] hover:border-[#FF5C00]/20 transition-all duration-300 group cursor-pointer"
-                >
-                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border ${cat.color} overflow-hidden shadow-sm bg-white`}>
-                    <OptimizedImage src={cat.image} alt={cat.name} preset="thumbnail" className="w-full h-full object-cover group-hover:rotate-3 transition-transform duration-300" />
+            {loading ? (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-4">
+                {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 animate-pulse h-[116px]"
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-slate-100" />
+                    <div className="h-3 w-16 bg-slate-100 rounded mt-1" />
                   </div>
-                  <span className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-snug">
-                    {cat.name}
-                  </span>
-                </Link>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-4">
+                {CATEGORIES.map((cat) => (
+                  <Link
+                    key={cat.id}
+                    href={`/grocery/category/${encodeURIComponent(cat.id)}`}
+                    className="bg-white border border-slate-100 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-2 hover:shadow-[0_4px_20px_rgba(255,92,0,0.06)] hover:border-[#FF5C00]/20 transition-all duration-300 group cursor-pointer"
+                  >
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 border ${cat.color} overflow-hidden shadow-sm bg-white`}>
+                      <OptimizedImage src={cat.image} alt={cat.name} preset="thumbnail" className="w-full h-full object-cover group-hover:rotate-3 transition-transform duration-300" />
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-800 line-clamp-1 leading-snug">
+                      {cat.name}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -314,108 +329,6 @@ export default function GroceryPage() {
   );
 }
 
-// Reusable mini product card
-function ProductCard({ prod, qty, addToCart, updateQuantity }: { prod: Product; qty: number; addToCart: any; updateQuantity: any }) {
-  const currentPrice = prod.discountedPrice || prod.price;
-  const { isGroceryCurrentlyOpen } = usePlatform();
-  const isGroceryOpen = isGroceryCurrentlyOpen();
-
-  return (
-    <div className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,92,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col relative group cursor-pointer">
-      {/* Badge offer */}
-      {prod.offerBadge && (
-        <span className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-red-500 text-white font-extrabold text-[9px] rounded-md shadow-sm">
-          {prod.offerBadge}
-        </span>
-      )}
-
-      {/* Image box */}
-      <div className="p-3 bg-white relative flex justify-center items-center h-28 sm:h-32 md:h-36 border-b border-slate-50 shrink-0">
-        {prod.images && prod.images[0] ? (
-          <OptimizedImage src={prod.images[0]} alt={prod.name} preset="thumbnail" className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300" />
-        ) : (
-          <span className="material-symbols-outlined text-slate-300 text-[32px]">image</span>
-        )}
-
-        {/* Add/Cart controls bottom overlay */}
-        <div className="absolute -bottom-3 right-3 shrink-0">
-          {qty > 0 ? (
-            <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-md overflow-hidden font-black text-xs">
-              <button
-                disabled={!isGroceryOpen || !prod.isAvailable}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  updateQuantity(`groc-${prod._id}`, qty - 1);
-                }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                -
-              </button>
-              <span className="px-2.5 text-slate-800">{qty}</span>
-              <button
-                disabled={!isGroceryOpen || !prod.isAvailable}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (qty >= prod.stockQuantity) {
-                    alert(`Sorry! Only ${prod.stockQuantity} units available.`);
-                    return;
-                  }
-                  updateQuantity(`groc-${prod._id}`, qty + 1);
-                }}
-                className={`px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] ${(!isGroceryOpen || !prod.isAvailable) ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                +
-              </button>
-            </div>
-          ) : (
-            <button
-              disabled={!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen}
-              onClick={(e) => {
-                e.stopPropagation();
-                addToCart({
-                  item: {
-                    id: `groc-${prod._id}`,
-                    name: prod.name,
-                    price: currentPrice,
-                    quantity: 1,
-                    img: prod.images[0]
-                  },
-                  vendorId: "zip-grocery-hub",
-                  vendorName: "ZipGrocery Stores",
-                  orderType: "grocery"
-                });
-              }}
-              className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${(!prod.isAvailable || prod.stockQuantity === 0 || !isGroceryOpen)
-                  ? 'border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none'
-                  : 'border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5'
-                }`}
-            >
-              {!prod.isAvailable ? "Unavailable" : prod.stockQuantity === 0 ? "Out of Stock" : "Add"}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Details Box */}
-      <div className="p-3 pt-5 flex-1 flex flex-col bg-white">
-        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">
-          {prod.brand || "Local Brand"}
-        </span>
-        <h4 className="text-[12px] font-bold text-slate-800 leading-snug line-clamp-2 mb-1 group-hover:text-[#FF5C00] transition-colors">
-          {prod.name}
-        </h4>
-        <span className="text-[10px] text-slate-400 font-bold mb-3">{prod.weightSize}</span>
-
-        <div className="mt-auto flex items-baseline gap-1.5">
-          <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
-          {prod.discountedPrice && (
-            <span className="text-xs font-semibold text-slate-400 line-through">₹{prod.price}</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 interface Banner {
   id: string | number;

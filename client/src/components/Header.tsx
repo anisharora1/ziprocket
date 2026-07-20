@@ -4,10 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useLocation } from "@/context/LocationContext";
 import { useAuth } from "@/context/AuthContext";
 import { usePwa } from "@/context/PwaContext";
-import dynamic from "next/dynamic";
-const LocationSelectorModal = dynamic(() => import("@/components/LocationSelectorModal"), {
-  ssr: false,
-});
+import LocationSelectorModal from "@/components/LocationSelectorModal";
 
 import PlatformBanner from "@/components/PlatformBanner";
 

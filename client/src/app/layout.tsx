@@ -5,9 +5,9 @@ import { AuthProvider } from "@/context/AuthContext";
 import { CartProvider } from "@/context/CartContext";
 import { LocationProvider } from "@/context/LocationContext";
 import { PlatformProvider } from "@/context/PlatformContext";
-import LocationPromptModal from "@/components/DynamicLocationPromptModal";
+import LocationPromptModal from "@/components/LocationPromptModal";
 import { PwaProvider } from "@/context/PwaContext";
-import PwaManager from "@/components/DynamicPwaManager";
+import PwaManager from "@/components/PwaManager";
 import { GoogleAnalytics } from "@next/third-parties/google";
 
 

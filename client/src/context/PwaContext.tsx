@@ -108,38 +108,52 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     window.addEventListener('online', handleOnline);
 
     // 4. Register & Manage Service Worker updates
-    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
-      navigator.serviceWorker.register('/sw.js').then((reg) => {
-        setRegistration(reg);
+    if ('serviceWorker' in navigator) {
+      if (process.env.NODE_ENV === 'production') {
+        navigator.serviceWorker.register('/sw.js').then((reg) => {
+          setRegistration(reg);
 
-        if (reg.waiting) {
-          setShowUpdateToast(true);
-        }
+          if (reg.waiting) {
+            setShowUpdateToast(true);
+          }
 
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                setShowUpdateToast(true);
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  setShowUpdateToast(true);
+                }
+              });
+            }
+          });
+        }).catch((err) => {
+          console.error('Service Worker registration failed:', err);
+        });
+
+        // Handle page refreshing when new worker activates
+        let refreshing = false;
+        const hasControllerOnLoad = !!navigator.serviceWorker.controller;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
+          if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
+            refreshing = true;
+            window.location.reload();
+          }
+        });
+      } else {
+        // Unregister any active service workers in development mode to prevent cached assets from intercepting local changes
+        navigator.serviceWorker.getRegistrations().then((registrations) => {
+          for (const registration of registrations) {
+            registration.unregister().then((success) => {
+              if (success) {
+                console.log("Unregistered stale Service Worker in development mode");
+                window.location.reload();
               }
             });
           }
         });
-      }).catch((err) => {
-        console.error('Service Worker registration failed:', err);
-      });
-
-      // Handle page refreshing when new worker activates
-      let refreshing = false;
-      const hasControllerOnLoad = !!navigator.serviceWorker.controller;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
-        if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
+      }
     }
 
     return () => {

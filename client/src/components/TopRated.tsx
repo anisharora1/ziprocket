@@ -131,9 +131,7 @@ export default function TopRated() {
       return;
     }
 
-    // Defer data fetch until after first paint to prioritize LCP rendering on first load
-    const timer = setTimeout(() => fetchFeatured(false), 1000);
-    return () => clearTimeout(timer);
+    fetchFeatured(false);
   }, []);
 
 
@@ -146,7 +144,7 @@ export default function TopRated() {
   }
 
   return (
-    <section className="space-y-md">
+    <section className="space-y-md animate-in fade-in duration-300">
       <div className="flex justify-between items-center">
         <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Featured & Top Rated</h2>
         <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-widest">

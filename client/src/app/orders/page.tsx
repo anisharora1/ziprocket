@@ -141,7 +141,7 @@ export default function OrdersPage() {
                 handler: async function (response: any) {
                     try {
                         setRetryingOrderId(order._id);
-                        
+
                         // Verification API
                         const verifyRes = await apiClient.post("/payments/verify", {
                             orderId: order._id,
@@ -419,7 +419,7 @@ export default function OrdersPage() {
 
                             <div className="mt-8 pt-4 border-t border-slate-100 flex gap-3">
                                 <a
-                                    href={`tel:${currentActiveOrder.restaurant?.phone || '9999999999'}`}
+                                    href={`tel:${currentActiveOrder.restaurant?.phone || '9117662441'}`}
                                     className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
                                 >
                                     Contact Support
@@ -533,7 +533,7 @@ export default function OrdersPage() {
 
             {/* CANCELLATION DIALOG MODAL */}
             {isCancelModalOpen && (
-                <div 
+                <div
                     style={{
                         position: "fixed",
                         top: 0,
@@ -545,7 +545,7 @@ export default function OrdersPage() {
                     }}
                     className="flex items-center justify-center p-4 backdrop-blur-sm"
                 >
-                    <div 
+                    <div
                         style={{ width: "90%", maxWidth: "440px" }}
                         className="bg-white rounded-3xl shadow-2xl p-6 flex flex-col justify-between overflow-hidden relative z-10 animate-in zoom-in-95 duration-200"
                     >
@@ -575,11 +575,10 @@ export default function OrdersPage() {
                                         key={reason}
                                         type="button"
                                         onClick={() => setCancelReason(reason)}
-                                        className={`px-4 py-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between ${
-                                            cancelReason === reason
+                                        className={`px-4 py-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between ${cancelReason === reason
                                                 ? 'border-[#FF5C00] bg-[#FF5C00]/5 text-[#FF5C00]'
                                                 : 'border-slate-100 hover:border-slate-200 text-slate-650'
-                                        }`}
+                                            }`}
                                     >
                                         <span>{reason}</span>
                                         {cancelReason === reason && (

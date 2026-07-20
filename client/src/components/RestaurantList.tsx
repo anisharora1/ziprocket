@@ -107,7 +107,7 @@ export default function RestaurantList() {
   }
 
   return (
-    <section className="space-y-md">
+    <section className="space-y-md animate-in fade-in duration-300">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Restaurants Around You</h2>

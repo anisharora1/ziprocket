@@ -5,7 +5,7 @@ import { apiClient } from "@/services/api";
 import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
 
-interface Promotion {
+export interface Promotion {
   _id: string;
   title: string;
   description: string;
@@ -15,61 +15,41 @@ interface Promotion {
   isActive: boolean;
 }
 
-const DEFAULT_BANNERS: Promotion[] = [
-  {
-    _id: "default-banner-1",
-    title: "Delicious Meals Delivered Fast",
-    description: "Get up to 50% off on your first order!",
-    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836",
-    targetType: "restaurant",
-    isActive: true
-  },
-  {
-    _id: "default-banner-2",
-    title: "Fresh Groceries At Your Doorstep",
-    description: "Quality groceries delivered in minutes",
-    image: "https://images.unsplash.com/photo-1542838132-92c53300491e",
-    targetType: "grocery",
-    isActive: true
-  }
-];
-
 interface HeroCarouselProps {
   initialBanners?: Promotion[];
 }
 
-export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroCarouselProps) {
+export default function HeroCarousel({ initialBanners = [] }: HeroCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [banners, setBanners] = useState<Promotion[]>(initialBanners);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(initialBanners.length === 0);
   const [activeIdx, setActiveIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
     const fetchBanners = async () => {
       try {
+        setLoading(true);
         const res = await apiClient.get("/promotions");
         if (res.data.success) {
           // Fetch ALL active banners published from admin dashboard
           const activeBanners = (res.data.promotions || []).filter(
             (p: Promotion) => p.isActive
           );
-          if (activeBanners.length > 0) {
-            setBanners(activeBanners);
-          }
+          setBanners(activeBanners);
         }
       } catch (err) {
         console.error("Failed to fetch homepage banners:", err);
+      } finally {
+        setLoading(false);
       }
     };
 
-    // Defer data fetch until after first paint to avoid competing with LCP resources
-    const timer = setTimeout(fetchBanners, 1000);
-    return () => clearTimeout(timer);
-  }, [initialBanners]);
+    if (initialBanners.length === 0) {
+      fetchBanners();
+    }
+  }, []);
 
-
-  // Use live database banners only
   const displayBanners = banners;
 
   // Auto-scrolling horizontal interval effect
@@ -79,15 +59,15 @@ export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroC
     const interval = setInterval(() => {
       if (!containerRef.current) return;
       const container = containerRef.current;
-      
+
       const cardWidth = container.clientWidth;
       const maxScroll = container.scrollWidth - container.clientWidth;
-      
+
       let nextScroll = container.scrollLeft + cardWidth;
       if (nextScroll > maxScroll + 10) {
         nextScroll = 0;
       }
-      
+
       container.scrollTo({
         left: nextScroll,
         behavior: "smooth"
@@ -109,8 +89,8 @@ export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroC
 
   if (loading) {
     return (
-      <section className="overflow-x-auto no-scrollbar flex gap-md -mx-md px-md">
-        <div className="min-w-full h-40 md:h-56 rounded-2xl bg-slate-100 animate-pulse shrink-0" />
+      <section className="relative overflow-hidden w-full animate-pulse">
+        <div className="h-40 md:h-56 rounded-2xl bg-slate-100 w-full" />
       </section>
     );
   }
@@ -120,9 +100,9 @@ export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroC
   }
 
   return (
-    <section className="relative group/carousel space-y-3">
+    <section className="relative group/carousel space-y-3 animate-in fade-in duration-300">
       {/* Horizontally scrolling snapped carousel wrapper */}
-      <div 
+      <div
         ref={containerRef}
         onScroll={handleScroll}
         onMouseEnter={() => setIsPaused(true)}
@@ -136,17 +116,17 @@ export default function HeroCarousel({ initialBanners = DEFAULT_BANNERS }: HeroC
           if (destination === "/restaurant") {
             destination = "/restaurants";
           }
-          
+
           return (
-            <Link 
+            <Link
               href={destination}
               prefetch={false}
-              key={banner._id} 
+              key={banner._id}
               className="w-full shrink-0 snap-center px-1"
             >
               <div className="h-40 md:h-56 rounded-2xl relative overflow-hidden shadow-md hover:shadow-lg transition-shadow duration-300">
-                <OptimizedImage 
-                  className="absolute inset-0 w-full h-full object-cover" 
+                <OptimizedImage
+                  className="absolute inset-0 w-full h-full object-cover"
                   src={banner.image}
                   alt={banner.title}
                   preset="large"
