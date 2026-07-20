@@ -129,34 +129,38 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   useEffect(() => {
     const initializeLocation = async () => {
       const storedLocation = localStorage.getItem('ziprocket_location');
+      let validStoredLocation = false;
 
       if (storedLocation) {
         try {
           const parsed = JSON.parse(storedLocation);
-          setLocation(parsed.coords);
-          setAddress(parsed.address);
-          setPincode(parsed.pincode || null);
-          setCity(parsed.city || null);
-          setState(parsed.state || null);
-          setCountry(parsed.country || null);
-          setZoneId(parsed.zoneId || null);
-          setZoneName(parsed.zoneName || null);
-          setSelectedAddressId(parsed.selectedAddressId || null);
-          setDeliveryAddress(parsed.deliveryAddress || null);
-          
-          // Proactively re-verify zone calculations only if zoneId was not already resolved
-          if (parsed.coords && !parsed.zoneId) {
-            await resolveOperationalZone(parsed.coords.lat, parsed.coords.lng, parsed.pincode || null);
+          if (parsed && parsed.coords) {
+            setLocation(parsed.coords);
+            setAddress(parsed.address);
+            setPincode(parsed.pincode || null);
+            setCity(parsed.city || null);
+            setState(parsed.state || null);
+            setCountry(parsed.country || null);
+            setZoneId(parsed.zoneId || null);
+            setZoneName(parsed.zoneName || null);
+            setSelectedAddressId(parsed.selectedAddressId || null);
+            setDeliveryAddress(parsed.deliveryAddress || null);
+            validStoredLocation = true;
+            
+            // Proactively re-verify zone calculations only if zoneId was not already resolved
+            if (parsed.coords && !parsed.zoneId) {
+              await resolveOperationalZone(parsed.coords.lat, parsed.coords.lng, parsed.pincode || null);
+            }
           }
         } catch (e) {
           console.error("Failed to parse stored location");
         }
       }
 
-      // Check if token exists to fetch saved address book
+      // Check if token exists to fetch saved address book ONLY IF no valid cached location in session
       const token = localStorage.getItem('token');
       let defaultAddressSelected = false;
-      if (token) {
+      if (token && !validStoredLocation) {
         try {
           const res = await apiClient.get("/addresses");
           if (res.data.success) {
@@ -165,7 +169,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
             
             // Auto-select default address if no coordinates are active in session
             const defaultAddr = list.find((a: SavedAddress) => a.isDefault);
-            if (defaultAddr && !storedLocation) {
+            if (defaultAddr) {
               await setSelectedAddress(defaultAddr);
               defaultAddressSelected = true;
             }
@@ -176,7 +180,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       }
 
       // If no stored location and no default address was selected, auto-detect location
-      if (!storedLocation && !defaultAddressSelected) {
+      if (!validStoredLocation && !defaultAddressSelected) {
         fetchLocation();
       } else {
         setIsLocationLoaded(true);
@@ -269,7 +273,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     try {
       const fix = await getHighAccuracyGPSFix({
         desiredAccuracyMeters: 20,
-        maxWaitTimeMs: 5000,
+        maxWaitTimeMs: 2500,
         accuracyThresholdMeters: 150
       });
 
@@ -278,57 +282,75 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       const newCoords = { lat: latitude, lng: longitude };
       setLocation(newCoords);
 
-      // Query secure geocoding wrapper on the backend
-      const response = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-      if (response.data.success) {
-        const { fullAddress, pincode: pin, city: c, state: s, country: co } = response.data.details;
-        
+      // Un-block location loaded state as soon as coordinates are acquired
+      setIsLocationLoaded(true);
+
+      // Execute reverse-geocode and zone-feasibility concurrently in parallel
+      const reverseGeocodePromise = apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+      const feasibilityPromise = apiClient.post("/delivery-zones/check-feasibility", {
+        userLat: latitude,
+        userLng: longitude,
+        pincode: ""
+      });
+
+      const [geoRes, zoneRes] = await Promise.allSettled([reverseGeocodePromise, feasibilityPromise]);
+
+      let fullAddress = 'Address unavailable';
+      let pin: string | null = null;
+      let c: string | null = null;
+      let s: string | null = null;
+      let co: string | null = null;
+
+      if (geoRes.status === 'fulfilled' && geoRes.value.data?.success) {
+        const details = geoRes.value.data.details;
+        fullAddress = details.fullAddress;
+        pin = details.pincode || null;
+        c = details.city || null;
+        s = details.state || null;
+        co = details.country || null;
+
         setAddress(fullAddress);
-        setPincode(pin || null);
-        setCity(c || null);
-        setState(s || null);
-        setCountry(co || null);
-        setSelectedAddressId(null); // GPS Override unsets address ID
-        setDeliveryAddress(null); // Reset until manual address is captured
-
-        // Resolve operational zone and save
-        let zId = null;
-        let zName = null;
-        try {
-          const zoneRes = await apiClient.post("/delivery-zones/check-feasibility", {
-            userLat: latitude,
-            userLng: longitude,
-            pincode: pin || ""
-          });
-          if (zoneRes.data.success && zoneRes.data.isDeliverable) {
-            zId = zoneRes.data.zoneId;
-            zName = zoneRes.data.zoneName;
-            setZoneId(zId);
-            setZoneName(zName);
-          } else {
-            setError(zoneRes.data.message || "Sorry, you are currently outside our delivery service area.");
-            setZoneId(null);
-            setZoneName(null);
-          }
-        } catch (zErr) {
-          setError("Sorry, you are currently outside our delivery service area.");
-          setZoneId(null);
-          setZoneName(null);
-        }
-
-        localStorage.setItem('ziprocket_location', JSON.stringify({
-          coords: newCoords,
-          address: fullAddress,
-          pincode: pin,
-          city: c,
-          state: s,
-          country: co,
-          zoneId: zId,
-          zoneName: zName,
-          selectedAddressId: null,
-          deliveryAddress: null
-        }));
+        setPincode(pin);
+        setCity(c);
+        setState(s);
+        setCountry(co);
+        setSelectedAddressId(null);
+        setDeliveryAddress(null);
+      } else {
+        setAddress('Address unavailable');
       }
+
+      let zId: string | null = null;
+      let zName: string | null = null;
+
+      if (zoneRes.status === 'fulfilled' && zoneRes.value.data?.success && zoneRes.value.data?.isDeliverable) {
+        zId = zoneRes.value.data.zoneId;
+        zName = zoneRes.value.data.zoneName;
+        setZoneId(zId);
+        setZoneName(zName);
+        setError(null);
+      } else {
+        const msg = (zoneRes.status === 'fulfilled' && zoneRes.value.data?.message)
+          ? zoneRes.value.data.message
+          : "Sorry, you are currently outside our delivery service area.";
+        setError(msg);
+        setZoneId(null);
+        setZoneName(null);
+      }
+
+      localStorage.setItem('ziprocket_location', JSON.stringify({
+        coords: newCoords,
+        address: fullAddress,
+        pincode: pin,
+        city: c,
+        state: s,
+        country: co,
+        zoneId: zId,
+        zoneName: zName,
+        selectedAddressId: null,
+        deliveryAddress: null
+      }));
+
       dismissPrompt();
     } catch (err: any) {
       console.error("Geocoding failed:", err);

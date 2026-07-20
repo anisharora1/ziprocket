@@ -75,7 +75,8 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 const inFlightRequests = new Map<string, Promise<any>>();
-const CACHE_TTL = 10 * 1000; // 10 seconds
+const CACHE_TTL = 60 * 1000; // 60 seconds (1 minute)
+const SESSION_CACHE_PREFIX = "ziprocket_api_cache_";
 
 // Safe endpoints to cache
 const SAFE_CACHE_ENDPOINTS = [
@@ -88,6 +89,54 @@ const SAFE_CACHE_ENDPOINTS = [
 const shouldCache = (url: string | undefined): boolean => {
   if (!url) return false;
   return SAFE_CACHE_ENDPOINTS.some(endpoint => url.includes(endpoint));
+};
+
+const getCachedEntry = (cacheKey: string): CacheEntry | null => {
+  // 1. Check in-memory map
+  const memoryEntry = cache.get(cacheKey);
+  if (memoryEntry) {
+    if (Date.now() - memoryEntry.timestamp < CACHE_TTL) {
+      return memoryEntry;
+    } else {
+      cache.delete(cacheKey);
+    }
+  }
+
+  // 2. Check sessionStorage fallback (survives page refresh in same tab)
+  if (typeof window !== "undefined") {
+    try {
+      const stored = sessionStorage.getItem(SESSION_CACHE_PREFIX + cacheKey);
+      if (stored) {
+        const parsed: CacheEntry = JSON.parse(stored);
+        if (Date.now() - parsed.timestamp < CACHE_TTL) {
+          cache.set(cacheKey, parsed); // populate in-memory cache
+          return parsed;
+        } else {
+          sessionStorage.removeItem(SESSION_CACHE_PREFIX + cacheKey);
+        }
+      }
+    } catch (e) {
+      // Ignore sessionStorage exceptions
+    }
+  }
+
+  return null;
+};
+
+const setCachedEntry = (cacheKey: string, data: any) => {
+  const entry: CacheEntry = {
+    data,
+    timestamp: Date.now(),
+  };
+  cache.set(cacheKey, entry);
+
+  if (typeof window !== "undefined") {
+    try {
+      sessionStorage.setItem(SESSION_CACHE_PREFIX + cacheKey, JSON.stringify(entry));
+    } catch (e) {
+      // Ignore sessionStorage write errors (e.g. quota limit)
+    }
+  }
 };
 
 // Axios adapter wrapper to support caching and deduplication
@@ -110,8 +159,8 @@ apiClient.defaults.adapter = async (config) => {
 
   // 1. Check Cache
   if (shouldCache(config.url)) {
-    const cached = cache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    const cached = getCachedEntry(cacheKey);
+    if (cached) {
       return {
         data: cached.data,
         status: 200,
@@ -132,10 +181,7 @@ apiClient.defaults.adapter = async (config) => {
         
         // Cache if it is a safe endpoint and successful
         if (shouldCache(config.url) && response.status === 200) {
-          cache.set(cacheKey, {
-            data: response.data,
-            timestamp: Date.now(),
-          });
+          setCachedEntry(cacheKey, response.data);
         }
         return response;
       },

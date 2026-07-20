@@ -29,7 +29,7 @@ export const getHighAccuracyGPSFix = (
   const {
     timeoutMs = 15000,
     desiredAccuracyMeters = 20, // Stop early if we achieve <= 20 meters accuracy
-    maxWaitTimeMs = 5000,       // Wait up to 5 seconds for GPS to calibrate and settle
+    maxWaitTimeMs = 2500,       // Wait up to 2.5 seconds for GPS to calibrate and settle
     accuracyThresholdMeters = 150 // Coarse threshold for stable indicator
   } = options;
 

@@ -67,6 +67,15 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery]);
 
+  useEffect(() => {
+    if (isOpen) {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (token) {
+        loadSavedAddresses();
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Handle Current Geolocation GPS Signal Check

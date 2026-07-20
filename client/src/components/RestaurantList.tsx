@@ -29,39 +29,48 @@ interface Restaurant {
 let cachedRestaurantsByZone: Record<string, Restaurant[]> = {};
 let cachedRestaurantsFetchedZones: Record<string, boolean> = {};
 
+function getInitialZoneId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const stored = localStorage.getItem("ziprocket_location");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.zoneId || null;
+    }
+  } catch {}
+  return null;
+}
+
 export default function RestaurantList() {
   const { location: userCoords, pincode: userPincode, zoneId, zoneName, error: feasibilityError, isLocationLoaded } = useLocation();
   const { settings, loading: platformLoading, getPlatformStatusMessage } = usePlatform();
 
-  const cacheKey = zoneId || "all";
+  const activeZoneId = zoneId || getInitialZoneId();
+  const cacheKey = activeZoneId || "all";
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>(
     cachedRestaurantsByZone[cacheKey] || []
   );
   
-  const [loading, setLoading] = useState(
-    isLocationLoaded ? !cachedRestaurantsFetchedZones[cacheKey] : true
+  const [loading, setLoading] = useState<boolean>(
+    !cachedRestaurantsFetchedZones[cacheKey] && (!restaurants || restaurants.length === 0)
   );
 
-  // Sync state if location loaded and cache key changes or is already populated
   useEffect(() => {
-    if (isLocationLoaded) {
-      setRestaurants(cachedRestaurantsByZone[cacheKey] || []);
-      setLoading(!cachedRestaurantsFetchedZones[cacheKey]);
+    // Use cached restaurants immediately if available
+    if (cachedRestaurantsByZone[cacheKey]) {
+      setRestaurants(cachedRestaurantsByZone[cacheKey]);
     }
-  }, [cacheKey, isLocationLoaded]);
 
-  useEffect(() => {
-    if (!isLocationLoaded) return;
+    const loadRestaurants = async () => {
+      const hasCache = !!cachedRestaurantsFetchedZones[cacheKey];
+      if (!hasCache && (!restaurants || restaurants.length === 0)) {
+        setLoading(true);
+      }
 
-    const loadRestaurants = async (isBackground = false) => {
       try {
-        if (!isBackground) {
-          setLoading(true);
-        }
-        // Fetch restaurants, filtered by zoneId if resolved, else fetch all approved
-        const url = zoneId 
-          ? `/restaurants?status=approved&isActive=true&deliveryZone=${zoneId}`
+        const url = activeZoneId 
+          ? `/restaurants?status=approved&isActive=true&deliveryZone=${activeZoneId}`
           : "/restaurants?status=approved&isActive=true";
 
         const res = await apiClient.get(url);
@@ -78,9 +87,8 @@ export default function RestaurantList() {
       }
     };
 
-    const hasCache = cachedRestaurantsFetchedZones[cacheKey];
-    loadRestaurants(hasCache);
-  }, [cacheKey, isLocationLoaded]);
+    loadRestaurants();
+  }, [activeZoneId]);
 
   if (loading) {
     // Premium loading skeletons
