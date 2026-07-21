@@ -273,7 +273,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     try {
       const fix = await getHighAccuracyGPSFix({
         desiredAccuracyMeters: 20,
-        maxWaitTimeMs: 2500,
+        maxWaitTimeMs: 6000,
         accuracyThresholdMeters: 150
       });
 
@@ -285,55 +285,63 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       // Un-block location loaded state as soon as coordinates are acquired
       setIsLocationLoaded(true);
 
-      // Execute reverse-geocode and zone-feasibility concurrently in parallel
-      const reverseGeocodePromise = apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
-      const feasibilityPromise = apiClient.post("/delivery-zones/check-feasibility", {
-        userLat: latitude,
-        userLng: longitude,
-        pincode: ""
-      });
-
-      const [geoRes, zoneRes] = await Promise.allSettled([reverseGeocodePromise, feasibilityPromise]);
-
+      // 1. Await reverse-geocode call FIRST to resolve address & pincode
       let fullAddress = 'Address unavailable';
       let pin: string | null = null;
       let c: string | null = null;
       let s: string | null = null;
       let co: string | null = null;
 
-      if (geoRes.status === 'fulfilled' && geoRes.value.data?.success) {
-        const details = geoRes.value.data.details;
-        fullAddress = details.fullAddress;
-        pin = details.pincode || null;
-        c = details.city || null;
-        s = details.state || null;
-        co = details.country || null;
+      try {
+        const response = await apiClient.get(`/locations/reverse-geocode?lat=${latitude}&lng=${longitude}`);
+        if (response.data?.success) {
+          const details = response.data.details;
+          fullAddress = details.fullAddress;
+          pin = details.pincode || null;
+          c = details.city || null;
+          s = details.state || null;
+          co = details.country || null;
 
-        setAddress(fullAddress);
-        setPincode(pin);
-        setCity(c);
-        setState(s);
-        setCountry(co);
-        setSelectedAddressId(null);
-        setDeliveryAddress(null);
-      } else {
+          setAddress(fullAddress);
+          setPincode(pin);
+          setCity(c);
+          setState(s);
+          setCountry(co);
+          setSelectedAddressId(null);
+          setDeliveryAddress(null);
+        } else {
+          setAddress('Address unavailable');
+        }
+      } catch (geoErr) {
+        console.error("Reverse geocode failed:", geoErr);
         setAddress('Address unavailable');
       }
 
+      // 2. Fire zone feasibility check using the resolved real pincode
       let zId: string | null = null;
       let zName: string | null = null;
 
-      if (zoneRes.status === 'fulfilled' && zoneRes.value.data?.success && zoneRes.value.data?.isDeliverable) {
-        zId = zoneRes.value.data.zoneId;
-        zName = zoneRes.value.data.zoneName;
-        setZoneId(zId);
-        setZoneName(zName);
-        setError(null);
-      } else {
-        const msg = (zoneRes.status === 'fulfilled' && zoneRes.value.data?.message)
-          ? zoneRes.value.data.message
-          : "Sorry, you are currently outside our delivery service area.";
-        setError(msg);
+      try {
+        const zoneRes = await apiClient.post("/delivery-zones/check-feasibility", {
+          userLat: latitude,
+          userLng: longitude,
+          pincode: pin || ""
+        });
+
+        if (zoneRes.data?.success && zoneRes.data?.isDeliverable) {
+          zId = zoneRes.data.zoneId;
+          zName = zoneRes.data.zoneName;
+          setZoneId(zId);
+          setZoneName(zName);
+          setError(null);
+        } else {
+          setError(zoneRes.data?.message || "Sorry, you are currently outside our delivery service area.");
+          setZoneId(null);
+          setZoneName(null);
+        }
+      } catch (zErr: any) {
+        console.error("Zone feasibility check failed:", zErr);
+        setError("Sorry, you are currently outside our delivery service area.");
         setZoneId(null);
         setZoneName(null);
       }

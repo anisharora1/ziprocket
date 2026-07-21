@@ -29,7 +29,7 @@ export const getHighAccuracyGPSFix = (
   const {
     timeoutMs = 15000,
     desiredAccuracyMeters = 20, // Stop early if we achieve <= 20 meters accuracy
-    maxWaitTimeMs = 2500,       // Wait up to 2.5 seconds for GPS to calibrate and settle
+    maxWaitTimeMs = 6000,       // Allow up to 6 seconds for GPS hardware to calibrate and settle
     accuracyThresholdMeters = 150 // Coarse threshold for stable indicator
   } = options;
 
@@ -54,7 +54,7 @@ export const getHighAccuracyGPSFix = (
       }
     };
 
-    // Fallback: Query coarse network coordinates if high-accuracy watch is coarse or fails
+    // Fallback: Query fresh coarse network coordinates if high-accuracy watch fails
     const getCoarseFallback = (): Promise<GeolocationPosition | null> => {
       return new Promise((res) => {
         navigator.geolocation.getCurrentPosition(
@@ -63,7 +63,7 @@ export const getHighAccuracyGPSFix = (
           {
             enableHighAccuracy: false,
             timeout: 4000,
-            maximumAge: 15000 // Allow up to 15s cached coordinates
+            maximumAge: 0 // Force fresh position fetch, do not use stale cached coordinates
           }
         );
       });

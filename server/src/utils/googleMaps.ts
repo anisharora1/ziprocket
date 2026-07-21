@@ -297,9 +297,9 @@ export const getReverseGeocode = async (lat: number, lng: number) => {
         throw new Error("No address found for these coordinates");
     }
 
-    // Cache the resolved details in Redis for 24 hours
+    // Cache the resolved details in Redis for 5 minutes (300 seconds)
     try {
-        await redisService.setJson(cacheKey, details, 86400);
+        await redisService.setJson(cacheKey, details, 300);
     } catch (cErr: any) {
         console.warn("Failed to write reverse geocode to cache:", cErr.message);
     }
