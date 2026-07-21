@@ -58,7 +58,7 @@ export default function RestaurantsAdminPage() {
   const fetchRestaurants = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get("/restaurants?status=approved");
+      const res = await apiClient.get("/restaurants");
       if (res.data.success) {
         setRestaurants(res.data.restaurants || []);
       }

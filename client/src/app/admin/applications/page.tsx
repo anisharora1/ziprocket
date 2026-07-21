@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { apiClient } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
 export default function ApplicationsPage() {
@@ -15,12 +15,10 @@ export default function ApplicationsPage() {
 
   const fetchApplications = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/admin/applications/pending", {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await apiClient.get("/admin/applications/pending");
       if (res.data.success) {
-        setRestaurants(res.data.applications.restaurants);
-        setDeliveries(res.data.applications.deliveries);
+        setRestaurants(res.data.applications?.restaurants || []);
+        setDeliveries(res.data.applications?.deliveries || []);
       }
     } catch (error) {
       console.error("Failed to fetch applications", error);
@@ -30,16 +28,12 @@ export default function ApplicationsPage() {
   };
 
   useEffect(() => {
-    if (token) {
-      fetchApplications();
-    }
+    fetchApplications();
   }, [token]);
 
   const handleAction = async (type: "restaurant" | "delivery", id: string, action: "approve" | "reject") => {
     try {
-      await axios.patch(`http://localhost:5000/api/admin/applications/${type}/${id}/${action}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await apiClient.patch(`/admin/applications/${type}/${id}/${action}`);
       // Refresh list
       fetchApplications();
     } catch (error) {

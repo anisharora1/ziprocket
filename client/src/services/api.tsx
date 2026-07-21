@@ -88,6 +88,7 @@ const SAFE_CACHE_ENDPOINTS = [
 
 const shouldCache = (url: string | undefined): boolean => {
   if (!url) return false;
+  if (url.includes("/admin")) return false; // Do not cache administrative endpoints
   return SAFE_CACHE_ENDPOINTS.some(endpoint => url.includes(endpoint));
 };
 

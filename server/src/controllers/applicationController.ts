@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import Restaurant from "../models/Restaurant";
 import DeliveryProfile from "../models/DeliveryProfile";
 import { uploadToCloudinary } from "../services/cloudinaryService";
+import * as restaurantCacheService from "../services/restaurantCacheService";
 
 export const applyRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -39,10 +40,11 @@ export const applyRestaurant = async (req: Request, res: Response): Promise<void
                 ifscCode
             },
             status: "pending",
-            deliveryZone
+            deliveryZone: (deliveryZone && String(deliveryZone).trim() !== "") ? deliveryZone : undefined
         });
 
         await newRestaurant.save();
+        await restaurantCacheService.invalidateRestaurantCache();
 
         res.status(201).json({ success: true, message: "Restaurant application submitted successfully." });
     } catch (error: any) {
@@ -103,7 +105,7 @@ export const applyDelivery = async (req: Request, res: Response): Promise<void> 
                 ifscCode
             },
             status: "pending",
-            deliveryZone
+            deliveryZone: (deliveryZone && String(deliveryZone).trim() !== "") ? deliveryZone : undefined
         });
 
         await newProfile.save();
