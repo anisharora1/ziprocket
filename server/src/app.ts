@@ -6,7 +6,7 @@ import helmetMiddleware from "./middlewares/helmetMiddleware";
 import securityHeadersMiddleware from "./middlewares/securityHeadersMiddleware";
 import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import { nosqlSanitizer, xssSanitizer } from "./middlewares/authSecurityMiddleware";
-import { errorHandler } from "./middleware/errorHandler";
+import { errorHandler } from "./middlewares/errorHandler";
 
 import authRoutes from "./routes/authRoutes";
 import adminRoutes from "./routes/adminRoutes";
@@ -60,12 +60,11 @@ app.use(globalLimiter);
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/admin", payoutRoutes);
+app.use("/api/admin/payouts", payoutRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/deliveries", deliveryRoutes);
-app.use("/api/delivery", deliveryRoutes);
 app.use("/api/delivery-zones", deliveryZoneRoutes);
 app.use("/api/grocery", groceryRoutes);
 app.use("/api/addresses", addressRoutes);
@@ -76,8 +75,6 @@ app.use("/api/recommendations", recommendationRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/promotions", promotionsRoutes);
 app.use("/api/platform", platformRoutes);
-import { Request, Response, NextFunction } from "express";
-
 app.use("/api/applications", applicationRoutes);
 
 app.get("/", (req, res) => {

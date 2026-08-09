@@ -10,19 +10,7 @@ import { validateCoupon } from "./couponController";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
 import PlatformSettings from "../models/PlatformSettings";
-
-// Helper function to calculate distance using Haversine
-const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
-    const R = 6371; // Earth radius in km
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-};
+import { calculateDistance } from "../services/distanceService";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -108,10 +96,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         }
 
         // 5. Restaurant Availability Check (Food only)
+        let fetchedRestaurant: any = null;
         if (orderType === "food" && restaurant) {
-            const rest = await Restaurant.findById(restaurant);
-            if (!rest || rest.availabilityStatus !== "open") {
-                const restMsg = rest && rest.availabilityStatus === "disabled"
+            fetchedRestaurant = await Restaurant.findById(restaurant);
+            if (!fetchedRestaurant || fetchedRestaurant.availabilityStatus !== "open") {
+                const restMsg = fetchedRestaurant && fetchedRestaurant.availabilityStatus === "disabled"
                     ? "This restaurant is temporarily disabled."
                     : "This restaurant is currently closed.";
                 res.status(400).json({
@@ -125,28 +114,25 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         // Securely override user from authenticated request session
         const user = req.user ? req.user._id : req.body.user;
 
-        // Inventory Stock Validations and Deductions for Grocery
+        // Inventory Stock Validations for Grocery (Batch Query)
         if (orderType === "grocery") {
+            const groceryItemIds = items.map((i: any) => i.groceryItem);
+            const products = await GroceryProduct.find({ _id: { $in: groceryItemIds } });
+            const productMap = new Map(products.map(p => [p._id.toString(), p]));
+
             for (const item of items) {
-                const product = await GroceryProduct.findById(item.groceryItem);
+                const product = productMap.get(item.groceryItem?.toString());
                 if (!product) {
-                    res.status(404).json({ success: false, message: `Grocery product not found` });
+                    res.status(404).json({ success: false, message: "Grocery product not found" });
                     return;
                 }
                 if (product.stockQuantity < item.quantity) {
-                    res.status(400).json({ 
-                        success: false, 
-                        message: `Insufficient stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}` 
+                    res.status(400).json({
+                        success: false,
+                        message: `Insufficient stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
                     });
                     return;
                 }
-            }
-
-            // Deduct stock levels
-            for (const item of items) {
-                await GroceryProduct.findByIdAndUpdate(item.groceryItem, {
-                    $inc: { stockQuantity: -item.quantity }
-                });
             }
         }
 
@@ -192,11 +178,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         let originLat = applicableZone.center.lat;
         let originLng = applicableZone.center.lng;
 
-        if (orderType === "food" && restaurant) {
-            const rest = await Restaurant.findById(restaurant);
-            if (rest && rest.location && rest.location.lat !== undefined && rest.location.lng !== undefined) {
-                originLat = rest.location.lat;
-                originLng = rest.location.lng;
+        if (orderType === "food" && fetchedRestaurant) {
+            if (fetchedRestaurant.location && fetchedRestaurant.location.lat !== undefined && fetchedRestaurant.location.lng !== undefined) {
+                originLat = fetchedRestaurant.location.lat;
+                originLng = fetchedRestaurant.location.lng;
             }
         }
 
@@ -219,7 +204,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             await User.findByIdAndUpdate(user, { phone });
         }
 
-        // Auto Order Routing to least-busy moderator inside deliveryZone
+        // Auto Order Routing to least-busy moderator inside deliveryZone (Single Aggregation Query)
         let assignedModerator = undefined;
         if (orderType === "grocery") {
             const moderators = await User.find({
@@ -229,18 +214,21 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             });
 
             if (moderators.length > 0) {
-                const moderatorsWithWorkload = await Promise.all(moderators.map(async (mod) => {
-                    const activeCount = await Order.countDocuments({
-                        moderator: mod._id,
-                        orderType: "grocery",
-                        orderStatus: { $in: ["placed", "accepted", "preparing", "on_the_way"] }
-                    });
-                    return { moderator: mod, activeCount };
-                }));
+                const modIds = moderators.map(m => m._id);
+                const activeCounts = await Order.aggregate([
+                    {
+                        $match: {
+                            moderator: { $in: modIds },
+                            orderType: "grocery",
+                            orderStatus: { $in: ["placed", "accepted", "preparing", "on_the_way"] }
+                        }
+                    },
+                    { $group: { _id: "$moderator", count: { $sum: 1 } } }
+                ]);
 
-                // Sort by activeCount ascending
-                moderatorsWithWorkload.sort((a, b) => a.activeCount - b.activeCount);
-                assignedModerator = moderatorsWithWorkload[0].moderator._id;
+                const countMap = new Map(activeCounts.map(a => [a._id.toString(), a.count]));
+                moderators.sort((a, b) => (countMap.get(a._id.toString()) || 0) - (countMap.get(b._id.toString()) || 0));
+                assignedModerator = moderators[0]._id;
             }
         }
 
@@ -267,62 +255,101 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             couponDoc = validation.coupon;
         }
 
-        const newOrder = new Order({
-            user,
-            restaurant: orderType === "food" ? restaurant : undefined,
-            orderType,
-            items,
-            totalAmount: Math.max(0, totalAmount - calculatedDiscount), // Secure reduction
-            deliveryCharge,
-            paymentMethod,
-            distance: calculatedDistance,
-            address: {
-                fullAddress: address.fullAddress,
-                lat: address.lat,
-                lng: address.lng,
-                deliveryAddress: address.deliveryAddress || undefined
-            },
-            whatsappOrder,
-            deliveryZone,
-            moderator: assignedModerator,
-            couponCode,
-            discountAmount: calculatedDiscount
-        });
+        // Perform atomic stock deduction right before saving order
+        const deductedItems: Array<{ groceryItem: any; quantity: number }> = [];
+        if (orderType === "grocery") {
+            for (const item of items) {
+                const updatedProduct = await GroceryProduct.findOneAndUpdate(
+                    { _id: item.groceryItem, stockQuantity: { $gte: item.quantity } },
+                    { $inc: { stockQuantity: -item.quantity } },
+                    { new: true }
+                );
 
-        await newOrder.save();
-
-        // Clear user's cached cart and recent orders list from Redis
-        if (user) {
-            await cartCacheService.deleteCachedCart(user.toString());
-            await redisService.del(`order:user_recent:${user.toString()}`);
+                if (!updatedProduct) {
+                    // Revert any stock deducted in this batch if concurrent stock exhaustion happened
+                    for (const deducted of deductedItems) {
+                        await GroceryProduct.findByIdAndUpdate(deducted.groceryItem, {
+                            $inc: { stockQuantity: deducted.quantity }
+                        });
+                    }
+                    res.status(400).json({
+                        success: false,
+                        message: "Stock availability changed while processing order. Please review your cart."
+                    });
+                    return;
+                }
+                deductedItems.push({ groceryItem: item.groceryItem, quantity: item.quantity });
+            }
         }
 
-        // Increment total orders count for the restaurant (Food only)
-        if (orderType === "food" && restaurant) {
-            await Restaurant.findByIdAndUpdate(restaurant, { $inc: { totalOrders: 1 } });
-        }
-
-        // Record coupon usage if successfully placed
-        if (couponDoc) {
-            const CouponUsageModel = mongoose.model("CouponUsage");
-            const newUsage = new CouponUsageModel({
+        try {
+            const newOrder = new Order({
                 user,
-                coupon: couponDoc._id,
-                order: newOrder._id,
-                discountApplied: calculatedDiscount
+                restaurant: orderType === "food" ? restaurant : undefined,
+                orderType,
+                items,
+                totalAmount: Math.max(0, totalAmount - calculatedDiscount), // Secure reduction
+                deliveryCharge,
+                paymentMethod,
+                distance: calculatedDistance,
+                address: {
+                    fullAddress: address.fullAddress,
+                    lat: address.lat,
+                    lng: address.lng,
+                    deliveryAddress: address.deliveryAddress || undefined
+                },
+                whatsappOrder,
+                deliveryZone,
+                moderator: assignedModerator,
+                couponCode,
+                discountAmount: calculatedDiscount
             });
-            await newUsage.save();
 
-            // Increment coupon usedCount
-            const CouponModel = mongoose.model("Coupon");
-            await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: 1 } });
+            await newOrder.save();
+
+            // Clear user's cached cart and recent orders list from Redis
+            if (user) {
+                await cartCacheService.deleteCachedCart(user.toString());
+                await redisService.del(`order:user_recent:${user.toString()}`);
+            }
+
+            // Increment total orders count for the restaurant (Food only)
+            if (orderType === "food" && restaurant) {
+                await Restaurant.findByIdAndUpdate(restaurant, { $inc: { totalOrders: 1 } });
+            }
+
+            // Record coupon usage if successfully placed
+            if (couponDoc) {
+                const CouponUsageModel = mongoose.model("CouponUsage");
+                const newUsage = new CouponUsageModel({
+                    user,
+                    coupon: couponDoc._id,
+                    order: newOrder._id,
+                    discountApplied: calculatedDiscount
+                });
+                await newUsage.save();
+
+                // Increment coupon usedCount
+                const CouponModel = mongoose.model("Coupon");
+                await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: 1 } });
+            }
+
+            res.status(201).json({
+                success: true,
+                message: "Order placed successfully",
+                order: newOrder
+            });
+        } catch (saveError: any) {
+            // Revert deducted stock if order save fails
+            if (orderType === "grocery" && deductedItems.length > 0) {
+                for (const deducted of deductedItems) {
+                    await GroceryProduct.findByIdAndUpdate(deducted.groceryItem, {
+                        $inc: { stockQuantity: deducted.quantity }
+                    });
+                }
+            }
+            throw saveError;
         }
-
-        res.status(201).json({
-            success: true,
-            message: "Order placed successfully",
-            order: newOrder
-        });
     } catch (error: any) {
         console.error("Order creation failed:", error);
         res.status(500).json({ success: false, message: error.message });
@@ -601,22 +628,32 @@ export const updatePaymentStatus = async (req: Request, res: Response): Promise<
 export const getAllOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const { orderStatus, paymentStatus, whatsappOrder } = req.query;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
+
         let filter: any = {};
 
         if (orderStatus) filter.orderStatus = orderStatus;
         if (paymentStatus) filter.paymentStatus = paymentStatus;
         if (whatsappOrder !== undefined) filter.whatsappOrder = whatsappOrder === 'true';
 
-        const orders = await Order.find(filter)
-            .populate("user", "name phone email")
-            .populate("restaurant", "name")
-            .populate("items.menuItem", "name")
-            .populate("items.groceryItem", "name")
-            .sort({ createdAt: -1 });
+        const [orders, total] = await Promise.all([
+            Order.find(filter)
+                .populate("user", "name phone email")
+                .populate("restaurant", "name")
+                .populate("items.menuItem", "name")
+                .populate("items.groceryItem", "name")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            Order.countDocuments(filter)
+        ]);
 
         res.status(200).json({
             success: true,
             count: orders.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             orders
         });
     } catch (error: any) {
@@ -658,6 +695,10 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
 // Get all grocery orders (Grocery Moderator Dashboard)
 export const getGroceryOrders = async (req: Request, res: Response): Promise<void> => {
     try {
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
+
         let query: any = { orderType: "grocery" };
 
         // Restrict to assigned zones if the requester is a grocery moderator (not admin)
@@ -667,15 +708,21 @@ export const getGroceryOrders = async (req: Request, res: Response): Promise<voi
             query.deliveryZone = { $in: zones };
         }
 
-        const orders = await Order.find(query)
-            .populate("user", "name phone email")
-            .populate("items.groceryItem", "name price images brand unit weightSize")
-            .populate("deliveryZone", "name center radiusKm pincodes")
-            .sort({ createdAt: -1 });
+        const [orders, total] = await Promise.all([
+            Order.find(query)
+                .populate("user", "name phone email")
+                .populate("items.groceryItem", "name price images brand unit weightSize")
+                .populate("deliveryZone", "name center radiusKm pincodes")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            Order.countDocuments(query)
+        ]);
 
         res.status(200).json({
             success: true,
             count: orders.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             orders
         });
     } catch (error: any) {

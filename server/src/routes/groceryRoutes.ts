@@ -7,8 +7,8 @@ import {
     deleteGroceryProduct,
     getGroceryInventoryStats
 } from "../controllers/groceryController";
-import { protect, authorize } from "../middleware/authMiddleware";
-import { uploadMenuImages } from "../middleware/uploadMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
+import { uploadMenuImages } from "../middlewares/uploadMiddleware";
 
 const router = express.Router();
 

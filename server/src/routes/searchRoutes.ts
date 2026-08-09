@@ -1,5 +1,5 @@
 import express from "express";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 import {
     getSearchSuggestions,
     searchGlobal,

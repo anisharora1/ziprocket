@@ -8,7 +8,10 @@ import { PlatformProvider } from "@/context/PlatformContext";
 import LocationPromptModal from "@/components/LocationPromptModal";
 import { PwaProvider } from "@/context/PwaContext";
 import PwaManager from "@/components/PwaManager";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
+
+// ... existing font setup ...
 
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -135,19 +138,21 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
-        <PwaProvider>
-          <LocationProvider>
-            <PlatformProvider>
-              <AuthProvider>
-                <CartProvider>
-                  {children}
-                  <LocationPromptModal />
-                  <PwaManager />
-                </CartProvider>
-              </AuthProvider>
-            </PlatformProvider>
-          </LocationProvider>
-        </PwaProvider>
+        <ErrorBoundary>
+          <PwaProvider>
+            <LocationProvider>
+              <PlatformProvider>
+                <AuthProvider>
+                  <CartProvider>
+                    {children}
+                    <LocationPromptModal />
+                    <PwaManager />
+                  </CartProvider>
+                </AuthProvider>
+              </PlatformProvider>
+            </LocationProvider>
+          </PwaProvider>
+        </ErrorBoundary>
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-SXXC7PQQKH"} />
       </body>
     </html>

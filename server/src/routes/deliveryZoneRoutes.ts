@@ -8,7 +8,7 @@ import {
     checkDeliveryFeasibilityAndFee,
     calculateBillDetails
 } from "../controllers/deliveryZoneController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 
 const router = express.Router();

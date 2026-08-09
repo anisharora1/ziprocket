@@ -9,12 +9,14 @@ import {
     validateAppliedCoupon,
     getAvailableCoupons
 } from "../controllers/couponController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { validateCouponSchema } from "../validators/schemas";
 
 const router = express.Router();
 
 // User/Customer endpoints
-router.post("/validate", validateAppliedCoupon);
+router.post("/validate", validateRequest({ body: validateCouponSchema }), validateAppliedCoupon);
 router.post("/available", getAvailableCoupons);
 
 // Protected Admin endpoints

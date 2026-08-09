@@ -1,7 +1,7 @@
 import express from "express";
 import { applyRestaurant, applyDelivery } from "../controllers/applicationController";
-import { protect } from "../middleware/authMiddleware";
-import { uploadSingle } from "../middleware/uploadMiddleware";
+import { protect } from "../middlewares/authMiddleware";
+import { uploadSingle } from "../middlewares/uploadMiddleware";
 
 const router = express.Router();
 

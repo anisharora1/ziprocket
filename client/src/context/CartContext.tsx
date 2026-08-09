@@ -86,7 +86,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
       const savedCart = localStorage.getItem('ziprocket_cart');
       if (savedCart) {
         try {
-          setCart(JSON.parse(savedCart));
+          const parsed = JSON.parse(savedCart);
+          if (parsed && typeof parsed === 'object') {
+            setCart({
+              items: Array.isArray(parsed.items) ? parsed.items : [],
+              vendorId: parsed.vendorId || null,
+              vendorName: parsed.vendorName || null,
+              orderType: parsed.orderType || null
+            });
+          }
         } catch (e) {
           console.error("Failed to parse local cart", e);
         }

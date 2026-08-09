@@ -24,7 +24,7 @@ import {
     deletePromotion,
     updateRestaurantAvailability
 } from "../controllers/adminController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 import { adminLimiter } from "../middlewares/rateLimitMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 

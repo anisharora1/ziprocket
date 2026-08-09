@@ -25,9 +25,31 @@ interface Restaurant {
   };
 }
 
-// In-memory cache to persist restaurants by zoneId across page navigations
-let cachedRestaurantsByZone: Record<string, Restaurant[]> = {};
-let cachedRestaurantsFetchedZones: Record<string, boolean> = {};
+// TTL-backed sessionStorage cache for zone restaurants (5-minute TTL)
+const CACHE_TTL_MS = 5 * 60 * 1000;
+
+function getCachedRestaurants(key: string): Restaurant[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(`ziprocket_rest_cache_${key}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (Date.now() - parsed.timestamp < CACHE_TTL_MS) {
+      return parsed.restaurants;
+    }
+  } catch {}
+  return null;
+}
+
+function setCachedRestaurants(key: string, list: Restaurant[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(
+      `ziprocket_rest_cache_${key}`,
+      JSON.stringify({ timestamp: Date.now(), restaurants: list })
+    );
+  } catch {}
+}
 
 function getInitialZoneId(): string | null {
   if (typeof window === "undefined") return null;
@@ -48,26 +70,19 @@ export default function RestaurantList() {
   const activeZoneId = zoneId || getInitialZoneId();
   const cacheKey = activeZoneId || "all";
 
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(
-    cachedRestaurantsByZone[cacheKey] || []
-  );
-  
-  const [loading, setLoading] = useState<boolean>(
-    !cachedRestaurantsFetchedZones[cacheKey] && (!restaurants || restaurants.length === 0)
-  );
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    // Use cached restaurants immediately if available
-    if (cachedRestaurantsByZone[cacheKey]) {
-      setRestaurants(cachedRestaurantsByZone[cacheKey]);
+    const cached = getCachedRestaurants(cacheKey);
+    if (cached) {
+      setRestaurants(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
     }
 
     const loadRestaurants = async () => {
-      const hasCache = !!cachedRestaurantsFetchedZones[cacheKey];
-      if (!hasCache && (!restaurants || restaurants.length === 0)) {
-        setLoading(true);
-      }
-
       try {
         const url = activeZoneId 
           ? `/restaurants?status=approved&isActive=true&deliveryZone=${activeZoneId}`
@@ -77,8 +92,7 @@ export default function RestaurantList() {
         if (res.data.success) {
           const list = res.data.restaurants || [];
           setRestaurants(list);
-          cachedRestaurantsByZone[cacheKey] = list;
-          cachedRestaurantsFetchedZones[cacheKey] = true;
+          setCachedRestaurants(cacheKey, list);
         }
       } catch (err) {
         console.error("Failed to fetch restaurant listing:", err);

@@ -107,12 +107,23 @@ export const getOptimizedSrc = (
 
   if (typeof url !== "string") return "";
 
-  if (url.includes("res.cloudinary.com")) {
-    return getOptimizedCloudinaryUrl(url, preset);
-  } else if (url.includes("images.unsplash.com")) {
-    return getOptimizedUnsplashUrl(url, preset);
+  // Iteratively unescape HTML entities in URL (e.g. &amp;, &#x2F;, &#47;)
+  let cleanUrl = url;
+  let maxUnescape = 10;
+  while (maxUnescape > 0 && (cleanUrl.includes("&amp;") || cleanUrl.includes("&#x2F;") || cleanUrl.includes("&#47;"))) {
+    cleanUrl = cleanUrl
+      .replace(/&amp;/g, "&")
+      .replace(/&#x2F;/gi, "/")
+      .replace(/&#47;/g, "/");
+    maxUnescape--;
   }
-  return url;
+
+  if (cleanUrl.includes("res.cloudinary.com")) {
+    return getOptimizedCloudinaryUrl(cleanUrl, preset);
+  } else if (cleanUrl.includes("images.unsplash.com")) {
+    return getOptimizedUnsplashUrl(cleanUrl, preset);
+  }
+  return cleanUrl;
 };
 
 export default function OptimizedImage({

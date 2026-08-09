@@ -11,13 +11,6 @@ export const apiClient = axios.create({
   },
 });
 
-if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
-  console.log = () => {};
-  console.info = () => {};
-  console.warn = () => {};
-  console.error = () => {};
-}
-
 // Request interceptor to attach authentication token
 apiClient.interceptors.request.use((config) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;

@@ -63,19 +63,33 @@ export const nosqlSanitizer = (req: Request, res: Response, next: NextFunction):
 };
 
 // --- XSS PROTECTION SANITIZATION ---
-const escapeHtml = (str: string): string => {
-    return str
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#x27;")
-        .replace(/\//g, "&#x2F;");
+const cleanXssString = (str: string): string => {
+    if (!str || typeof str !== "string") return str;
+    
+    // Unescape legacy HTML entity encoding if present (e.g. &#x2F; or &amp;)
+    let clean = str;
+    let maxUnescape = 10;
+    while (maxUnescape > 0 && (clean.includes("&amp;") || clean.includes("&#x2F;") || clean.includes("&#47;"))) {
+        clean = clean
+            .replace(/&amp;/g, "&")
+            .replace(/&#x2F;/gi, "/")
+            .replace(/&#47;/g, "/");
+        maxUnescape--;
+    }
+
+    // Strip script tags and inline event handler vectors
+    clean = clean
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+        .replace(/javascript:/gi, "")
+        .replace(/onload\s*=/gi, "")
+        .replace(/onerror\s*=/gi, "");
+
+    return clean;
 };
 
 const sanitizeXss = (obj: any): any => {
     if (typeof obj === "string") {
-        return escapeHtml(obj);
+        return cleanXssString(obj);
     }
     if (obj && typeof obj === "object") {
         if (Array.isArray(obj)) {

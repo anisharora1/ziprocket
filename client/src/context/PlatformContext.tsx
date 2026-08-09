@@ -100,23 +100,30 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         if (!settings) return true;
         if (settings.maintenanceMode) return false;
         if (!settings.isPlatformOpen) return false;
+        if (!settings.operatingHours?.open || !settings.operatingHours?.close) return true;
 
-        // Check operating hours
-        const now = new Date();
-        const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
-        const timeStr = new Intl.DateTimeFormat('en-US', options).format(now);
-        const [currH, currM] = timeStr.split(":").map(Number);
-        const [openH, openM] = settings.operatingHours.open.split(":").map(Number);
-        const [closeH, closeM] = settings.operatingHours.close.split(":").map(Number);
+        try {
+            // Check operating hours
+            const now = new Date();
+            const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
+            const timeStr = new Intl.DateTimeFormat('en-US', options).format(now);
+            const [currH, currM] = timeStr.split(":").map(Number);
+            const [openH, openM] = settings.operatingHours.open.split(":").map(Number);
+            const [closeH, closeM] = settings.operatingHours.close.split(":").map(Number);
 
-        const currVal = currH * 60 + currM;
-        const openVal = openH * 60 + openM;
-        const closeVal = closeH * 60 + closeM;
+            if (isNaN(currH) || isNaN(openH) || isNaN(closeH)) return true;
 
-        if (openVal <= closeVal) {
-            return currVal >= openVal && currVal < closeVal;
-        } else {
-            return currVal >= openVal || currVal < closeVal;
+            const currVal = currH * 60 + (currM || 0);
+            const openVal = openH * 60 + (openM || 0);
+            const closeVal = closeH * 60 + (closeM || 0);
+
+            if (openVal <= closeVal) {
+                return currVal >= openVal && currVal < closeVal;
+            } else {
+                return currVal >= openVal || currVal < closeVal;
+            }
+        } catch (e) {
+            return true;
         }
     };
 
@@ -129,7 +136,7 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
             return "Ordering is currently unavailable. Please try again later.";
         }
         if (!isPlatformCurrentlyOpen()) {
-            const formatted = formatToAMPM(settings.operatingHours.open);
+            const formatted = formatToAMPM(settings.operatingHours?.open || "");
             return `Orders are closed for today. We will reopen at ${formatted || "8:00 AM"}.`;
         }
         return null;

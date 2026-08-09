@@ -4,6 +4,8 @@ import Order from "../models/Order";
 import DeliveryProfile from "../models/DeliveryProfile";
 import { uploadToCloudinary } from "../services/cloudinaryService";
 
+import { DELIVERY_CONSTANTS } from "../constants";
+
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -262,7 +264,7 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
             order: orderId,
             deliveryBoy: deliveryBoyId,
             status: "assigned",
-            earnings: 45 // Flat delivery rate
+            earnings: DELIVERY_CONSTANTS.FLAT_EARNING_RATE
         });
         await delivery.save();
 

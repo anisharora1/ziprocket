@@ -4,7 +4,7 @@ import {
     verifyPayment,
     logPaymentFailure
 } from "../controllers/paymentController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 import { paymentLimiter } from "../middlewares/rateLimitMiddleware";
 
 const router = express.Router();

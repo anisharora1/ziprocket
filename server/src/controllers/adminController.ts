@@ -7,6 +7,7 @@ import Delivery from "../models/Delivery";
 import DeliveryProfile from "../models/DeliveryProfile";
 import BannerAd from "../models/BannerAd";
 import Payment from "../models/Payment";
+import MenuItem from "../models/MenuItem";
 import * as sessionCacheService from "../services/sessionCacheService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import { broadcastSettings } from "../utils/platformSse";
@@ -15,68 +16,140 @@ import PlatformSettings from "../models/PlatformSettings";
 // --- DASHBOARD METRICS ---
 export const getDashboardStats = async (req: Request, res: Response): Promise<void> => {
     try {
-        const totalUsers = await User.countDocuments({ role: "customer" });
-        const totalRestaurants = await Restaurant.countDocuments();
-        const totalDeliveries = await Delivery.countDocuments();
-        const totalOrders = await Order.countDocuments();
-
-        // Payment analytics metrics
-        const onlinePaymentsCount = await Order.countDocuments({ paymentMethod: "ONLINE", paymentStatus: "paid" });
-        const codOrdersCount = await Order.countDocuments({ paymentMethod: "COD" });
-        const failedPaymentsCount = await Order.countDocuments({ paymentStatus: "failed" });
-
-        // Sum totalAmount of all paid ONLINE orders and all non-cancelled COD orders for accurate revenue
-        const revenueOrders = await Order.find({
-            $or: [
-                { paymentMethod: "ONLINE", paymentStatus: "paid" },
-                { paymentMethod: "COD", orderStatus: { $ne: "cancelled" } }
-            ]
-        });
-        const totalRevenue = revenueOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-
-        // Revenue Share Breakdown
-        const onlineRevenue = revenueOrders
-            .filter(order => order.paymentMethod === "ONLINE")
-            .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-        const codRevenue = revenueOrders
-            .filter(order => order.paymentMethod === "COD")
-            .reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-
-        // Zone-wise Analytics
         const DeliveryZone = mongoose.model("DeliveryZone");
-        const activeZones = await DeliveryZone.find({ isActive: true });
-        const zoneAnalytics = await Promise.all(activeZones.map(async (zone: any) => {
-            const zoneId = zone._id;
-            
-            // Count total orders in this zone
-            const totalOrders = await Order.countDocuments({ deliveryZone: zoneId });
-            
-            // Count active moderators assigned to this zone
-            const activeModerators = await User.countDocuments({ 
-                role: "grocery_moderator", 
-                assignedZones: zoneId 
-            });
 
-            // Calculate zone-specific total sales/revenue (paid ONLINE or non-cancelled COD)
-            const zoneRevenueOrders = await Order.find({
-                deliveryZone: zoneId,
-                $or: [
-                    { paymentMethod: "ONLINE", paymentStatus: "paid" },
-                    { paymentMethod: "COD", orderStatus: { $ne: "cancelled" } }
-                ]
-            });
-            const zoneRevenue = zoneRevenueOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
+        // Run overall count and aggregation queries in parallel
+        const [
+            totalUsers,
+            totalRestaurants,
+            totalDeliveries,
+            activeZones,
+            orderAggregate,
+            zoneOrderAggregate,
+            moderatorZoneAggregate
+        ] = await Promise.all([
+            User.countDocuments({ role: "customer" }),
+            Restaurant.countDocuments(),
+            Delivery.countDocuments(),
+            DeliveryZone.find({ isActive: true }),
+            Order.aggregate([
+                {
+                    $group: {
+                        _id: null,
+                        totalOrders: { $sum: 1 },
+                        onlinePaymentsCount: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [{ $eq: ["$paymentMethod", "ONLINE"] }, { $eq: ["$paymentStatus", "paid"] }] },
+                                    1,
+                                    0
+                                ]
+                            }
+                        },
+                        codOrdersCount: {
+                            $sum: {
+                                $cond: [{ $eq: ["$paymentMethod", "COD"] }, 1, 0]
+                            }
+                        },
+                        failedPaymentsCount: {
+                            $sum: {
+                                $cond: [{ $eq: ["$paymentStatus", "failed"] }, 1, 0]
+                            }
+                        },
+                        onlineRevenue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [{ $eq: ["$paymentMethod", "ONLINE"] }, { $eq: ["$paymentStatus", "paid"] }] },
+                                    "$totalAmount",
+                                    0
+                                ]
+                            }
+                        },
+                        codRevenue: {
+                            $sum: {
+                                $cond: [
+                                    { $and: [{ $eq: ["$paymentMethod", "COD"] }, { $ne: ["$orderStatus", "cancelled"] }] },
+                                    "$totalAmount",
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]),
+            Order.aggregate([
+                {
+                    $group: {
+                        _id: "$deliveryZone",
+                        totalOrders: { $sum: 1 },
+                        totalRevenue: {
+                            $sum: {
+                                $cond: [
+                                    {
+                                        $or: [
+                                            { $and: [{ $eq: ["$paymentMethod", "ONLINE"] }, { $eq: ["$paymentStatus", "paid"] }] },
+                                            { $and: [{ $eq: ["$paymentMethod", "COD"] }, { $ne: ["$orderStatus", "cancelled"] }] }
+                                        ]
+                                    },
+                                    "$totalAmount",
+                                    0
+                                ]
+                            }
+                        }
+                    }
+                }
+            ]),
+            User.aggregate([
+                { $match: { role: "grocery_moderator" } },
+                { $unwind: "$assignedZones" },
+                { $group: { _id: "$assignedZones", count: { $sum: 1 } } }
+            ])
+        ]);
+
+        const orderStats = orderAggregate[0] || {
+            totalOrders: 0,
+            onlinePaymentsCount: 0,
+            codOrdersCount: 0,
+            failedPaymentsCount: 0,
+            onlineRevenue: 0,
+            codRevenue: 0
+        };
+
+        const totalRevenue = (orderStats.onlineRevenue || 0) + (orderStats.codRevenue || 0);
+
+        // Build lookup maps for zone order stats and moderator counts
+        const zoneOrderMap = new Map<string, { totalOrders: number; totalRevenue: number }>();
+        for (const item of zoneOrderAggregate) {
+            if (item._id) {
+                zoneOrderMap.set(item._id.toString(), {
+                    totalOrders: item.totalOrders || 0,
+                    totalRevenue: item.totalRevenue || 0
+                });
+            }
+        }
+
+        const moderatorCountMap = new Map<string, number>();
+        for (const item of moderatorZoneAggregate) {
+            if (item._id) {
+                moderatorCountMap.set(item._id.toString(), item.count || 0);
+            }
+        }
+
+        const zoneAnalytics = activeZones.map((zone: any) => {
+            const zoneIdStr = zone._id.toString();
+            const zoneOrderData = zoneOrderMap.get(zoneIdStr) || { totalOrders: 0, totalRevenue: 0 };
+            const activeModerators = moderatorCountMap.get(zoneIdStr) || 0;
 
             return {
-                zoneId,
+                zoneId: zone._id,
                 name: zone.name,
                 center: zone.center,
                 radiusKm: zone.radiusKm,
-                totalOrders,
+                totalOrders: zoneOrderData.totalOrders,
                 activeModerators,
-                totalRevenue: zoneRevenue
+                totalRevenue: zoneOrderData.totalRevenue
             };
-        }));
+        });
 
         res.status(200).json({
             success: true,
@@ -84,13 +157,13 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
                 totalUsers,
                 totalRestaurants,
                 totalDeliveries,
-                totalOrders,
-                onlinePaymentsCount,
-                codOrdersCount,
-                failedPaymentsCount,
+                totalOrders: orderStats.totalOrders,
+                onlinePaymentsCount: orderStats.onlinePaymentsCount,
+                codOrdersCount: orderStats.codOrdersCount,
+                failedPaymentsCount: orderStats.failedPaymentsCount,
                 totalRevenue,
-                onlineRevenue,
-                codRevenue,
+                onlineRevenue: orderStats.onlineRevenue,
+                codRevenue: orderStats.codRevenue,
                 zoneAnalytics
             }
         });
@@ -353,7 +426,6 @@ export const rejectApplication = async (req: Request, res: Response): Promise<vo
 };
 
 // --- MENU MODERATION ---
-import MenuItem from "../models/MenuItem";
 
 // Admin action: Block or unblock a menu item
 export const toggleMenuItemBlockStatus = async (req: Request, res: Response): Promise<void> => {

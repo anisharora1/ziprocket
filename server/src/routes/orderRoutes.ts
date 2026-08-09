@@ -12,12 +12,14 @@ import {
     getGroceryZoneUsers,
     cancelOrder
 } from "../controllers/orderController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
+import { validateRequest } from "../middlewares/validateRequest";
+import { createOrderSchema } from "../validators/schemas";
 
 const router = express.Router();
 
-router.post("/", protect, createOrder);
+router.post("/", protect, validateRequest({ body: createOrderSchema }), createOrder);
 router.get("/", protect, authorize("admin"), getAllOrders);
 
 // Protected Grocery Moderator Route

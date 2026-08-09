@@ -14,8 +14,8 @@ import {
     getMyDeliveries,
     getMyRejectedOrders
 } from "../controllers/deliveryController";
-import { protect, authorize } from "../middleware/authMiddleware";
-import { uploadSingle } from "../middleware/uploadMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
+import { uploadSingle } from "../middlewares/uploadMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 
 const router = express.Router();

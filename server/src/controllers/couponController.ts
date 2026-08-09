@@ -244,12 +244,17 @@ export const validateCoupon = async (
     subtotal: number,
     zoneId?: string,
     restaurantId?: string,
-    orderType?: "food" | "grocery"
+    orderType?: "food" | "grocery",
+    preFetchedContext?: {
+        coupon?: any;
+        userPastOrdersCount?: number;
+        userCouponUsagesMap?: Map<string, number>;
+    }
 ): Promise<{ success: boolean; coupon?: any; message: string; discountAmount: number }> => {
     const uppercaseCode = code.toUpperCase().trim();
     
     // 1. Check existence
-    const coupon = await Coupon.findOne({ code: uppercaseCode });
+    const coupon = preFetchedContext?.coupon || await Coupon.findOne({ code: uppercaseCode });
     if (!coupon) {
         return { success: false, message: "Invalid coupon code.", discountAmount: 0 };
     }
@@ -276,14 +281,14 @@ export const validateCoupon = async (
 
     // 6. Check zone eligibility geofence rules
     if (coupon.applicableZones && coupon.applicableZones.length > 0) {
-        if (!zoneId || !coupon.applicableZones.some(z => z.toString() === zoneId.toString())) {
+        if (!zoneId || !coupon.applicableZones.some((z: any) => z.toString() === zoneId.toString())) {
             return { success: false, message: "This coupon is not serviceable in your current area/zone.", discountAmount: 0 };
         }
     }
 
     // 7. Check restaurant eligibility rules
     if (coupon.applicableRestaurants && coupon.applicableRestaurants.length > 0) {
-        if (!restaurantId || !coupon.applicableRestaurants.some(r => r.toString() === restaurantId.toString())) {
+        if (!restaurantId || !coupon.applicableRestaurants.some((r: any) => r.toString() === restaurantId.toString())) {
             return { success: false, message: "This coupon is not valid for this selected restaurant.", discountAmount: 0 };
         }
     }
@@ -300,10 +305,10 @@ export const validateCoupon = async (
         if (!userId) {
             return { success: false, message: "Please log in to apply this coupon.", discountAmount: 0 };
         }
-        const pastOrders = await Order.countDocuments({
-            user: userId,
-            orderStatus: { $ne: "cancelled" }
-        });
+        const pastOrders = preFetchedContext?.userPastOrdersCount !== undefined
+            ? preFetchedContext.userPastOrdersCount
+            : await Order.countDocuments({ user: userId, orderStatus: { $ne: "cancelled" } });
+
         if (pastOrders > 0) {
             return { success: false, message: "This coupon is only valid on your first successful order.", discountAmount: 0 };
         }
@@ -311,10 +316,10 @@ export const validateCoupon = async (
 
     // 9. Check per-user usage limits constraints
     if (userId) {
-        const userUsage = await CouponUsage.countDocuments({
-            user: userId,
-            coupon: coupon._id
-        });
+        const userUsage = preFetchedContext?.userCouponUsagesMap
+            ? (preFetchedContext.userCouponUsagesMap.get(coupon._id.toString()) || 0)
+            : await CouponUsage.countDocuments({ user: userId, coupon: coupon._id });
+
         if (userUsage >= coupon.perUserUsageLimit) {
             return { success: false, message: `You have already used coupon '${uppercaseCode}' the maximum allowed times.`, discountAmount: 0 };
         }
@@ -373,11 +378,43 @@ export const getAvailableCoupons = async (req: Request, res: Response): Promise<
 
         const allActiveCoupons = await Coupon.find({ isActive: true, expiryDate: { $gt: new Date() } });
 
+        // Pre-fetch user-level past order count & coupon usages if user is logged in
+        let userPastOrdersCount: number | undefined = undefined;
+        const userCouponUsagesMap = new Map<string, number>();
+
+        if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+            const [pastOrders, usages] = await Promise.all([
+                Order.countDocuments({ user: userId, orderStatus: { $ne: "cancelled" } }),
+                CouponUsage.aggregate([
+                    { $match: { user: new mongoose.Types.ObjectId(userId) } },
+                    { $group: { _id: "$coupon", count: { $sum: 1 } } }
+                ])
+            ]);
+            userPastOrdersCount = pastOrders;
+            for (const item of usages) {
+                if (item._id) {
+                    userCouponUsagesMap.set(item._id.toString(), item.count || 0);
+                }
+            }
+        }
+
         const applicable: any[] = [];
         const unapplicable: any[] = [];
 
         for (const coupon of allActiveCoupons) {
-            const validation = await validateCoupon(coupon.code, userId, Number(subtotal || 0), zoneId, restaurantId, orderType);
+            const validation = await validateCoupon(
+                coupon.code,
+                userId,
+                Number(subtotal || 0),
+                zoneId,
+                restaurantId,
+                orderType,
+                {
+                    coupon,
+                    userPastOrdersCount,
+                    userCouponUsagesMap
+                }
+            );
             
             let resolvedDiscount = 0;
             if (coupon.discountType === "flat") {

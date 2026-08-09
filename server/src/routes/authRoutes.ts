@@ -1,7 +1,7 @@
 import express from "express";
 import { requestOtp, verifyOtp, logout, refreshToken } from "../controllers/authController";
-import { protect } from "../middleware/authMiddleware";
-import { uploadSingle } from "../middleware/uploadMiddleware";
+import { protect } from "../middlewares/authMiddleware";
+import { uploadSingle } from "../middlewares/uploadMiddleware";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import User from "../models/User";
 import { otpRequestLimiter, otpVerificationLimiter } from "../middlewares/otpRateLimitMiddleware";

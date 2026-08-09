@@ -1,6 +1,6 @@
 import express from "express";
 import { getSettings, streamSettings, updateSettings } from "../controllers/platformSettingsController";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 
 const router = express.Router();
 

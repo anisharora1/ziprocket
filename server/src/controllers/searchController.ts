@@ -283,29 +283,31 @@ export const searchGrocery = async (req: Request, res: Response): Promise<void> 
         if (req.query.sort === "priceAsc") sortOption = { price: 1 };
         if (req.query.sort === "priceDesc") sortOption = { price: -1 };
 
-        let products = await GroceryProduct.find(
-            filter,
-            isTextSearch ? { score: { $meta: "textScore" } } : {}
-        )
-            .sort(sortOption)
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        let total = await GroceryProduct.countDocuments(filter);
+        let [products, total] = await Promise.all([
+            GroceryProduct.find(
+                filter,
+                isTextSearch ? { score: { $meta: "textScore" } } : {}
+            )
+                .sort(sortOption)
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            GroceryProduct.countDocuments(filter)
+        ]);
 
         // Fallback for partial keyword search if text index yields no results
         if (query && products.length === 0) {
             delete filter.$text;
             filter.name = { $regex: query, $options: "i" };
             
-            products = await GroceryProduct.find(filter)
-                .sort(req.query.sort === "priceAsc" ? { price: 1 } : req.query.sort === "priceDesc" ? { price: -1 } : { createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean();
-
-            total = await GroceryProduct.countDocuments(filter);
+            [products, total] = await Promise.all([
+                GroceryProduct.find(filter)
+                    .sort(req.query.sort === "priceAsc" ? { price: 1 } : req.query.sort === "priceDesc" ? { price: -1 } : { createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                GroceryProduct.countDocuments(filter)
+            ]);
             isTextSearch = false;
         }
 
@@ -362,29 +364,31 @@ export const searchRestaurants = async (req: Request, res: Response): Promise<vo
         }
         if (req.query.sort === "ratingDesc") sortOption = { rating: -1 };
 
-        let restaurants = await Restaurant.find(
-            filter,
-            isTextSearch ? { score: { $meta: "textScore" } } : {}
-        )
-            .sort(sortOption)
-            .skip(skip)
-            .limit(limit)
-            .lean();
-
-        let total = await Restaurant.countDocuments(filter);
+        let [restaurants, total] = await Promise.all([
+            Restaurant.find(
+                filter,
+                isTextSearch ? { score: { $meta: "textScore" } } : {}
+            )
+                .sort(sortOption)
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Restaurant.countDocuments(filter)
+        ]);
 
         // Fallback for partial matching
         if (query && restaurants.length === 0) {
             delete filter.$text;
             filter.name = { $regex: query, $options: "i" };
 
-            restaurants = await Restaurant.find(filter)
-                .sort(req.query.sort === "ratingDesc" ? { rating: -1 } : { createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .lean();
-
-            total = await Restaurant.countDocuments(filter);
+            [restaurants, total] = await Promise.all([
+                Restaurant.find(filter)
+                    .sort(req.query.sort === "ratingDesc" ? { rating: -1 } : { createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .lean(),
+                Restaurant.countDocuments(filter)
+            ]);
         }
 
         res.status(200).json({
@@ -444,31 +448,33 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
         if (req.query.sort === "priceAsc") sortOption = { price: 1 };
         if (req.query.sort === "priceDesc") sortOption = { price: -1 };
 
-        let menuItems = await MenuItem.find(
-            filter,
-            isTextSearch ? { score: { $meta: "textScore" } } : {}
-        )
-            .sort(sortOption)
-            .skip(skip)
-            .limit(limit)
-            .populate("restaurant", "name location phone")
-            .lean();
-
-        let total = await MenuItem.countDocuments(filter);
+        let [menuItems, total] = await Promise.all([
+            MenuItem.find(
+                filter,
+                isTextSearch ? { score: { $meta: "textScore" } } : {}
+            )
+                .sort(sortOption)
+                .skip(skip)
+                .limit(limit)
+                .populate("restaurant", "name location phone")
+                .lean(),
+            MenuItem.countDocuments(filter)
+        ]);
 
         // Fallback for partial matching
         if (query && menuItems.length === 0) {
             delete filter.$text;
             filter.name = { $regex: query, $options: "i" };
 
-            menuItems = await MenuItem.find(filter)
-                .sort(req.query.sort === "priceAsc" ? { price: 1 } : req.query.sort === "priceDesc" ? { price: -1 } : { createdAt: -1 })
-                .skip(skip)
-                .limit(limit)
-                .populate("restaurant", "name location phone")
-                .lean();
-
-            total = await MenuItem.countDocuments(filter);
+            [menuItems, total] = await Promise.all([
+                MenuItem.find(filter)
+                    .sort(req.query.sort === "priceAsc" ? { price: 1 } : req.query.sort === "priceDesc" ? { price: -1 } : { createdAt: -1 })
+                    .skip(skip)
+                    .limit(limit)
+                    .populate("restaurant", "name location phone")
+                    .lean(),
+                MenuItem.countDocuments(filter)
+            ]);
         }
 
         res.status(200).json({

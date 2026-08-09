@@ -58,10 +58,12 @@ export default function CartPage() {
         return null;
     })();
 
+    const items = cart?.items || [];
+
     // Fetch recommendations dynamically whenever cart items change
     useEffect(() => {
         const fetchRecommendations = async () => {
-            if (cart.items.length === 0) {
+            if (items.length === 0) {
                 setRecommendations([]);
                 return;
             }
@@ -70,7 +72,7 @@ export default function CartPage() {
                 const res = await apiClient.post("/recommendations", {
                     orderType: cart.orderType,
                     vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-                    cartItemIds: cart.items.map(i => i.id)
+                    cartItemIds: items.map(i => i.id)
                 });
                 if (res.data.success) {
                     setRecommendations(res.data.recommendations || []);
@@ -83,7 +85,7 @@ export default function CartPage() {
         };
 
         fetchRecommendations();
-    }, [cart.items, cart.orderType, cart.vendorId]);
+    }, [items, cart.orderType, cart.vendorId]);
 
     const handleAddRecommendedItem = (item: any) => {
         const isGrocery = cart.orderType === 'grocery';
@@ -103,7 +105,7 @@ export default function CartPage() {
         });
     };
 
-    const itemTotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-32 min-h-screen w-full font-sans">
@@ -114,7 +116,7 @@ export default function CartPage() {
                     <span className="material-symbols-outlined text-slate-700">arrow_back</span>
                 </button>
                 <h1 className="font-bold text-[16px] text-slate-800 tracking-tight">Shopping Cart</h1>
-                {cart.items.length > 0 ? (
+                {items.length > 0 ? (
                     <button
                         onClick={clearCart}
                         className="text-[12px] font-black text-rose-500 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg uppercase tracking-wider transition-colors"
@@ -128,7 +130,7 @@ export default function CartPage() {
 
             <main className="w-full max-w-md mx-auto px-4 pt-4 pb-20 space-y-5">
                 
-                {cart.items.length === 0 ? (
+                {items.length === 0 ? (
                     /* Blinkit Style Empty State */
                     <div className="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center shadow-sm py-16">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
@@ -184,7 +186,7 @@ export default function CartPage() {
                         {/* Cart Items List */}
                         <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
                             <div className="divide-y divide-slate-50">
-                                {cart.items.map((item) => (
+                                {items.map((item) => (
                                     <div key={item.id} className="flex items-center gap-3 p-3.5">
                                         {item.img ? (
                                             <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50 relative">

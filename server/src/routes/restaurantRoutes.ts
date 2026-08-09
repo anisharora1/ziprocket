@@ -12,8 +12,8 @@ import {
     deleteMenuItem,
     getMyRestaurant
 } from "../controllers/restaurantController";
-import { uploadMenuImages, uploadRestaurantImages } from "../middleware/uploadMiddleware";
-import { protect, authorize } from "../middleware/authMiddleware";
+import { uploadMenuImages, uploadRestaurantImages } from "../middlewares/uploadMiddleware";
+import { protect, authorize } from "../middlewares/authMiddleware";
 
 const router = express.Router();
 
