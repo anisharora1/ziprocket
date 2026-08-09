@@ -110,7 +110,8 @@ export const getDeliveriesByDeliveryBoy = async (req: Request, res: Response): P
 
         const deliveries = await Delivery.find(filter)
             .populate("order")
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
 
         res.status(200).json({
             success: true,
@@ -126,6 +127,9 @@ export const getDeliveriesByDeliveryBoy = async (req: Request, res: Response): P
 export const getAllDeliveries = async (req: Request, res: Response): Promise<void> => {
     try {
         const { status } = req.query;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
         let filter: any = {};
         
         // Optional filtering by delivery status
@@ -133,14 +137,21 @@ export const getAllDeliveries = async (req: Request, res: Response): Promise<voi
             filter.status = status;
         }
 
-        const deliveries = await Delivery.find(filter)
-            .populate("order")
-            .populate("deliveryBoy", "name phone email")
-            .sort({ createdAt: -1 });
+        const [deliveries, total] = await Promise.all([
+            Delivery.find(filter)
+                .populate("order")
+                .populate("deliveryBoy", "name phone email")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Delivery.countDocuments(filter)
+        ]);
 
         res.status(200).json({
             success: true,
             count: deliveries.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             deliveries
         });
     } catch (error: any) {
@@ -197,38 +208,47 @@ export const getPendingDeliveries = async (req: Request, res: Response): Promise
     try {
         const deliveryBoyId = req.user?._id;
 
-        // Find active/claimed deliveries
-        const claimedDeliveries = await Delivery.find({ status: { $ne: "cancelled" } }).select("order");
-        const claimedOrderIds = claimedDeliveries.map(d => d.order);
-
         // Fetch courier profile to check their operational zone
-        const profile = await DeliveryProfile.findOne({ user: deliveryBoyId });
+        const profile = await DeliveryProfile.findOne({ user: deliveryBoyId }).lean();
         const riderZoneId = profile?.deliveryZone;
 
-        let queryFilter: any = {
+        const matchStage: any = {
             orderStatus: { $in: ["accepted", "preparing", "on_the_way"] },
-            _id: { $nin: claimedOrderIds },
             rejectedBy: { $ne: deliveryBoyId }
         };
 
-        // If rider is registered in a zone, show only orders belonging to that zone!
+        // If rider is registered in a zone, show only orders belonging to that zone
         if (riderZoneId) {
-            queryFilter.deliveryZone = riderZoneId;
+            matchStage.deliveryZone = riderZoneId;
         }
 
-        // Fetch unclaimed orders
-        const pendingOrders = await Order.find(queryFilter)
-        .populate("user", "name phone")
-        .populate("restaurant", "name address location phone")
-        .populate("deliveryZone", "name center radiusKm pincodes")
-        .populate("items.menuItem", "name")
-        .populate("items.groceryItem", "name")
-        .sort({ createdAt: -1 });
+        // Use $lookup to exclude claimed orders without loading entire Delivery collection
+        const pendingOrders = await Order.aggregate([
+            { $match: matchStage },
+            { $lookup: {
+                from: "deliveries",
+                localField: "_id",
+                foreignField: "order",
+                as: "existingDelivery"
+            }},
+            { $match: { existingDelivery: { $size: 0 } } },
+            { $sort: { createdAt: -1 as const } },
+            { $project: { existingDelivery: 0 } }
+        ]);
+
+        // Populate references on aggregation results
+        const populated = await Order.populate(pendingOrders, [
+            { path: "user", select: "name phone" },
+            { path: "restaurant", select: "name address location phone" },
+            { path: "deliveryZone", select: "name center radiusKm pincodes" },
+            { path: "items.menuItem", select: "name" },
+            { path: "items.groceryItem", select: "name" }
+        ]);
 
         res.status(200).json({
             success: true,
-            count: pendingOrders.length,
-            orders: pendingOrders
+            count: populated.length,
+            orders: populated
         });
     } catch (error: any) {
         console.error("Failed to load pending deliveries:", error);
@@ -373,6 +393,9 @@ export const getMyDeliveries = async (req: Request, res: Response): Promise<void
     try {
         const deliveryBoyId = req.user?._id;
         const { type } = req.query; // 'active' or 'completed'
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
 
         let filter: any = { deliveryBoy: deliveryBoyId };
         if (type === "completed") {
@@ -381,22 +404,29 @@ export const getMyDeliveries = async (req: Request, res: Response): Promise<void
             filter.status = { $in: ["assigned", "picked", "on_the_way"] };
         }
 
-        const list = await Delivery.find(filter)
-            .populate({
-                path: "order",
-                populate: [
-                    { path: "user", select: "name phone" },
-                    { path: "restaurant", select: "name address location phone" },
-                    { path: "deliveryZone", select: "name center radiusKm pincodes" },
-                    { path: "items.menuItem", select: "name" },
-                    { path: "items.groceryItem", select: "name" }
-                ]
-            })
-            .sort({ createdAt: -1 });
+        const [list, total] = await Promise.all([
+            Delivery.find(filter)
+                .populate({
+                    path: "order",
+                    populate: [
+                        { path: "user", select: "name phone" },
+                        { path: "restaurant", select: "name address location phone" },
+                        { path: "deliveryZone", select: "name center radiusKm pincodes" },
+                        { path: "items.menuItem", select: "name" },
+                        { path: "items.groceryItem", select: "name" }
+                    ]
+                })
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Delivery.countDocuments(filter)
+        ]);
 
         res.status(200).json({
             success: true,
             count: list.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             deliveries: list
         });
     } catch (error: any) {

@@ -28,8 +28,14 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             couponCode
         } = req.body;
 
-        // Check Platform Settings, Maintenance Mode, and Operating Hours
-        const settings = await PlatformSettings.findOne();
+        // Check Platform Settings (cached in Redis for 60s to avoid repeated DB hits)
+        let settings = await redisService.getJson<any>("platform:settings");
+        if (!settings) {
+            settings = await PlatformSettings.findOne().lean();
+            if (settings) {
+                await redisService.setJson("platform:settings", settings, 60);
+            }
+        }
         if (settings) {
             // 1. Maintenance Mode Check
             if (settings.maintenanceMode) {
@@ -255,30 +261,32 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             couponDoc = validation.coupon;
         }
 
-        // Perform atomic stock deduction right before saving order
-        const deductedItems: Array<{ groceryItem: any; quantity: number }> = [];
+        // Perform atomic batch stock deduction using bulkWrite (single DB round trip)
         if (orderType === "grocery") {
-            for (const item of items) {
-                const updatedProduct = await GroceryProduct.findOneAndUpdate(
-                    { _id: item.groceryItem, stockQuantity: { $gte: item.quantity } },
-                    { $inc: { stockQuantity: -item.quantity } },
-                    { new: true }
-                );
-
-                if (!updatedProduct) {
-                    // Revert any stock deducted in this batch if concurrent stock exhaustion happened
-                    for (const deducted of deductedItems) {
-                        await GroceryProduct.findByIdAndUpdate(deducted.groceryItem, {
-                            $inc: { stockQuantity: deducted.quantity }
-                        });
-                    }
-                    res.status(400).json({
-                        success: false,
-                        message: "Stock availability changed while processing order. Please review your cart."
-                    });
-                    return;
+            const bulkOps = items.map((item: any) => ({
+                updateOne: {
+                    filter: { _id: item.groceryItem, stockQuantity: { $gte: item.quantity } },
+                    update: { $inc: { stockQuantity: -item.quantity } }
                 }
-                deductedItems.push({ groceryItem: item.groceryItem, quantity: item.quantity });
+            }));
+            const bulkResult = await GroceryProduct.bulkWrite(bulkOps, { ordered: true });
+
+            if (bulkResult.modifiedCount !== items.length) {
+                // Some items failed the stock guard — rollback all successfully deducted items
+                const rollbackOps = items.slice(0, bulkResult.modifiedCount).map((item: any) => ({
+                    updateOne: {
+                        filter: { _id: item.groceryItem },
+                        update: { $inc: { stockQuantity: item.quantity } }
+                    }
+                }));
+                if (rollbackOps.length > 0) {
+                    await GroceryProduct.bulkWrite(rollbackOps);
+                }
+                res.status(400).json({
+                    success: false,
+                    message: "Stock availability changed while processing order. Please review your cart."
+                });
+                return;
             }
         }
 
@@ -340,13 +348,15 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 order: newOrder
             });
         } catch (saveError: any) {
-            // Revert deducted stock if order save fails
-            if (orderType === "grocery" && deductedItems.length > 0) {
-                for (const deducted of deductedItems) {
-                    await GroceryProduct.findByIdAndUpdate(deducted.groceryItem, {
-                        $inc: { stockQuantity: deducted.quantity }
-                    });
-                }
+            // Revert deducted stock if order save fails (batch rollback)
+            if (orderType === "grocery" && items.length > 0) {
+                const rollbackOps = items.map((item: any) => ({
+                    updateOne: {
+                        filter: { _id: item.groceryItem },
+                        update: { $inc: { stockQuantity: item.quantity } }
+                    }
+                }));
+                await GroceryProduct.bulkWrite(rollbackOps);
             }
             throw saveError;
         }
@@ -365,12 +375,12 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
         let order = await redisService.getJson<any>(cacheKey);
         
         if (!order) {
-            console.log(`[Order Cache] Miss for key: ${cacheKey}. Querying MongoDB.`);
             order = await Order.findById(orderId)
                 .populate("user", "name email phone")
                 .populate("restaurant", "name phone location")
                 .populate("items.menuItem", "name price images")
-                .populate("items.groceryItem", "name price images unit weightSize brand");
+                .populate("items.groceryItem", "name price images unit weightSize brand")
+                .lean();
 
             if (!order) {
                 res.status(404).json({ success: false, message: "Order not found" });
@@ -381,52 +391,36 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
             const isTerminal = ["delivered", "cancelled"].includes(order.orderStatus);
             const ttl = isTerminal ? 3600 : 600;
             await redisService.setJson(cacheKey, order, ttl);
-        } else {
-            console.log(`[Order Cache] Hit for key: ${cacheKey}`);
         }
 
-        // --- SECURE OWNERSHIP CHECK ---
+        // --- SECURE OWNERSHIP CHECK (parallelized) ---
         if (req.user?.role !== "admin") {
             const userId = req.user?._id?.toString();
-            
-            // Check if requester is the customer who placed the order
             const isCustomer = userId === (order.user?._id || order.user)?.toString();
-            
-            // Check if requester is the restaurant owner
-            let isSeller = false;
-            if (order.restaurant) {
-                const restId = (order.restaurant._id || order.restaurant)?.toString();
-                const restaurant = await Restaurant.findById(restId);
-                if (restaurant && restaurant.owner?.toString() === userId) {
-                    isSeller = true;
-                }
-            }
 
-            // Check if requester is the assigned delivery rider
-            let isDelivery = false;
-            const DeliveryModel = mongoose.model("Delivery");
-            const activeDelivery = await DeliveryModel.findOne({
-                order: order._id,
-                deliveryBoy: req.user?._id
-            });
-            if (activeDelivery) {
-                isDelivery = true;
-            }
+            if (!isCustomer) {
+                const restId = order.restaurant ? (order.restaurant._id || order.restaurant)?.toString() : null;
+                const DeliveryModel = mongoose.model("Delivery");
 
-            // Check if requester is the grocery moderator in the zone
-            let isGroceryModerator = false;
-            if (order.orderType === "grocery" && req.user?.role === "grocery_moderator") {
-                const modUser = await User.findById(userId);
+                // Run all ownership checks in parallel (only the relevant ones)
+                const [restaurant, activeDelivery, modUser] = await Promise.all([
+                    restId ? Restaurant.findById(restId).select("owner").lean() : null,
+                    DeliveryModel.findOne({ order: order._id, deliveryBoy: req.user?._id }).select("_id").lean(),
+                    (order.orderType === "grocery" && req.user?.role === "grocery_moderator")
+                        ? User.findById(userId).select("assignedZones").lean()
+                        : null
+                ]);
+
+                const isSeller = restaurant && restaurant.owner?.toString() === userId;
+                const isDelivery = !!activeDelivery;
                 const zoneId = (order.deliveryZone?._id || order.deliveryZone)?.toString();
-                if (modUser?.assignedZones?.map(z => z.toString()).includes(zoneId)) {
-                    isGroceryModerator = true;
-                }
-            }
+                const isGroceryModerator = modUser?.assignedZones?.map((z: any) => z.toString()).includes(zoneId);
 
-            if (!isCustomer && !isSeller && !isDelivery && !isGroceryModerator) {
-                console.warn(`[SECURITY WARNING] Unauthorized order details access attempt. User: ${userId}, Order: ${order._id}, IP: ${req.ip}`);
-                res.status(403).json({ success: false, message: "Unauthorized to view this order" });
-                return;
+                if (!isSeller && !isDelivery && !isGroceryModerator) {
+                    console.warn(`[SECURITY WARNING] Unauthorized order details access attempt. User: ${userId}, Order: ${order._id}, IP: ${req.ip}`);
+                    res.status(403).json({ success: false, message: "Unauthorized to view this order" });
+                    return;
+                }
             }
         }
 
@@ -443,34 +437,41 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
 export const getUserOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = req.params.userId;
-        const cacheKey = `order:user_recent:${userId}`;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
+        const cacheKey = `order:user_recent:${userId}:p${page}:l${limit}`;
 
-        const cachedUserOrders = await redisService.getJson<any[]>(cacheKey);
+        const cachedUserOrders = await redisService.getJson<any>(cacheKey);
         if (cachedUserOrders) {
-            console.log(`[Order Cache] Hit for user recent orders: ${cacheKey}`);
-            res.status(200).json({
-                success: true,
-                count: cachedUserOrders.length,
-                orders: cachedUserOrders
-            });
+            res.status(200).json(cachedUserOrders);
             return;
         }
 
-        console.log(`[Order Cache] Miss for user recent orders: ${cacheKey}. Querying MongoDB.`);
-        const orders = await Order.find({ user: userId })
-            .populate("restaurant", "name image")
-            .populate("items.menuItem", "name")
-            .populate("items.groceryItem", "name")
-            .sort({ createdAt: -1 });
+        const filter = { user: userId };
+        const [orders, total] = await Promise.all([
+            Order.find(filter)
+                .populate("restaurant", "name image")
+                .populate("items.menuItem", "name")
+                .populate("items.groceryItem", "name")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Order.countDocuments(filter)
+        ]);
 
-        // Cache user recent orders for 10 minutes
-        await redisService.setJson(cacheKey, orders, 600);
-
-        res.status(200).json({
+        const responseData = {
             success: true,
             count: orders.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             orders
-        });
+        };
+
+        // Cache page for 10 minutes
+        await redisService.setJson(cacheKey, responseData, 600);
+
+        res.status(200).json(responseData);
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
@@ -492,6 +493,9 @@ export const getRestaurantOrders = async (req: Request, res: Response): Promise<
         }
 
         const { orderStatus } = req.query;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
 
         let filter: any = { restaurant: restaurantId };
         
@@ -500,14 +504,21 @@ export const getRestaurantOrders = async (req: Request, res: Response): Promise<
             filter.orderStatus = orderStatus;
         }
 
-        const orders = await Order.find(filter)
-            .populate("user", "name phone")
-            .populate("items.menuItem", "name price")
-            .sort({ createdAt: -1 });
+        const [orders, total] = await Promise.all([
+            Order.find(filter)
+                .populate("user", "name phone")
+                .populate("items.menuItem", "name price")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Order.countDocuments(filter)
+        ]);
 
         res.status(200).json({
             success: true,
             count: orders.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             orders
         });
     } catch (error: any) {
@@ -671,20 +682,31 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
         }
 
         const { orderStatus } = req.query;
+        const page = Math.max(1, parseInt(req.query.page as string) || 1);
+        const limit = Math.max(1, Math.min(100, parseInt(req.query.limit as string) || 20));
+        const skip = (page - 1) * limit;
+
         let filter: any = { restaurant: restaurant._id };
         
         if (orderStatus) {
             filter.orderStatus = orderStatus;
         }
 
-        const orders = await Order.find(filter)
-            .populate("user", "name phone")
-            .populate("items.menuItem", "name price")
-            .sort({ createdAt: -1 });
+        const [orders, total] = await Promise.all([
+            Order.find(filter)
+                .populate("user", "name phone")
+                .populate("items.menuItem", "name price")
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .lean(),
+            Order.countDocuments(filter)
+        ]);
 
         res.status(200).json({
             success: true,
             count: orders.length,
+            meta: { total, page, pages: Math.ceil(total / limit), limit },
             orders
         });
     } catch (error: any) {

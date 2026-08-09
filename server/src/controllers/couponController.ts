@@ -213,8 +213,13 @@ export const getCouponAnalytics = async (req: Request, res: Response): Promise<v
             { $limit: 10 }
         ]);
 
-        const populatedPopular = await Promise.all(popularCoupons.map(async (item) => {
-            const coupDetails = await Coupon.findById(item._id).select("code title discountType discountValue");
+        const couponIds = popularCoupons.map(p => p._id);
+        const couponDocs = await Coupon.find({ _id: { $in: couponIds } })
+            .select("code title discountType discountValue").lean();
+        const couponMap = new Map(couponDocs.map(c => [c._id.toString(), c]));
+
+        const populatedPopular = popularCoupons.map(item => {
+            const coupDetails = couponMap.get(item._id?.toString());
             return {
                 ...item,
                 code: coupDetails?.code || "DELETED",
@@ -222,7 +227,7 @@ export const getCouponAnalytics = async (req: Request, res: Response): Promise<v
                 discountType: coupDetails?.discountType,
                 discountValue: coupDetails?.discountValue
             };
-        }));
+        });
 
         res.status(200).json({
             success: true,

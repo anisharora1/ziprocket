@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react";
 import { apiClient } from "@/services/api";
 
 export interface PlatformSettings {
@@ -16,6 +16,10 @@ export interface PlatformSettings {
 interface PlatformContextType {
     settings: PlatformSettings | null;
     loading: boolean;
+    isPlatformOpen: boolean;
+    platformStatusMessage: string | null;
+    isGroceryOpen: boolean;
+    groceryStatusMessage: string | null;
     isPlatformCurrentlyOpen: () => boolean;
     getPlatformStatusMessage: () => string | null;
     isGroceryCurrentlyOpen: () => boolean;
@@ -96,14 +100,14 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
 
-    const isPlatformCurrentlyOpen = (): boolean => {
+    // Pre-compute platform open status as a derived state value
+    const computeIsOpen = useCallback((): boolean => {
         if (!settings) return true;
         if (settings.maintenanceMode) return false;
         if (!settings.isPlatformOpen) return false;
         if (!settings.operatingHours?.open || !settings.operatingHours?.close) return true;
 
         try {
-            // Check operating hours
             const now = new Date();
             const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
             const timeStr = new Intl.DateTimeFormat('en-US', options).format(now);
@@ -125,9 +129,20 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         } catch (e) {
             return true;
         }
-    };
+    }, [settings]);
 
-    const getPlatformStatusMessage = (): string | null => {
+    const [isPlatformOpen, setIsPlatformOpen] = useState(true);
+
+    // Re-compute when settings change and on a 60-second timer
+    useEffect(() => {
+        setIsPlatformOpen(computeIsOpen());
+        const timer = setInterval(() => {
+            setIsPlatformOpen(computeIsOpen());
+        }, 60_000);
+        return () => clearInterval(timer);
+    }, [computeIsOpen]);
+
+    const platformStatusMessage = useMemo((): string | null => {
         if (!settings) return null;
         if (settings.maintenanceMode) {
             return "We are currently performing maintenance. Please check back soon.";
@@ -135,24 +150,22 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         if (!settings.isPlatformOpen) {
             return "Ordering is currently unavailable. Please try again later.";
         }
-        if (!isPlatformCurrentlyOpen()) {
+        if (!isPlatformOpen) {
             const formatted = formatToAMPM(settings.operatingHours?.open || "");
             return `Orders are closed for today. We will reopen at ${formatted || "8:00 AM"}.`;
         }
         return null;
-    };
+    }, [settings, isPlatformOpen]);
 
-    const isGroceryCurrentlyOpen = (): boolean => {
+    const isGroceryOpen = useMemo((): boolean => {
         if (!settings) return true;
-        if (!isPlatformCurrentlyOpen()) return false;
+        if (!isPlatformOpen) return false;
         return settings.groceryStatus === "open";
-    };
+    }, [settings, isPlatformOpen]);
 
-    const getGroceryStatusMessage = (): string | null => {
+    const groceryStatusMessage = useMemo((): string | null => {
         if (!settings) return null;
-        const platformMsg = getPlatformStatusMessage();
-        if (platformMsg) return platformMsg;
-
+        if (platformStatusMessage) return platformStatusMessage;
         if (settings.groceryStatus === "disabled") {
             return "Grocery ordering is temporarily disabled.";
         }
@@ -160,18 +173,24 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
             return "Grocery operations are currently closed.";
         }
         return null;
-    };
+    }, [settings, platformStatusMessage]);
+
+    const contextValue = useMemo(() => ({
+        settings,
+        loading,
+        isPlatformOpen,
+        platformStatusMessage,
+        isGroceryOpen,
+        groceryStatusMessage,
+        isPlatformCurrentlyOpen: () => isPlatformOpen,
+        getPlatformStatusMessage: () => platformStatusMessage,
+        isGroceryCurrentlyOpen: () => isGroceryOpen,
+        getGroceryStatusMessage: () => groceryStatusMessage,
+        refreshSettings: fetchSettings
+    }), [settings, loading, isPlatformOpen, platformStatusMessage, isGroceryOpen, groceryStatusMessage]);
 
     return (
-        <PlatformContext.Provider value={{
-            settings,
-            loading,
-            isPlatformCurrentlyOpen,
-            getPlatformStatusMessage,
-            isGroceryCurrentlyOpen,
-            getGroceryStatusMessage,
-            refreshSettings: fetchSettings
-        }}>
+        <PlatformContext.Provider value={contextValue}>
             {children}
         </PlatformContext.Provider>
     );

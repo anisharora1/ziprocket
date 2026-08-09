@@ -623,19 +623,16 @@ export const getAllDeliveryProfiles = async (req: Request, res: Response): Promi
             .populate("user", "name phone email isBlocked role")
             .sort({ createdAt: -1 });
 
-        // Calculate real workload dynamically by counting in-progress Delivery documents for each rider
-        const profilesWithWorkload = await Promise.all(profiles.map(async (profile) => {
-            let activeOrdersCount = 0;
-            if (profile.user) {
-                activeOrdersCount = await Delivery.countDocuments({
-                    deliveryBoy: profile.user._id,
-                    status: { $in: ["assigned", "picked", "on_the_way"] }
-                });
-            }
-            return {
-                ...profile.toObject(),
-                activeOrdersCount
-            };
+        // Single aggregation to count active deliveries per rider (replaces N+1 individual queries)
+        const activeCountsAgg = await Delivery.aggregate([
+            { $match: { status: { $in: ["assigned", "picked", "on_the_way"] } } },
+            { $group: { _id: "$deliveryBoy", count: { $sum: 1 } } }
+        ]);
+        const activeCountMap = new Map(activeCountsAgg.map(a => [a._id.toString(), a.count]));
+
+        const profilesWithWorkload = profiles.map(profile => ({
+            ...profile.toObject(),
+            activeOrdersCount: activeCountMap.get((profile.user as any)?._id?.toString()) || 0
         }));
 
         res.status(200).json({

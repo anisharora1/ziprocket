@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/services/api';
 
@@ -52,6 +52,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [showReplaceAlert, setShowReplaceAlert] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<AddToCartPayload | null>(null);
+  const hasLoadedRef = useRef(false);
   const { user } = useAuth();
 
   // Load from backend if logged in, otherwise load from local storage
@@ -101,14 +102,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    loadCart();
+    loadCart().then(() => {
+      // Mark as loaded after initial cart load completes to prevent redundant sync
+      hasLoadedRef.current = true;
+    });
   }, [user]);
 
   // Sync to database if logged in (debounced), otherwise write to local storage
   useEffect(() => {
     localStorage.setItem('ziprocket_cart', JSON.stringify(cart));
 
-    if (!user) return;
+    // Skip sync on initial load to avoid a no-op round trip
+    if (!user || !hasLoadedRef.current) return;
 
     const syncWithBackend = setTimeout(async () => {
       try {
@@ -200,18 +205,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setCart({ items: [], vendorId: null, vendorName: null, orderType: null });
   };
 
+  const contextValue = useMemo(() => ({
+    cart,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    showReplaceAlert,
+    pendingPayload,
+    confirmReplaceCart,
+    cancelReplaceCart
+  }), [cart, showReplaceAlert, pendingPayload]);
+
   return (
-    <CartContext.Provider value={{
-      cart,
-      addToCart,
-      removeFromCart,
-      updateQuantity,
-      clearCart,
-      showReplaceAlert,
-      pendingPayload,
-      confirmReplaceCart,
-      cancelReplaceCart
-    }}>
+    <CartContext.Provider value={contextValue}>
       {children}
       
       {/* Global Replace Alert Modal */}

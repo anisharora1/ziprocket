@@ -63,6 +63,28 @@ function getInitialZoneId(): string | null {
   return null;
 }
 
+function StatusBadge({ isMaintenance, status }: { isMaintenance?: boolean; status: "open" | "closed" | "disabled" }) {
+  if (isMaintenance) {
+    return (
+      <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+        MAINTENANCE MODE
+      </div>
+    );
+  }
+  if (status === "open") {
+    return (
+      <div className="absolute top-3 left-3 bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+        OPEN NOW
+      </div>
+    );
+  }
+  return (
+    <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+      CLOSED
+    </div>
+  );
+}
+
 export default function RestaurantList() {
   const { location: userCoords, pincode: userPincode, zoneId, zoneName, error: feasibilityError, isLocationLoaded } = useLocation();
   const { settings, loading: platformLoading, getPlatformStatusMessage } = usePlatform();
@@ -78,9 +100,10 @@ export default function RestaurantList() {
     if (cached) {
       setRestaurants(cached);
       setLoading(false);
-    } else {
-      setLoading(true);
+      return; // ✅ Skip API fetch when cache is fresh
     }
+
+    setLoading(true);
 
     const loadRestaurants = async () => {
       try {
@@ -102,7 +125,7 @@ export default function RestaurantList() {
     };
 
     loadRestaurants();
-  }, [activeZoneId]);
+  }, [activeZoneId, cacheKey]);
 
   if (loading) {
     // Premium loading skeletons
@@ -186,27 +209,10 @@ export default function RestaurantList() {
                 </div>
                 
                 {/* Activity Status */}
-                {(() => {
-                  if (settings?.maintenanceMode) {
-                    return (
-                      <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
-                        MAINTENANCE MODE
-                      </div>
-                    );
-                  }
-                  if (restaurant.availabilityStatus === "open") {
-                    return (
-                      <div className="absolute top-3 left-3 bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
-                        OPEN NOW
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
-                      CLOSED
-                    </div>
-                  );
-                })()}
+                <StatusBadge 
+                  isMaintenance={settings?.maintenanceMode} 
+                  status={restaurant.availabilityStatus} 
+                />
               </div>
               
               <div className="p-4 space-y-1">

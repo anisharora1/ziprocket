@@ -1,5 +1,5 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { apiClient } from '@/services/api';
 import { getHighAccuracyGPSFix } from '@/utils/geolocation';
 
@@ -238,9 +238,12 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       // Retrieve zone details from saved addresses list if possible
       const matched = savedAddresses.find(a => a.deliveryZone === addr.deliveryZone);
       setZoneName(matched ? "ZipRocket Active Zone" : "Local Operating Area");
+      setError(null);
+    } else {
+      // Only resolve zone if not already known from the saved address
+      await resolveOperationalZone(addr.location.lat, addr.location.lng, addr.pincode);
     }
 
-    await resolveOperationalZone(addr.location.lat, addr.location.lng, addr.pincode);
     localStorage.setItem('ziprocket_location', JSON.stringify(newLoc));
     dismissPrompt();
   };
@@ -430,30 +433,36 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     dismissPrompt();
   };
 
+  const contextValue = useMemo(() => ({
+    location,
+    address,
+    pincode,
+    city,
+    state,
+    country,
+    zoneId,
+    zoneName,
+    savedAddresses,
+    selectedAddressId,
+    deliveryAddress,
+    isLoading,
+    error,
+    isFirstTime,
+    isLocationLoaded,
+    fetchLocation,
+    dismissPrompt,
+    setSelectedAddress,
+    saveAndSelectAddress,
+    loadSavedAddresses,
+    setCustomLocation
+  }), [
+    location, address, pincode, city, state, country,
+    zoneId, zoneName, savedAddresses, selectedAddressId,
+    deliveryAddress, isLoading, error, isFirstTime, isLocationLoaded
+  ]);
+
   return (
-    <LocationContext.Provider value={{
-      location,
-      address,
-      pincode,
-      city,
-      state,
-      country,
-      zoneId,
-      zoneName,
-      savedAddresses,
-      selectedAddressId,
-      deliveryAddress,
-      isLoading,
-      error,
-      isFirstTime,
-      isLocationLoaded,
-      fetchLocation,
-      dismissPrompt,
-      setSelectedAddress,
-      saveAndSelectAddress,
-      loadSavedAddresses,
-      setCustomLocation
-    }}>
+    <LocationContext.Provider value={contextValue}>
       {children}
     </LocationContext.Provider>
   );
