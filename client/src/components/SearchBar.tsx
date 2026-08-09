@@ -15,7 +15,7 @@ interface SearchResults {
 export default function SearchBar() {
   const router = useRouter();
   const { zoneId } = useLocation();
-  
+
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResults>({
     restaurants: [],
@@ -25,7 +25,7 @@ export default function SearchBar() {
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Web Speech API Voice Search
@@ -71,16 +71,6 @@ export default function SearchBar() {
     }
   };
 
-  // Popular queries list
-  const popularQueries = [
-    { text: "Biryani", icon: "dinner_dining" },
-    { text: "Pizza", icon: "local_pizza" },
-    { text: "Burger", icon: "lunch_dining" },
-    { text: "Milk", icon: "water_drop" },
-    { text: "Grocery", icon: "shopping_basket" },
-    { text: "Samosa", icon: "bakery_dining" }
-  ];
-
   // Debounced search logic
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -121,13 +111,14 @@ export default function SearchBar() {
   const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && query.trim()) {
       setIsOpen(false);
-      router.push(`/restaurants?q=${encodeURIComponent(query.trim())}`);
+      router.push(`/search?q=${encodeURIComponent(query.trim())}`);
     }
   };
 
   const handleSuggestionClick = (term: string) => {
     setQuery(term);
-    setIsOpen(true);
+    setIsOpen(false);
+    router.push(`/search?q=${encodeURIComponent(term)}`);
   };
 
   const clearSearch = () => {
@@ -136,9 +127,9 @@ export default function SearchBar() {
     setIsOpen(false);
   };
 
-  const hasResults = 
-    results.restaurants.length > 0 || 
-    results.groceryProducts.length > 0 || 
+  const hasResults =
+    results.restaurants.length > 0 ||
+    results.groceryProducts.length > 0 ||
     results.menuItems.length > 0;
 
   return (
@@ -147,29 +138,29 @@ export default function SearchBar() {
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
           <span className="material-symbols-outlined text-slate-400">search</span>
         </div>
-        <input 
+        <input
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
             setIsOpen(true);
           }}
-          onFocus={() => setIsOpen(true)}
+          //onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyPress}
-          className="block w-full h-14 pl-12 pr-20 bg-white border border-slate-200 rounded-xl font-label-md text-label-md focus:ring-2 focus:ring-primary-container focus:border-transparent shadow-sm outline-none text-slate-800" 
-          placeholder="Search for food, grocery..." 
+          className="block w-full h-14 pl-12 pr-20 bg-white border border-slate-200 rounded-xl font-label-md text-label-md focus:ring-2 focus:ring-primary-container focus:border-transparent shadow-sm outline-none text-slate-800"
+          placeholder="Search for food, grocery..."
           type="text"
           suppressHydrationWarning={true}
         />
         <div className="absolute inset-y-0 right-0 pr-4 flex items-center gap-2">
           {query && (
-            <button 
-              onClick={clearSearch} 
+            <button
+              onClick={clearSearch}
               className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer flex items-center justify-center p-1 rounded-full hover:bg-slate-100"
             >
               <span className="material-symbols-outlined text-sm font-bold">close</span>
             </button>
           )}
-          <button 
+          <button
             type="button"
             onClick={startVoiceSearch}
             className={`flex items-center justify-center p-1.5 rounded-full hover:bg-slate-100 transition-all cursor-pointer ${isListening ? 'animate-pulse text-red-500 bg-red-50' : 'text-primary-container'}`}
@@ -182,7 +173,7 @@ export default function SearchBar() {
 
       {/* Suggestion & Results Overlay */}
       {isOpen && (
-        <div 
+        <div
           className="absolute left-0 right-0 top-full mt-2 z-50 max-h-[460px] overflow-y-auto bg-white/95 border border-slate-100 rounded-2xl shadow-[0_12px_40px_rgba(0,0,0,0.12)] backdrop-blur-md custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200"
         >
           {loading ? (
@@ -195,26 +186,6 @@ export default function SearchBar() {
               <div className="space-y-3 pl-8">
                 <div className="h-6 w-3/4 bg-slate-100 rounded animate-pulse"></div>
                 <div className="h-6 w-1/2 bg-slate-100 rounded animate-pulse"></div>
-              </div>
-            </div>
-          ) : query.trim().length < 2 ? (
-            /* Popular/Recent Searches */
-            <div className="p-5">
-              <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                Popular Searches
-              </h4>
-              <div className="flex flex-wrap gap-2">
-                {popularQueries.map((item, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestionClick(item.text)}
-                    className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-50 hover:bg-[#FF5C00]/5 hover:text-[#FF5C00] border border-slate-100 rounded-full text-xs font-semibold text-slate-600 transition-all cursor-pointer active:scale-95"
-                  >
-                    <span className="material-symbols-outlined text-[14px]">{item.icon}</span>
-                    {item.text}
-                  </button>
-                ))}
               </div>
             </div>
           ) : !hasResults ? (

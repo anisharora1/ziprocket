@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import Image from "next/image";
 
 interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "src" | "sizes"> {
-  src: string;
+  src: any;
   alt: string;
   preset?: "thumbnail" | "card" | "large" | "avatar";
   width?: number | string;
@@ -20,7 +20,7 @@ export const getOptimizedCloudinaryUrl = (
   url: string,
   preset: "thumbnail" | "card" | "large" | "avatar" = "card"
 ): string => {
-  if (!url || !url.includes("res.cloudinary.com")) return url;
+  if (!url || typeof url !== "string" || !url.includes("res.cloudinary.com")) return url;
 
   // Split at /upload/
   const parts = url.split("/upload/");
@@ -52,7 +52,7 @@ export const getOptimizedUnsplashUrl = (
   url: string,
   preset: "thumbnail" | "card" | "large" | "avatar" = "card"
 ): string => {
-  if (!url || !url.includes("images.unsplash.com")) return url;
+  if (!url || typeof url !== "string" || !url.includes("images.unsplash.com")) return url;
 
   try {
     const parsedUrl = new URL(url);
@@ -94,16 +94,25 @@ export const getOptimizedUnsplashUrl = (
 };
 
 export const getOptimizedSrc = (
-  src: string,
+  src: any,
   preset: "thumbnail" | "card" | "large" | "avatar" = "card"
 ): string => {
-  if (!src) return src;
-  if (src.includes("res.cloudinary.com")) {
-    return getOptimizedCloudinaryUrl(src, preset);
-  } else if (src.includes("images.unsplash.com")) {
-    return getOptimizedUnsplashUrl(src, preset);
+  if (!src) return "";
+  
+  // Safe extraction if src is an object (e.g. Cloudinary image data or database subdocument)
+  let url = src;
+  if (typeof src === "object" && src !== null) {
+    url = src.url || "";
   }
-  return src;
+
+  if (typeof url !== "string") return "";
+
+  if (url.includes("res.cloudinary.com")) {
+    return getOptimizedCloudinaryUrl(url, preset);
+  } else if (url.includes("images.unsplash.com")) {
+    return getOptimizedUnsplashUrl(url, preset);
+  }
+  return url;
 };
 
 export default function OptimizedImage({

@@ -129,15 +129,31 @@ export const searchGlobal = async (req: Request, res: Response): Promise<void> =
             { $text: { $search: query }, isAvailable: true },
             { score: { $meta: "textScore" } }
         )
+            .populate({
+                path: "restaurant",
+                match: {
+                    isActive: true,
+                    status: "approved",
+                    ...(zoneId && mongoose.Types.ObjectId.isValid(zoneId as string)
+                        ? { deliveryZone: new mongoose.Types.ObjectId(zoneId as string) }
+                        : {})
+                },
+                select: "name location phone status isActive deliveryZone"
+            })
             .sort({ score: { $meta: "textScore" } })
-            .limit(limit)
+            .limit(limit * 3) // fetch more to account for filtered out items
             .lean();
 
-        const [groceryProducts, restaurants, menuItems] = await Promise.all([
+        const [groceryProducts, restaurants, rawMenuItems] = await Promise.all([
             groceryPromise,
             restaurantPromise,
             menuItemPromise
         ]);
+
+        // Filter out menu items whose restaurants did not match active/approved/zone criteria
+        let finalMenuItems = (rawMenuItems || [])
+            .filter((item: any) => item.restaurant !== null && item.restaurant !== undefined)
+            .slice(0, limit);
 
         // Fallback to partial name matching if text score returns empty results
         let finalGrocery = groceryProducts;
@@ -175,9 +191,8 @@ export const searchGlobal = async (req: Request, res: Response): Promise<void> =
                 .lean();
         }
 
-        let finalMenuItems = menuItems;
-        if (menuItems.length === 0) {
-            finalMenuItems = await MenuItem.find({
+        if (finalMenuItems.length === 0) {
+            const fallbackMenuItems = await MenuItem.find({
                 $or: [
                     { name: { $regex: query, $options: "i" } },
                     { category: { $regex: query, $options: "i" } },
@@ -185,8 +200,23 @@ export const searchGlobal = async (req: Request, res: Response): Promise<void> =
                 ],
                 isAvailable: true
             })
-                .limit(limit)
+                .populate({
+                    path: "restaurant",
+                    match: {
+                        isActive: true,
+                        status: "approved",
+                        ...(zoneId && mongoose.Types.ObjectId.isValid(zoneId as string)
+                            ? { deliveryZone: new mongoose.Types.ObjectId(zoneId as string) }
+                            : {})
+                    },
+                    select: "name location phone status isActive deliveryZone"
+                })
+                .limit(limit * 3)
                 .lean();
+
+            finalMenuItems = (fallbackMenuItems || [])
+                .filter((item: any) => item.restaurant !== null && item.restaurant !== undefined)
+                .slice(0, limit);
         }
 
         res.status(200).json({

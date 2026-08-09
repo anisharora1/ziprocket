@@ -4,7 +4,7 @@ import BottomNavBar from "@/components/BottomNavBar";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import { useParams, useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
-import axios from "axios";
+import { apiClient } from "@/services/api";
 import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
@@ -22,17 +22,35 @@ export default function RestaurantMenuPage() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
+      console.log(`[Restaurant Details] Loading ID: ${id}`);
+      
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-        const [restRes, menuRes] = await Promise.all([
-          axios.get(`${API_URL}/restaurants/${id}`),
-          axios.get(`${API_URL}/restaurants/${id}/menu`)
-        ]);
-        
-        if (restRes.data.success) setRestaurant(restRes.data.restaurant);
-        if (menuRes.data.success) setMenuItems(menuRes.data.menuItems);
-      } catch (error) {
-        console.error("Failed to fetch restaurant data", error);
+        // Fetch restaurant details
+        try {
+          const restRes = await apiClient.get(`/restaurants/${id}`);
+          if (restRes.data.success) {
+            setRestaurant(restRes.data.restaurant);
+          } else {
+            console.warn("[Restaurant Details] API success is false:", restRes.data);
+          }
+        } catch (restErr: any) {
+          console.error("[Restaurant Details] Failed to fetch restaurant info:", restErr.message || restErr);
+        }
+
+        // Fetch menu items independently
+        try {
+          const menuRes = await apiClient.get(`/restaurants/${id}/menu`);
+          if (menuRes.data.success) {
+            setMenuItems(menuRes.data.menuItems || []);
+          } else {
+            console.warn("[Restaurant Details] Menu API success is false:", menuRes.data);
+          }
+        } catch (menuErr: any) {
+          console.error("[Restaurant Details] Failed to fetch menu items:", menuErr.message || menuErr);
+        }
+      } catch (err) {
+        console.error("[Restaurant Details] Unexpected error in fetchData:", err);
       } finally {
         setLoading(false);
       }
@@ -41,7 +59,7 @@ export default function RestaurantMenuPage() {
     if (id) fetchData();
   }, [id]);
 
-  const categories = Array.from(new Set(menuItems.map(item => item.category).filter(Boolean)));
+  const categories = Array.from(new Set((menuItems || []).map(item => item.category).filter(Boolean)));
   const [activeCategory, setActiveCategory] = useState<string>("All");
 
   const scrollToCategory = (category: string) => {
@@ -92,7 +110,7 @@ export default function RestaurantMenuPage() {
   }
 
   // Group menu items by category
-  const groupedItems = menuItems.reduce((acc, item) => {
+  const groupedItems = (menuItems || []).reduce((acc, item) => {
     const cat = item.category || 'Other';
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(item);
@@ -221,7 +239,7 @@ export default function RestaurantMenuPage() {
 
       {/* Menu Items List */}
       <main className="px-4 py-5 space-y-8">
-        {menuItems.length === 0 ? (
+        {(!menuItems || menuItems.length === 0) ? (
           <div className="text-center py-16 flex flex-col items-center">
             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
               <span className="material-symbols-outlined text-3xl text-slate-300">restaurant_menu</span>
@@ -235,11 +253,11 @@ export default function RestaurantMenuPage() {
               <h2 className="text-xl font-bold text-slate-900 mb-4 flex items-center gap-2">
                 {category}
                 <span className="text-[12px] font-medium px-2 py-0.5 bg-slate-200 text-slate-600 rounded-full">
-                  {groupedItems[category].length}
+                  {groupedItems[category]?.length || 0}
                 </span>
               </h2>
               <div className="space-y-5">
-                {groupedItems[category].map((item: any) => (
+                {(groupedItems[category] || []).map((item: any) => (
                   <div key={item._id} className={`bg-white rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-slate-100 ${!item.isAvailable ? 'opacity-70' : ''}`}>
                     <div className="h-48 w-full relative bg-slate-100">
                       <OptimizedImage 
