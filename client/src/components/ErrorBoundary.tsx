@@ -1,6 +1,7 @@
 "use client";
 
 import React, { Component, ErrorInfo, ReactNode } from "react";
+import { MdError } from "react-icons/md";
 
 interface Props {
   children?: ReactNode;
@@ -34,7 +35,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6 text-center">
           <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mb-4 text-rose-600">
-            <span className="material-symbols-outlined text-4xl">error</span>
+            <MdError className="text-4xl" />
           </div>
           <h2 className="text-xl font-bold text-slate-800 mb-2">Something went wrong</h2>
           <p className="text-slate-500 mb-6 max-w-sm text-sm">
@@ -56,3 +57,4 @@ export default class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+

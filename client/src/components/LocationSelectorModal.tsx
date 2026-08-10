@@ -3,6 +3,17 @@ import React, { useState, useEffect } from 'react';
 import { useLocation } from '@/context/LocationContext';
 import { apiClient } from '@/services/api';
 import { getHighAccuracyGPSFix } from '@/utils/geolocation';
+import {
+  MdClose,
+  MdSearch,
+  MdCancel,
+  MdWarning,
+  MdLocationOn,
+  MdMyLocation,
+  MdHome,
+  MdWork,
+  MdHomeWork,
+} from 'react-icons/md';
 
 interface LocationSelectorModalProps {
   isOpen: boolean;
@@ -259,7 +270,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
             onClick={onClose}
             className="w-10 h-10 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 flex items-center justify-center text-slate-500"
           >
-            <span className="material-symbols-outlined">close</span>
+            <MdClose className="text-xl" />
           </button>
         </div>
 
@@ -271,7 +282,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
             <div className="relative">
               <label className="block text-[11px] font-black text-slate-400 uppercase tracking-wider mb-2">Search Address</label>
               <div className="relative flex items-center">
-                <span className="material-symbols-outlined text-slate-400 absolute left-4 text-[20px]">search</span>
+                <MdSearch className="text-slate-400 absolute left-4 text-[20px]" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -284,7 +295,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                     onClick={() => setSearchQuery('')}
                     className="absolute right-4 text-slate-400 hover:text-slate-600"
                   >
-                    <span className="material-symbols-outlined text-[16px]">cancel</span>
+                    <MdCancel className="text-[16px]" />
                   </button>
                 )}
               </div>
@@ -292,7 +303,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
               {/* Error alerts */}
               {(addressError) && (
                 <div className="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-4 py-2.5 mt-3 text-xs font-semibold flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px] text-rose-500">warning</span>
+                  <MdWarning className="text-[16px] text-rose-500 shrink-0" />
                   <span>{addressError}</span>
                 </div>
               )}
@@ -313,7 +324,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                       onClick={() => handleSelectSuggestion(s.place_id)}
                       className="w-full text-left px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-900/50 flex items-start gap-3 border-b border-slate-50 dark:border-slate-900 transition-colors"
                     >
-                      <span className="material-symbols-outlined text-slate-400 mt-0.5 shrink-0 text-[18px]">location_on</span>
+                      <MdLocationOn className="text-slate-400 mt-0.5 shrink-0 text-[18px]" />
                       <span className="text-xs font-medium text-slate-700 dark:text-slate-300 leading-snug">{s.description}</span>
                     </button>
                   ))}
@@ -334,7 +345,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-[18px]">my_location</span>
+                  <MdMyLocation className="text-[18px]" />
                   <span>Use Current GPS Location</span>
                 </>
               )}
@@ -351,9 +362,9 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                 <div className="grid grid-cols-1 gap-3">
                   {savedAddresses.map((addr) => {
                     const isSelected = selectedAddressId === addr._id;
-                    let icon = 'home';
-                    if (addr.label === 'Work') icon = 'work';
-                    if (addr.label === 'Other') icon = 'home_work';
+                    let IconComponent = MdHome;
+                    if (addr.label === 'Work') IconComponent = MdWork;
+                    if (addr.label === 'Other') IconComponent = MdHomeWork;
 
                     return (
                       <div
@@ -367,7 +378,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
                         <div className="flex gap-3">
                           <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
                             }`}>
-                            <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                            <IconComponent className="text-[18px]" />
                           </div>
                           <div>
                             <div className="flex items-center gap-2">

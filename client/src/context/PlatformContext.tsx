@@ -31,16 +31,18 @@ const PlatformContext = createContext<PlatformContextType | undefined>(undefined
 
 const formatToAMPM = (timeStr: string): string => {
     if (!timeStr) return "";
-    const [h, m] = timeStr.split(":").map(Number);
+    const cleanTime = timeStr.replace(/[^\d:]/g, '');
+    const [h, m] = cleanTime.split(":").map(Number);
+    if (isNaN(h)) return "";
     const ampm = h >= 12 ? 'PM' : 'AM';
     const displayH = h % 12 || 12;
-    const displayM = m.toString().padStart(2, '0');
+    const displayM = (m || 0).toString().padStart(2, '0');
     return `${displayH}:${displayM} ${ampm}`;
 };
 
 export function PlatformProvider({ children }: { children: React.ReactNode }) {
     const [settings, setSettings] = useState<PlatformSettings | null>(null);
-    const [loading, setLoading] = useState(false); // Start false so consumers aren't blocked
+    const [loading, setLoading] = useState(true); // True initially while fetching settings
 
     const fetchSettings = async () => {
         try {
@@ -58,12 +60,10 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         let eventSource: EventSource | null = null;
 
-        // Delay both initial fetch and SSE connection until after page first paint
-        const initialFetchTimer = setTimeout(() => {
-            fetchSettings();
-        }, 800); // 0.8s: fast enough for status but after first LCP paint
+        // Fetch settings immediately on mount
+        fetchSettings();
 
-        // Delay SSE connection until after initial page load to ensure network idle for Lighthouse
+        // Delay SSE connection slightly to avoid clogging initial paint
         const sseTimer = setTimeout(() => {
             const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
             const sseUrl = `${API_BASE_URL}/platform/settings/stream`;
@@ -88,17 +88,15 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
             } catch (e) {
                 console.error("Failed to initialize SSE EventSource:", e);
             }
-        }, 2500); // 2.5s delay
+        }, 1500);
 
         return () => {
-            clearTimeout(initialFetchTimer);
             clearTimeout(sseTimer);
             if (eventSource) {
                 eventSource.close();
             }
         };
     }, []);
-
 
     // Pre-compute platform open status as a derived state value
     const computeIsOpen = useCallback((): boolean => {
@@ -111,9 +109,11 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
             const now = new Date();
             const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
             const timeStr = new Intl.DateTimeFormat('en-US', options).format(now);
-            const [currH, currM] = timeStr.split(":").map(Number);
-            const [openH, openM] = settings.operatingHours.open.split(":").map(Number);
-            const [closeH, closeM] = settings.operatingHours.close.split(":").map(Number);
+            // Strip invisible Unicode/control characters (e.g. \u200e, \u202f)
+            const cleanTime = timeStr.replace(/[^\d:]/g, '');
+            const [currH, currM] = cleanTime.split(":").map(Number);
+            const [openH, openM] = settings.operatingHours.open.replace(/[^\d:]/g, '').split(":").map(Number);
+            const [closeH, closeM] = settings.operatingHours.close.replace(/[^\d:]/g, '').split(":").map(Number);
 
             if (isNaN(currH) || isNaN(openH) || isNaN(closeH)) return true;
 
@@ -203,3 +203,4 @@ export function usePlatform() {
     }
     return context;
 }
+

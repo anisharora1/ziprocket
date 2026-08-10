@@ -11,6 +11,7 @@ import Link from "next/link";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
 import ProductCard from "@/components/ProductCard";
+import { MdArrowBack, MdStorefront } from "react-icons/md";
 
 interface Product {
   _id: string;
@@ -132,7 +133,7 @@ export default function CategoryProductsPage() {
               href="/grocery"
               className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-[#FF5C00] transition-colors uppercase tracking-widest"
             >
-              <span className="material-symbols-outlined text-[14px]">arrow_back</span>
+              <MdArrowBack className="text-[14px]" />
               Grocery
             </Link>
           </div>
@@ -184,7 +185,7 @@ export default function CategoryProductsPage() {
             </div>
           ) : products.length === 0 ? (
             <div className="text-center py-16 text-slate-400 text-xs font-bold flex flex-col items-center">
-              <span className="material-symbols-outlined text-[48px] text-slate-200 block mb-2">storefront</span>
+              <MdStorefront className="text-[48px] text-slate-200 block mb-2" />
               No products found in this category yet.
             </div>
           ) : (
@@ -202,5 +203,6 @@ export default function CategoryProductsPage() {
     </div>
   );
 }
+
 
 

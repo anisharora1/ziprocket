@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { usePwa } from '@/context/PwaContext';
+import { MdAutorenew, MdCloudOff, MdCloudQueue } from 'react-icons/md';
 
 export default function PwaManager() {
   const {
@@ -28,7 +29,7 @@ export default function PwaManager() {
         <div className="pointer-events-auto w-full max-w-sm bg-slate-900 dark:bg-white text-white dark:text-slate-900 border border-slate-800 dark:border-slate-105 rounded-3xl p-5 shadow-[0_15px_40px_rgba(0,0,0,0.2)] flex flex-col gap-4 mb-20 md:mb-0 transform transition-all duration-350 animate-in slide-in-from-bottom-5">
           <div className="flex gap-4 items-start">
             <div className="bg-[#FF5C00]/10 p-2.5 rounded-xl text-[#FF5C00] shrink-0">
-              <span className="material-symbols-outlined text-2xl font-bold">autorenew</span>
+              <MdAutorenew className="text-2xl font-bold" />
             </div>
             <div className="flex-1 text-left">
               <h4 className="text-sm font-extrabold">
@@ -59,7 +60,7 @@ export default function PwaManager() {
       {/* 2. Offline Alert Banner */}
       {isOffline && (
         <div className="pointer-events-auto bg-red-650 text-white px-5 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(220,38,38,0.2)] border border-red-500/25 transition-all duration-300 mb-20 md:mb-0 max-w-xs md:max-w-sm animate-in slide-in-from-bottom-5">
-          <span className="material-symbols-outlined text-xl">cloud_off</span>
+          <MdCloudOff className="text-xl" />
           <div className="flex flex-col text-left">
             <span className="text-xs font-black">You are currently offline</span>
             <span className="text-[10px] opacity-90 mt-0.5 leading-snug">
@@ -72,7 +73,7 @@ export default function PwaManager() {
       {/* 3. Back Online Toast */}
       {showOnlineToast && (
         <div className="pointer-events-auto bg-emerald-600 text-white px-5 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(5,150,105,0.2)] border border-emerald-500/25 transition-all duration-300 mb-20 md:mb-0 animate-in slide-in-from-bottom-5">
-          <span className="material-symbols-outlined text-xl">cloud_queue</span>
+          <MdCloudQueue className="text-xl" />
           <span className="text-xs font-black">Back online! Connectivity restored.</span>
         </div>
       )}
@@ -80,3 +81,4 @@ export default function PwaManager() {
     </div>
   );
 }
+

@@ -108,6 +108,8 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     window.addEventListener('online', handleOnline);
 
     // 4. Register & Manage Service Worker updates
+    let handleControllerChange: (() => void) | null = null;
+
     if ('serviceWorker' in navigator) {
       if (process.env.NODE_ENV === 'production') {
         navigator.serviceWorker.register('/sw.js').then((reg) => {
@@ -134,13 +136,14 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
         // Handle page refreshing when new worker activates
         let refreshing = false;
         const hasControllerOnLoad = !!navigator.serviceWorker.controller;
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
+        handleControllerChange = () => {
           // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
           if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
             refreshing = true;
             window.location.reload();
           }
-        });
+        };
+        navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
       } else {
         // Unregister any active service workers in development mode to prevent cached assets from intercepting local changes
         navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -161,6 +164,9 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       window.removeEventListener('appinstalled', handleAppInstalled);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('online', handleOnline);
+      if (handleControllerChange && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      }
     };
   }, []);
 

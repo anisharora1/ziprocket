@@ -1,6 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import { useLocation } from '@/context/LocationContext';
+import { MdLocationOn, MdSync, MdMyLocation, MdSearch } from 'react-icons/md';
 
 export default function LocationPromptModal() {
   const { isFirstTime, fetchLocation, isLoading, error, dismissPrompt } = useLocation();
@@ -19,7 +20,7 @@ export default function LocationPromptModal() {
         
         <div className="flex justify-center mb-6">
           <div className="w-20 h-20 bg-[#FF5C00]/10 rounded-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-[40px] text-[#FF5C00]">location_on</span>
+            <MdLocationOn className="text-[40px] text-[#FF5C00]" />
           </div>
         </div>
 
@@ -43,9 +44,9 @@ export default function LocationPromptModal() {
             className="w-full py-4 bg-[#FF5C00] text-white font-bold rounded-2xl shadow-lg shadow-[#FF5C00]/20 hover:bg-[#e05200] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
             {isLoading ? (
-              <span className="material-symbols-outlined animate-spin">sync</span>
+              <MdSync className="animate-spin text-xl" />
             ) : (
-              <span className="material-symbols-outlined text-[20px]">my_location</span>
+              <MdMyLocation className="text-[20px]" />
             )}
             {isLoading ? 'Detecting...' : 'Detect current location'}
           </button>
@@ -54,7 +55,7 @@ export default function LocationPromptModal() {
             onClick={handleManualSearchClick}
             className="w-full py-4 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold rounded-2xl hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
-            <span className="material-symbols-outlined text-[20px]">search</span>
+            <MdSearch className="text-[20px]" />
             Search location manually
           </button>
           
@@ -76,3 +77,4 @@ export default function LocationPromptModal() {
     </div>
   );
 }
+

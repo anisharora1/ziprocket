@@ -11,6 +11,7 @@ import OptimizedImage from "@/components/OptimizedImage";
 import ProductCard from "@/components/ProductCard";
 import BottomNavBar from "@/components/BottomNavBar";
 import PlatformBanner from "@/components/PlatformBanner";
+import { MdArrowBack, MdSearch, MdClose, MdSearchOff, MdStar } from "react-icons/md";
 
 interface SearchResults {
   restaurants: any[];
@@ -108,10 +109,10 @@ function SearchResultsContent() {
         {/* Search Header */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center gap-3">
           <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center shrink-0 hover:bg-slate-100 rounded-full transition-colors">
-            <span className="material-symbols-outlined text-slate-700">arrow_back</span>
+            <MdArrowBack className="text-slate-700 text-xl" />
           </button>
           <form onSubmit={handleSearchSubmit} className="flex-1 max-w-lg flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2 border border-slate-200 shadow-inner">
-            <span className="material-symbols-outlined text-slate-400 text-[18px]">search</span>
+            <MdSearch className="text-slate-400 text-[18px]" />
             <input
               type="text"
               placeholder="Search dishes, groceries, restaurants..."
@@ -126,7 +127,7 @@ function SearchResultsContent() {
                 onClick={() => setSearchQuery("")}
                 className="text-slate-400 hover:text-slate-600 p-0.5 rounded-full hover:bg-slate-200"
               >
-                <span className="material-symbols-outlined text-sm font-bold">close</span>
+                <MdClose className="text-sm font-bold" />
               </button>
             )}
           </form>
@@ -204,13 +205,13 @@ function SearchResultsContent() {
             </div>
           ) : !queryParam ? (
             <div className="text-center py-16 text-slate-400 max-w-md mx-auto">
-              <span className="material-symbols-outlined text-5xl text-slate-200 block mb-2">search</span>
+              <MdSearch className="text-5xl text-slate-200 block mb-2 mx-auto" />
               <p className="text-sm font-bold text-slate-500">Type something to search</p>
               <p className="text-xs text-slate-400 mt-1">We will search globally across restaurants, fresh groceries, and food dishes.</p>
             </div>
           ) : !hasAnyResults ? (
             <div className="text-center py-16 text-slate-400 max-w-md mx-auto">
-              <span className="material-symbols-outlined text-5xl text-slate-200 block mb-3">search_off</span>
+              <MdSearchOff className="text-5xl text-slate-200 block mb-3 mx-auto" />
               <p className="text-[15px] font-black text-slate-700">No matches found for "{queryParam}"</p>
               <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
                 Check spelling, try more generic words, or select a different delivery zone to expand your search.
@@ -350,7 +351,7 @@ function SearchResultsContent() {
                             </div>
                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50 text-[10px] font-bold text-slate-400">
                               <span className="flex items-center gap-0.5 text-amber-500">
-                                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                                <MdStar className="text-[12px]" />
                                 <span>{rest.rating > 0 ? rest.rating.toFixed(1) : "New"}</span>
                               </span>
                               <span>{rest.location?.address?.split(",")?.[0] || "Local area"}</span>
@@ -382,3 +383,4 @@ export default function SearchResultsPage() {
     </Suspense>
   );
 }
+

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { MdImage } from "react-icons/md";
 
 interface OptimizedImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, "width" | "height" | "src" | "sizes"> {
   src: any;
@@ -174,7 +175,7 @@ export default function OptimizedImage({
       {/* Loading shimmer placeholder */}
       {!loaded && (
         <div className="absolute inset-0 bg-slate-200 animate-pulse flex items-center justify-center">
-          <span className="material-symbols-outlined text-slate-400 text-2xl">image</span>
+          <MdImage className="text-slate-400 text-2xl" />
         </div>
       )}
       

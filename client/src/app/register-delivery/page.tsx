@@ -5,13 +5,26 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/services/api";
 import { getFriendlyErrorMessage } from "@/utils/errorHandler";
+import {
+    MdTwoWheeler,
+    MdHome,
+    MdArrowBack,
+    MdCheck,
+    MdPerson,
+    MdBadge,
+    MdAccountBalance,
+    MdInfo,
+    MdPayments,
+    MdCheckCircle,
+    MdArrowForward,
+} from "react-icons/md";
 
 type Step = 1 | 2 | 3;
 
 const steps = [
-    { id: 1, label: "Personal", icon: "person" },
-    { id: 2, label: "Documents", icon: "badge" },
-    { id: 3, label: "Payout", icon: "account_balance" },
+    { id: 1, label: "Personal", iconComp: MdPerson },
+    { id: 2, label: "Documents", iconComp: MdBadge },
+    { id: 3, label: "Payout", iconComp: MdAccountBalance },
 ];
 
 const inputClass =
@@ -133,7 +146,7 @@ export default function DeliveryRegisterForm() {
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-6 py-12 text-center">
                 <div className="w-24 h-24 bg-[#FF5C00]/10 rounded-full flex items-center justify-center mb-6">
-                    <span className="material-symbols-outlined text-[54px] text-[#FF5C00]">two_wheeler</span>
+                    <MdTwoWheeler className="text-[54px] text-[#FF5C00]" />
                 </div>
                 <h1 className="text-2xl font-black text-slate-900 mb-3">You&apos;re In the Fleet!</h1>
                 <p className="text-slate-600 w-full max-w-[320px] mx-auto mb-8 font-medium leading-relaxed">
@@ -143,7 +156,7 @@ export default function DeliveryRegisterForm() {
                     href="/"
                     className="w-full max-w-[260px] py-4 bg-[#FF5C00] text-white font-black rounded-2xl shadow-lg shadow-[#FF5C00]/20 hover:bg-[#e05200] active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
-                    <span className="material-symbols-outlined text-[18px]">home</span>
+                    <MdHome className="text-[18px]" />
                     Back to Home
                 </Link>
             </div>
@@ -160,11 +173,11 @@ export default function DeliveryRegisterForm() {
                         onClick={() => (step > 1 ? setStep((p) => (p - 1) as Step) : router.back())}
                         className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 active:scale-95 transition-all text-slate-700"
                     >
-                        <span className="material-symbols-outlined text-[20px]">arrow_back</span>
+                        <MdArrowBack className="text-[20px]" />
                     </button>
                     <div className="flex items-center gap-2">
                         <div className="w-7 h-7 bg-[#FF5C00] rounded-lg flex items-center justify-center">
-                            <span className="material-symbols-outlined text-white text-[16px]">two_wheeler</span>
+                            <MdTwoWheeler className="text-white text-[16px]" />
                         </div>
                         <span className="font-black text-[15px] text-slate-900 tracking-tight">
                             Delivery Partner
@@ -189,6 +202,7 @@ export default function DeliveryRegisterForm() {
                         {steps.map((s) => {
                             const done = step > s.id;
                             const active = step === s.id;
+                            const StepIcon = s.iconComp;
                             return (
                                 <div key={s.id} className="flex flex-col items-center gap-1.5 z-10 flex-1">
                                     <div
@@ -200,9 +214,9 @@ export default function DeliveryRegisterForm() {
                                             }`}
                                     >
                                         {done ? (
-                                            <span className="material-symbols-outlined text-[16px]">check</span>
+                                            <MdCheck className="text-[16px]" />
                                         ) : (
-                                            <span className="material-symbols-outlined text-[18px]">{s.icon}</span>
+                                            <StepIcon className="text-[18px]" />
                                         )}
                                     </div>
                                     <span
@@ -390,7 +404,7 @@ export default function DeliveryRegisterForm() {
 
                                     {/* Info note */}
                                     <div className="flex gap-3 bg-blue-50 p-3.5 rounded-xl border border-blue-100">
-                                        <span className="material-symbols-outlined text-blue-500 text-[18px] shrink-0 mt-0.5">info</span>
+                                        <MdInfo className="text-blue-500 text-[18px] shrink-0 mt-0.5" />
                                         <p className="text-[11px] text-blue-700 font-medium leading-relaxed">
                                             Your documents are encrypted and used only for identity verification. We never share your data.
                                         </p>
@@ -404,7 +418,7 @@ export default function DeliveryRegisterForm() {
                                     {/* Earnings card */}
                                     <div className="bg-gradient-to-br from-[#FF5C00] to-[#ff7a2e] p-4 rounded-2xl text-white">
                                         <div className="flex items-center gap-2 mb-2">
-                                            <span className="material-symbols-outlined text-[18px]">payments</span>
+                                            <MdPayments className="text-[18px]" />
                                             <h3 className="text-[11px] font-black uppercase tracking-wider">Earnings Structure</h3>
                                         </div>
                                         <div className="grid grid-cols-3 gap-3 mt-3">
@@ -494,13 +508,13 @@ export default function DeliveryRegisterForm() {
                                         </>
                                     ) : step === 3 ? (
                                         <>
-                                            <span className="material-symbols-outlined text-[18px]">check_circle</span>
+                                            <MdCheckCircle className="text-[18px]" />
                                             Complete Registration
                                         </>
                                     ) : (
                                         <>
                                             Continue
-                                            <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                            <MdArrowForward className="text-[18px]" />
                                         </>
                                     )}
                                 </button>
@@ -522,3 +536,4 @@ export default function DeliveryRegisterForm() {
         </div>
     );
 }
+

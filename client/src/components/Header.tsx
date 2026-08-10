@@ -5,8 +5,20 @@ import { useLocation } from "@/context/LocationContext";
 import { useAuth } from "@/context/AuthContext";
 import { usePwa } from "@/context/PwaContext";
 import LocationSelectorModal from "@/components/LocationSelectorModal";
-
 import PlatformBanner from "@/components/PlatformBanner";
+import {
+  MdLocationOn,
+  MdHourglassEmpty,
+  MdKeyboardArrowDown,
+  MdPerson,
+  MdReceiptLong,
+  MdHomeWork,
+  MdStorefront,
+  MdTwoWheeler,
+  MdDashboard,
+  MdBolt,
+  MdLogout,
+} from "react-icons/md";
 
 export default function Header() {
   const { address, isLoading } = useLocation();
@@ -33,9 +45,11 @@ export default function Header() {
 
         {/* Left Side: Logo/Location */}
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsLocationModalOpen(true)}>
-          <span className="material-symbols-outlined text-[#FF5C00]">
-            {isLoading ? 'hourglass_empty' : 'location_on'}
-          </span>
+          {isLoading ? (
+            <MdHourglassEmpty className="text-[#FF5C00] text-xl" />
+          ) : (
+            <MdLocationOn className="text-[#FF5C00] text-xl" />
+          )}
           <div className="flex flex-col">
             <span className="font-['Plus_Jakarta_Sans'] text-base font-bold text-slate-900 dark:text-white">
               Deliver to
@@ -44,7 +58,7 @@ export default function Header() {
               {isLoading ? 'Locating...' : address || 'Select location'}
             </span>
           </div>
-          <span className="material-symbols-outlined text-slate-400 text-sm">keyboard_arrow_down</span>
+          <MdKeyboardArrowDown className="text-slate-400 text-sm" />
         </div>
 
         {/* Middle: Desktop Navigation (Hidden on mobile) */}
@@ -68,7 +82,7 @@ export default function Header() {
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 className="w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-200 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer hover:shadow-md flex items-center justify-center overflow-hidden"
               >
-                <span className="material-symbols-outlined text-slate-500">person</span>
+                <MdPerson className="text-slate-500 text-xl" />
               </div>
 
               {/* Profile Dropdown */}
@@ -84,11 +98,11 @@ export default function Header() {
 
                   <div className="py-2">
                     <Link href="/orders" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
-                      <span className="material-symbols-outlined text-[18px] text-slate-400">receipt_long</span>
+                      <MdReceiptLong className="text-[18px] text-slate-400" />
                       My Orders
                     </Link>
                     <Link href="/addresses" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
-                      <span className="material-symbols-outlined text-[18px] text-slate-400">home_work</span>
+                      <MdHomeWork className="text-[18px] text-slate-400" />
                       Saved Addresses
                     </Link>
 
@@ -96,11 +110,11 @@ export default function Header() {
                       <>
                         <div className="h-px bg-slate-100 my-2"></div>
                         <Link href="/register-partner" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
-                          <span className="material-symbols-outlined text-[18px] text-orange-500">storefront</span>
+                          <MdStorefront className="text-[18px] text-orange-500" />
                           Become Restaurant Partner
                         </Link>
                         <Link href="/register-delivery" prefetch={false} className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors">
-                          <span className="material-symbols-outlined text-[18px] text-emerald-500">two_wheeler</span>
+                          <MdTwoWheeler className="text-[18px] text-emerald-500" />
                           Become Delivery Boy
                         </Link>
                       </>
@@ -114,7 +128,7 @@ export default function Header() {
                           prefetch={false}
                           className="flex items-center gap-3 px-4 py-2 hover:bg-slate-50 text-sm font-semibold text-slate-700 transition-colors"
                         >
-                          <span className="material-symbols-outlined text-[18px] text-[#FF5C00]">dashboard</span>
+                          <MdDashboard className="text-[18px] text-[#FF5C00]" />
                           My Dashboard
                         </Link>
                       </>
@@ -126,7 +140,7 @@ export default function Header() {
                     <div className="mx-3 my-2 p-3.5 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-2">
                       <div className="flex gap-2.5 items-center">
                         <div className="bg-[#FF5C00]/15 text-[#FF5C00] p-1.5 rounded-lg flex items-center justify-center shrink-0">
-                          <span className="material-symbols-outlined text-[18px] font-bold">bolt</span>
+                          <MdBolt className="text-[18px] font-bold" />
                         </div>
                         <div className="flex flex-col text-left">
                           <span className="text-[11px] font-extrabold text-slate-850">Install ZipRocket</span>
@@ -153,7 +167,7 @@ export default function Header() {
                       }}
                       className="w-full flex items-center gap-3 px-4 py-2 hover:bg-red-50 text-sm font-semibold text-red-600 transition-colors"
                     >
-                      <span className="material-symbols-outlined text-[18px]">logout</span>
+                      <MdLogout className="text-[18px]" />
                       Logout
                     </button>
                   </div>
@@ -172,3 +186,4 @@ export default function Header() {
     </header>
   );
 }
+

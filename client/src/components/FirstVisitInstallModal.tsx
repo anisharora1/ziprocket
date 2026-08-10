@@ -2,6 +2,7 @@
 
 import { usePwa } from '@/context/PwaContext';
 import Image from 'next/image';
+import { MdSpeed, MdAddToHomeScreen, MdSignalWifiBad, MdDownload } from 'react-icons/md';
 
 export default function FirstVisitInstallModal() {
   const { mounted, showFirstVisitModal, isInstalled, installApp, dismissFirstVisitModal } = usePwa();
@@ -41,7 +42,7 @@ export default function FirstVisitInstallModal() {
         <div className="w-full space-y-3.5 bg-slate-55 dark:bg-slate-950/50 p-4 rounded-2xl border border-slate-50 dark:border-slate-800">
           
           <div className="flex gap-3.5 items-start">
-            <span className="material-symbols-outlined text-[#FF5C00] font-bold shrink-0">speed</span>
+            <MdSpeed className="text-[#FF5C00] text-xl font-bold shrink-0 mt-0.5" />
             <div className="flex-1 text-left">
               <p className="text-xs font-black text-slate-850 dark:text-slate-200 leading-none">तेज़ ऑर्डर (Faster Loading)</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
@@ -51,7 +52,7 @@ export default function FirstVisitInstallModal() {
           </div>
 
           <div className="flex gap-3.5 items-start">
-            <span className="material-symbols-outlined text-emerald-500 font-bold shrink-0">add_to_home_screen</span>
+            <MdAddToHomeScreen className="text-emerald-500 text-xl font-bold shrink-0 mt-0.5" />
             <div className="flex-1 text-left">
               <p className="text-xs font-black text-slate-850 dark:text-slate-200 leading-none">सीधा होम स्क्रीन से (One-Tap Access)</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
@@ -61,7 +62,7 @@ export default function FirstVisitInstallModal() {
           </div>
 
           <div className="flex gap-3.5 items-start">
-            <span className="material-symbols-outlined text-indigo-500 font-bold shrink-0">signal_wifi_bad</span>
+            <MdSignalWifiBad className="text-indigo-500 text-xl font-bold shrink-0 mt-0.5" />
             <div className="flex-1 text-left">
               <p className="text-xs font-black text-slate-850 dark:text-slate-200 leading-none">कम नेटवर्क में भी चालू (Offline Support)</p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 leading-normal">
@@ -78,7 +79,7 @@ export default function FirstVisitInstallModal() {
             onClick={installApp}
             className="w-full py-4 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-extrabold rounded-2xl transition-all active:scale-[0.97] shadow-lg shadow-[#FF5C00]/20 flex items-center justify-center gap-2"
           >
-            <span className="material-symbols-outlined font-bold text-[18px]">download</span>
+            <MdDownload className="font-bold text-[18px]" />
             Install App (ऐप इनस्टॉल करें)
           </button>
           
@@ -95,3 +96,4 @@ export default function FirstVisitInstallModal() {
     </div>
   );
 }
+

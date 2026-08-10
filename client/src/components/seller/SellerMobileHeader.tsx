@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "../../services/api";
 import OptimizedImage from "../OptimizedImage";
+import { MdMenu } from "react-icons/md";
 
 export default function SellerMobileHeader() {
   const [restaurant, setRestaurant] = useState<any>(null);
@@ -24,7 +25,7 @@ export default function SellerMobileHeader() {
   return (
     <div className="md:hidden flex items-center justify-between p-4 bg-white border-b border-slate-200 shrink-0 shadow-sm z-30 sticky top-0">
       <div className="flex items-center gap-2 text-emerald-700 font-black tracking-tight text-[18px]">
-        <span className="material-symbols-outlined text-[20px]">menu</span>
+        <MdMenu className="text-[20px]" />
         Kitchen OS
       </div>
       

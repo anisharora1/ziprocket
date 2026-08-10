@@ -4,6 +4,7 @@ import React from "react";
 import OptimizedImage from "./OptimizedImage";
 import { useCart } from "@/context/CartContext";
 import { usePlatform } from "@/context/PlatformContext";
+import { MdImage } from "react-icons/md";
 
 export interface Product {
   _id: string;
@@ -57,7 +58,7 @@ export default function ProductCard({
             className="h-full w-full object-contain group-hover:scale-105 transition-transform duration-300"
           />
         ) : (
-          <span className="material-symbols-outlined text-slate-300 text-[32px]">image</span>
+          <MdImage className="text-slate-300 text-[32px]" />
         )}
 
         {/* Add/Cart controls bottom overlay */}

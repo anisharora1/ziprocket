@@ -52,14 +52,14 @@ export default function HeroCarousel({ initialBanners = [] }: HeroCarouselProps)
 
   const displayBanners = banners;
 
-  // Auto-scrolling horizontal interval effect
+  // Auto-scrolling horizontal interval effect — pauses when tab is hidden
   useEffect(() => {
     if (isPaused || displayBanners.length <= 1) return;
 
     const interval = setInterval(() => {
-      if (!containerRef.current) return;
-      const container = containerRef.current;
+      if (document.hidden || !containerRef.current) return; // Skip if tab hidden
 
+      const container = containerRef.current;
       const cardWidth = container.clientWidth;
       const maxScroll = container.scrollWidth - container.clientWidth;
 

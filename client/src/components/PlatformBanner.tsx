@@ -2,6 +2,7 @@
 
 import React from "react";
 import { usePlatform } from "@/context/PlatformContext";
+import { MdEngineering, MdBlock, MdSchedule } from "react-icons/md";
 
 const formatToAMPM = (timeStr: string): string => {
   if (!timeStr) return "8:00 AM";
@@ -38,18 +39,18 @@ export default function PlatformBanner() {
 
   // Determine message and icon
   let message = "";
-  let icon = "";
+  let IconComponent = MdSchedule;
 
   if (isMaintenance) {
     message = "⚠️ We are currently performing maintenance. Ordering is temporarily unavailable.";
-    icon = "engineering";
+    IconComponent = MdEngineering;
   } else if (isPlatformClosed) {
     message = "⚠️ Ordering is currently unavailable. Please try again later.";
-    icon = "block";
+    IconComponent = MdBlock;
   } else if (isOutsideHours) {
     const openTime = formatToAMPM(settings.operatingHours.open);
     message = `🕒 Orders are currently closed. We will reopen at ${openTime || "8:00 AM"}.`;
-    icon = "schedule";
+    IconComponent = MdSchedule;
   }
 
   return (
@@ -60,9 +61,7 @@ export default function PlatformBanner() {
           : "bg-[#FFF1E6] border-[#FFE2CC] text-[#FF5C00]"
           }`}
       >
-        <span className="material-symbols-outlined text-[18px] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
-          {icon}
-        </span>
+        <IconComponent className="text-[18px] shrink-0" />
         <span className="tracking-wide">{message}</span>
       </div>
 
@@ -87,3 +86,4 @@ export default function PlatformBanner() {
     </>
   );
 }
+

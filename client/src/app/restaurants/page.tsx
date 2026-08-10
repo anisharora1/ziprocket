@@ -8,6 +8,7 @@ import OptimizedImage from "@/components/OptimizedImage";
 
 import { apiClient } from "@/services/api";
 import PlatformBanner from "@/components/PlatformBanner";
+import { MdSearch, MdStar, MdStore } from "react-icons/md";
 
 // Helper: Resolve a relevant Unsplash image based on name/cuisines
 const getRestaurantImage = (name: string, cuisines: string): string => {
@@ -99,7 +100,7 @@ export default function RestaurantsPage() {
         {/* Top Search Bar */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2 flex-1 max-w-md bg-slate-100 rounded-full px-3 py-1.5 border border-slate-200">
-            <span className="material-symbols-outlined text-slate-400">search</span>
+            <MdSearch className="text-slate-400 text-lg" />
             <input
               type="text"
               placeholder="Search restaurants..."
@@ -141,7 +142,7 @@ export default function RestaurantsPage() {
             }`}
           >
             <span>Top Rated</span>
-            <span className="material-symbols-outlined text-[14px]">star</span>
+            <MdStar className="text-[14px]" />
           </button>
         </div>
 
@@ -159,7 +160,7 @@ export default function RestaurantsPage() {
           ) : filtered.length === 0 ? (
             // Empty State
             <div className="text-center py-16 flex flex-col items-center">
-              <span className="material-symbols-outlined text-5xl text-slate-300">store_off</span>
+              <MdStore className="text-5xl text-slate-300" />
               <h3 className="text-lg font-bold text-slate-700 mt-2">No Restaurants Found</h3>
               <p className="text-sm text-slate-500 mt-1">
                 {zoneId 
@@ -195,7 +196,7 @@ export default function RestaurantsPage() {
                             </div>
                             <div className="flex items-center gap-0.5 bg-green-200/60 text-green-800 px-1.5 py-0.5 rounded text-[11px] font-bold shrink-0">
                               <span>{rest.rating || "New"}</span>
-                              <span className="material-symbols-outlined text-[12px] font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <MdStar className="text-[12px] font-bold" />
                             </div>
                           </div>
                         </div>
@@ -233,12 +234,12 @@ export default function RestaurantsPage() {
                             </div>
                             <div className="flex items-center gap-0.5 bg-green-700 text-white px-1.5 py-0.5 rounded text-[11px] font-bold shadow-sm shrink-0">
                               <span>{rest.rating || "New"}</span>
-                              <span className="material-symbols-outlined text-[11px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                              <MdStar className="text-[11px]" />
                             </div>
                           </div>
                           <div className="mt-3 pt-3 border-t border-slate-50 flex justify-between items-center text-[10px] text-slate-600">
                             <div className="flex items-center gap-1">
-                              <span className="material-symbols-outlined text-[14px] text-[#a73a00]" style={{ fontVariationSettings: "'FILL' 1" }}>store</span>
+                              <MdStore className="text-[14px] text-[#a73a00]" />
                               <span className="font-medium">{rest.totalOrders || 0} orders served</span>
                             </div>
                             <span className="text-emerald-600 font-semibold">Deliverable</span>
@@ -258,3 +259,4 @@ export default function RestaurantsPage() {
     </div>
   );
 }
+

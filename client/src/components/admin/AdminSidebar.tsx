@@ -3,23 +3,52 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { usePlatform } from '@/context/PlatformContext';
+import {
+  MdDashboard,
+  MdSettingsSuggest,
+  MdApproval,
+  MdMap,
+  MdStorefront,
+  MdDirectionsBike,
+  MdShoppingCart,
+  MdCampaign,
+  MdPayments,
+  MdLocalGroceryStore,
+  MdAdminPanelSettings,
+  MdAccountBalanceWallet,
+} from 'react-icons/md';
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  dashboard: MdDashboard,
+  settings_suggest: MdSettingsSuggest,
+  approval: MdApproval,
+  map: MdMap,
+  storefront: MdStorefront,
+  directions_bike: MdDirectionsBike,
+  shopping_cart: MdShoppingCart,
+  campaign: MdCampaign,
+  payments: MdPayments,
+  local_grocery_store: MdLocalGroceryStore,
+  shield_person: MdAdminPanelSettings,
+  account_balance_wallet: MdAccountBalanceWallet,
+};
 
 export default function AdminSidebar() {
   const pathname = usePathname();
 
   const navLinks = [
-    { name: 'Dashboard', href: '/admin/dashboard', icon: 'dashboard' },
-    { name: 'Platform Management', href: '/admin/platform', icon: 'settings_suggest' },
-    { name: 'Applications', href: '/admin/applications', icon: 'approval' },
-    { name: 'Delivery Zones', href: '/admin/zones', icon: 'map' },
-    { name: 'Restaurants', href: '/admin/restaurants', icon: 'storefront' },
-    { name: 'Personnel', href: '/admin/delivery', icon: 'directions_bike' },
-    { name: 'Orders', href: '/admin/orders', icon: 'shopping_cart' },
-    { name: 'Promotions', href: '/admin/promotions', icon: 'campaign' },
-    { name: 'Coupons & Loyalty', href: '/admin/coupons', icon: 'payments' },
-    { name: 'Grocery Audit', href: '/admin/grocery', icon: 'local_grocery_store' },
-    { name: 'Grocery Moderators', href: '/admin/moderators', icon: 'shield_person' },
-    { name: 'Finance & Settlements', href: '/admin/finance', icon: 'account_balance_wallet' },
+    { name: 'Dashboard', href: '/admin/dashboard', iconKey: 'dashboard' },
+    { name: 'Platform Management', href: '/admin/platform', iconKey: 'settings_suggest' },
+    { name: 'Applications', href: '/admin/applications', iconKey: 'approval' },
+    { name: 'Delivery Zones', href: '/admin/zones', iconKey: 'map' },
+    { name: 'Restaurants', href: '/admin/restaurants', iconKey: 'storefront' },
+    { name: 'Personnel', href: '/admin/delivery', iconKey: 'directions_bike' },
+    { name: 'Orders', href: '/admin/orders', iconKey: 'shopping_cart' },
+    { name: 'Promotions', href: '/admin/promotions', iconKey: 'campaign' },
+    { name: 'Coupons & Loyalty', href: '/admin/coupons', iconKey: 'payments' },
+    { name: 'Grocery Audit', href: '/admin/grocery', iconKey: 'local_grocery_store' },
+    { name: 'Grocery Moderators', href: '/admin/moderators', iconKey: 'shield_person' },
+    { name: 'Finance & Settlements', href: '/admin/finance', iconKey: 'account_balance_wallet' },
   ];
 
   return (
@@ -33,6 +62,7 @@ export default function AdminSidebar() {
       <nav className="flex-1 py-4 flex flex-col gap-1 px-3 overflow-y-auto">
         {navLinks.map((link) => {
           const isActive = pathname === link.href;
+          const IconComp = iconMap[link.iconKey];
           return (
             <Link 
               key={link.name} 
@@ -43,7 +73,7 @@ export default function AdminSidebar() {
                   : 'text-slate-500 hover:text-primary hover:bg-primary-container/5'
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]">{link.icon}</span>
+              {IconComp && <IconComp className="text-[20px]" />}
               {link.name}
               {isActive && (
                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-primary-container rounded-l-full"></div>
@@ -85,3 +115,4 @@ export default function AdminSidebar() {
     </aside>
   );
 }
+

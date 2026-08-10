@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, ReactNode, useEffect, useMemo, useRef } from 'react';
+import { MdRemoveShoppingCart } from 'react-icons/md';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/services/api';
 
@@ -109,11 +110,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // Sync to database if logged in (debounced), otherwise write to local storage
+  // Guard: skip writes during initial hydration to avoid a no-op write-back
   useEffect(() => {
+    if (!hasLoadedRef.current) return;
+
     localStorage.setItem('ziprocket_cart', JSON.stringify(cart));
 
-    // Skip sync on initial load to avoid a no-op round trip
-    if (!user || !hasLoadedRef.current) return;
+    if (!user) return;
 
     const syncWithBackend = setTimeout(async () => {
       try {
@@ -228,7 +231,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           <div className="relative bg-white rounded-3xl w-[90%] min-w-[300px] max-w-sm shrink-0 overflow-hidden shadow-2xl z-10">
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="material-symbols-outlined text-[32px]">remove_shopping_cart</span>
+                <MdRemoveShoppingCart className="text-[32px]" />
               </div>
               <h3 className="text-xl font-black text-slate-900 mb-2">Replace cart item?</h3>
               <p className="text-sm font-medium text-slate-500 leading-relaxed mb-6">

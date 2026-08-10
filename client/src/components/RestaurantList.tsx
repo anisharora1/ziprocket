@@ -1,23 +1,32 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { apiClient } from "@/services/api";
 import { useLocation } from "@/context/LocationContext";
 import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
+import {
+  MdLocationOn,
+  MdWarning,
+  MdEngineering,
+  MdStorefront,
+  MdStar,
+  MdStore,
+} from "react-icons/md";
 
 interface Restaurant {
   _id: string;
   name: string;
   phone: string;
   cuisines: string;
-  image?: string;
+  image?: string | { url?: string; publicId?: string };
+  logo?: string | { url?: string; publicId?: string };
   rating: number;
   isActive: boolean;
   totalOrders: number;
   status: string;
-  availabilityStatus: "open" | "closed" | "disabled";
+  availabilityStatus?: "open" | "closed" | "disabled";
   location?: {
     address: string;
     lat: number;
@@ -25,30 +34,12 @@ interface Restaurant {
   };
 }
 
-// TTL-backed sessionStorage cache for zone restaurants (5-minute TTL)
-const CACHE_TTL_MS = 5 * 60 * 1000;
-
-function getCachedRestaurants(key: string): Restaurant[] | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = sessionStorage.getItem(`ziprocket_rest_cache_${key}`);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (Date.now() - parsed.timestamp < CACHE_TTL_MS) {
-      return parsed.restaurants;
-    }
-  } catch {}
-  return null;
-}
-
-function setCachedRestaurants(key: string, list: Restaurant[]) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(
-      `ziprocket_rest_cache_${key}`,
-      JSON.stringify({ timestamp: Date.now(), restaurants: list })
-    );
-  } catch {}
+// Helper to safely extract image string URL regardless of whether backend returns string or object
+function getImageString(img?: string | { url?: string; publicId?: string }, fallback: string = "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=600"): string {
+  if (!img) return fallback;
+  if (typeof img === "string") return img.trim() || fallback;
+  if (typeof img === "object" && img.url) return img.url.trim() || fallback;
+  return fallback;
 }
 
 function getInitialZoneId(): string | null {
@@ -63,7 +54,7 @@ function getInitialZoneId(): string | null {
   return null;
 }
 
-function StatusBadge({ isMaintenance, status }: { isMaintenance?: boolean; status: "open" | "closed" | "disabled" }) {
+function StatusBadge({ isMaintenance, status = "open" }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled" }) {
   if (isMaintenance) {
     return (
       <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
@@ -86,23 +77,18 @@ function StatusBadge({ isMaintenance, status }: { isMaintenance?: boolean; statu
 }
 
 export default function RestaurantList() {
-  const { location: userCoords, pincode: userPincode, zoneId, zoneName, error: feasibilityError, isLocationLoaded } = useLocation();
-  const { settings, loading: platformLoading, getPlatformStatusMessage } = usePlatform();
+  const { zoneId, zoneName, error: feasibilityError } = useLocation();
+  const { settings, getPlatformStatusMessage } = usePlatform();
 
-  const activeZoneId = zoneId || getInitialZoneId();
+  // Memoize to avoid synchronous localStorage I/O + JSON.parse on every render
+  const activeZoneId = useMemo(() => zoneId || getInitialZoneId(), [zoneId]);
   const cacheKey = activeZoneId || "all";
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const cached = getCachedRestaurants(cacheKey);
-    if (cached) {
-      setRestaurants(cached);
-      setLoading(false);
-      return; // ✅ Skip API fetch when cache is fresh
-    }
-
+    let isMounted = true;
     setLoading(true);
 
     const loadRestaurants = async () => {
@@ -112,22 +98,25 @@ export default function RestaurantList() {
           : "/restaurants?status=approved&isActive=true";
 
         const res = await apiClient.get(url);
-        if (res.data.success) {
+        if (isMounted && res.data.success) {
           const list = res.data.restaurants || [];
           setRestaurants(list);
-          setCachedRestaurants(cacheKey, list);
         }
       } catch (err) {
         console.error("Failed to fetch restaurant listing:", err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     loadRestaurants();
+
+    return () => {
+      isMounted = false;
+    };
   }, [activeZoneId, cacheKey]);
 
-  if (loading) {
+  if (loading && restaurants.length === 0) {
     // Premium loading skeletons
     return (
       <section className="space-y-md">
@@ -158,7 +147,7 @@ export default function RestaurantList() {
           <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Restaurants Around You</h2>
           {zoneName && (
             <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-widest mt-1.5 flex items-center gap-1">
-              <span className="material-symbols-outlined text-[14px]">location_on</span>
+              <MdLocationOn className="text-[14px]" />
               Delivering in {zoneName}
             </p>
           )}
@@ -166,7 +155,7 @@ export default function RestaurantList() {
 
         {feasibilityError && (
           <div className="bg-rose-50 border border-rose-100 rounded-xl px-3.5 py-2 text-rose-700 text-xs font-semibold flex items-center gap-2 w-full sm:max-w-sm self-stretch sm:self-center">
-            <span className="material-symbols-outlined text-[16px] text-rose-500 shrink-0">warning</span>
+            <MdWarning className="text-[16px] text-rose-500 shrink-0" />
             <span>{feasibilityError}. Showing all restaurants.</span>
           </div>
         )}
@@ -174,9 +163,11 @@ export default function RestaurantList() {
       
       {restaurants.length === 0 ? (
         <div className="text-center py-12 px-4 bg-white rounded-3xl border border-slate-100/80 shadow-sm max-w-xl mx-auto my-6">
-          <span className="material-symbols-outlined text-5xl text-slate-200 mb-3 block">
-            {getPlatformStatusMessage() ? "engineering" : "storefront"}
-          </span>
+          {getPlatformStatusMessage() ? (
+            <MdEngineering className="text-5xl text-slate-200 mb-3 mx-auto block" />
+          ) : (
+            <MdStorefront className="text-5xl text-slate-200 mb-3 mx-auto block" />
+          )}
           <p className="text-slate-700 font-black text-[15px]">
             {getPlatformStatusMessage() ? "Ordering is currently unavailable" : "No active restaurants found in your zone."}
           </p>
@@ -196,7 +187,7 @@ export default function RestaurantList() {
               <div className="h-44 relative overflow-hidden bg-slate-50">
                 <OptimizedImage 
                   className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103" 
-                  src={restaurant.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=600"}
+                  src={getImageString(restaurant.image)}
                   alt={restaurant.name}
                   preset="card"
                 />
@@ -211,7 +202,7 @@ export default function RestaurantList() {
                 {/* Activity Status */}
                 <StatusBadge 
                   isMaintenance={settings?.maintenanceMode} 
-                  status={restaurant.availabilityStatus} 
+                  status={restaurant.availabilityStatus || "open"} 
                 />
               </div>
               
@@ -222,7 +213,7 @@ export default function RestaurantList() {
                   </h3>
                   <div className="flex items-center gap-0.5 bg-[#FFF1E6] text-[#FF5C00] px-2 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 border border-[#FFE2CC]/40">
                     <span>{restaurant.rating > 0 ? restaurant.rating.toFixed(1) : "New"}</span>
-                    <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                    <MdStar className="text-[12px]" />
                   </div>
                 </div>
                 
@@ -232,7 +223,7 @@ export default function RestaurantList() {
                 
                 <div className="pt-3 flex items-center justify-between border-t border-slate-50 mt-3 text-[11px] font-bold text-slate-400">
                   <div className="flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-slate-350 text-[16px]">store</span>
+                    <MdStore className="text-slate-350 text-[16px]" />
                     <span>
                       {restaurant.totalOrders || 0} orders completed
                     </span>
@@ -252,3 +243,5 @@ export default function RestaurantList() {
     </section>
   );
 }
+
+

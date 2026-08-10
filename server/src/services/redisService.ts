@@ -127,20 +127,26 @@ export const expire = async (key: string, seconds: number): Promise<void> => {
 };
 
 /**
- * Delete keys by pattern (using non-blocking SCAN in production)
+ * Delete keys by pattern using non-blocking SCAN + pipelined UNLINK
  */
 export const deletePattern = async (pattern: string): Promise<void> => {
     if (!redisClient || redisClient.status !== "ready") return;
     try {
+        const pipeline = redisClient.pipeline();
         let cursor = "0";
+        let keyCount = 0;
         do {
-            const reply = await redisClient.scan(cursor, "MATCH", pattern, "COUNT", 100);
+            const reply = await redisClient.scan(cursor, "MATCH", pattern, "COUNT", 200);
             cursor = reply[0];
             const keys = reply[1];
             if (keys.length > 0) {
-                await redisClient.del(...keys);
+                pipeline.unlink(...keys); // UNLINK = async DEL, doesn't block Redis server
+                keyCount += keys.length;
             }
         } while (cursor !== "0");
+        if (keyCount > 0) {
+            await pipeline.exec(); // Execute all UNLINKs in a single round trip
+        }
     } catch (error: any) {
         console.error(`[Redis DeletePattern Failed] Pattern: ${pattern}. Error:`, error.message);
     }

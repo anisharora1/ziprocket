@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { signInWithPhoneNumber, RecaptchaVerifier } from 'firebase/auth';
 import { auth } from '@/services/firebase';
 import { getFriendlyErrorMessage } from '@/utils/errorHandler';
+import { MdFlag, MdSms, MdEdit, MdSchedule, MdRefresh } from 'react-icons/md';
 
 export default function LoginPage() {
   const [step, setStep] = useState<1 | 2>(1);
@@ -239,7 +240,7 @@ export default function LoginPage() {
 
               <div className="flex bg-white border-2 border-slate-200 rounded-[20px] overflow-hidden focus-within:border-[#FF5C00] focus-within:ring-4 focus-within:ring-[#FF5C00]/10 transition-all shadow-sm group">
                 <div className="bg-slate-50/50 px-5 py-4 border-r-2 border-slate-200 text-slate-700 font-black flex items-center justify-center group-focus-within:border-[#FF5C00] group-focus-within:bg-[#FF5C00]/5 group-focus-within:text-[#FF5C00] transition-colors">
-                  <span className="material-symbols-outlined text-[20px] mr-1.5 opacity-50">flag</span>
+                  <MdFlag className="text-[20px] mr-1.5 opacity-50" />
                   +91
                 </div>
                 <input
@@ -262,7 +263,7 @@ export default function LoginPage() {
 
               <div className="flex items-center justify-center gap-2 mt-4 opacity-90">
                 <div className="w-7 h-7 rounded-full bg-[#FF5C00]/10 flex items-center justify-center shadow-sm">
-                    <span className="material-symbols-outlined text-[14px] text-[#FF5C00]">sms</span>
+                    <MdSms className="text-[14px] text-[#FF5C00]" />
                 </div>
                 <span className="text-[13px] font-bold text-slate-600">OTP will be sent via SMS</span>
               </div>
@@ -279,7 +280,7 @@ export default function LoginPage() {
                 <h2 className="text-[22px] font-black text-slate-900">Verify Details</h2>
                 <p className="text-sm font-medium text-slate-500 flex items-center justify-center gap-2">
                   OTP sent to <span className="text-slate-900 font-bold bg-slate-100 px-2 py-1 rounded-md tracking-wider">+91 {phone}</span>
-                  <button type="button" onClick={() => setStep(1)} className="w-7 h-7 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors"><span className="material-symbols-outlined text-[14px]">edit</span></button>
+                  <button type="button" onClick={() => setStep(1)} className="w-7 h-7 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center hover:bg-slate-200 transition-colors"><MdEdit className="text-[14px]" /></button>
                 </p>
               </div>
 
@@ -302,12 +303,12 @@ export default function LoginPage() {
               <div className="text-center bg-slate-50 py-3 rounded-[16px] border border-slate-100">
                   {timer > 0 ? (
                       <p className="text-[13px] font-bold text-slate-500 flex items-center justify-center gap-2">
-                        <span className="material-symbols-outlined text-[16px]">schedule</span>
+                        <MdSchedule className="text-[16px]" />
                         Resend OTP in <span className="text-[#FF5C00] bg-[#FF5C00]/10 px-2 py-0.5 rounded-md">00:{timer.toString().padStart(2, '0')}</span>
                       </p>
                   ) : (
                       <button type="button" onClick={() => requestOtp()} className="text-[13px] font-bold text-[#FF5C00] hover:text-[#e05200] active:scale-95 transition-transform flex items-center justify-center gap-2 w-full">
-                          <span className="material-symbols-outlined text-[16px]">refresh</span>
+                          <MdRefresh className="text-[16px]" />
                           Resend OTP now
                       </button>
                   )}
@@ -331,3 +332,4 @@ export default function LoginPage() {
     </div>
   );
 }
+

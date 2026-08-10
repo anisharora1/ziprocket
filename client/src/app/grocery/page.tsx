@@ -10,6 +10,7 @@ import { apiClient } from "@/services/api";
 import Link from "next/link";
 import { usePlatform } from "@/context/PlatformContext";
 import ProductCard from "@/components/ProductCard";
+import { MdSearch, MdError, MdShoppingBag, MdChevronRight } from "react-icons/md";
 
 interface Product {
   _id: string;
@@ -167,7 +168,7 @@ export default function GroceryPage() {
 
             {/* Instant Search Bar */}
             <div className="flex items-center bg-white text-slate-800 border border-slate-200/50 rounded-2xl overflow-hidden focus-within:ring-4 focus-within:ring-[#FF5C00]/10 shadow-md transition-all">
-              <span className="material-symbols-outlined text-slate-400 text-[20px] flex items-center pl-4 pr-2">search</span>
+              <MdSearch className="text-slate-400 text-[20px] flex items-center pl-4 pr-2 shrink-0" />
               <input
                 type="text"
                 placeholder="Search fresh vegetables, oils, milk or snacks..."
@@ -183,9 +184,7 @@ export default function GroceryPage() {
         {/* Grocery Operations Status Banner */}
         {groceryStatusMessage && (
           <div className="bg-rose-50 border border-rose-100 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
-            <span className="material-symbols-outlined text-rose-500 shrink-0 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              error
-            </span>
+            <MdError className="text-rose-500 shrink-0 text-[20px]" />
             <div className="space-y-1">
               <h4 className="text-[13px] font-bold text-rose-800">Grocery Delivery Unavailable</h4>
               <p className="text-[12px] text-rose-600 leading-relaxed font-semibold">
@@ -212,7 +211,7 @@ export default function GroceryPage() {
 
             {searchResults.length === 0 ? (
               <div className="text-center py-8 text-slate-400 text-xs font-bold">
-                <span className="material-symbols-outlined text-[32px] text-slate-200 block mb-2">shopping_bag</span>
+                <MdShoppingBag className="text-[32px] text-slate-200 block mb-2 mx-auto" />
                 No grocery items match your search. Try "milk" or "oil".
               </div>
             ) : (
@@ -272,7 +271,7 @@ export default function GroceryPage() {
               <h2 className="text-[13px] font-semibold text-slate-800 tracking-wide uppercase">Best Deals & Featured</h2>
               <Link href="/grocery/category/Vegetables%20%26%20Fruits" className="text-xs font-bold text-[#FF5C00] hover:text-[#e05200] flex items-center gap-0.5 transition-colors">
                 See all
-                <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+                <MdChevronRight className="text-[14px]" />
               </Link>
             </div>
 
@@ -531,3 +530,4 @@ function BannerCard({ banner, isMobile = false }: { banner: Banner; isMobile?: b
 
   return <div className="h-full">{CardContent}</div>;
 }
+

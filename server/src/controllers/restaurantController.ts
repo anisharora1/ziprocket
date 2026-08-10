@@ -4,18 +4,34 @@ import MenuItem from "../models/MenuItem";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 
+// Helper to safely delete from Cloudinary without crashing the request pipeline
+async function safeDeleteCloudinary(publicId?: string): Promise<void> {
+    if (!publicId) return;
+    try {
+        await deleteFromCloudinary(publicId);
+    } catch (err) {
+        console.warn(`Failed to delete Cloudinary asset with publicId: ${publicId}`, err);
+    }
+}
+
 // --- RESTAURANT OPERATIONS ---
 
 // Create a new restaurant
 export const createRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { name, owner, phone, location } = req.body;
+        const { name, owner, phone, location, cuisines, ownerName, fssaiNumber, panNumber, bankDetails, deliveryZone } = req.body;
 
         const newRestaurant = new Restaurant({
             name,
             owner,
             phone,
-            location
+            location,
+            cuisines,
+            ownerName,
+            fssaiNumber,
+            panNumber,
+            bankDetails,
+            deliveryZone
         });
 
         await newRestaurant.save();
@@ -37,7 +53,13 @@ export const createRestaurant = async (req: Request, res: Response): Promise<voi
 export const getAllRestaurants = async (req: Request, res: Response): Promise<void> => {
     try {
         const { status, isActive, deliveryZone } = req.query;
-        const cacheKeySuffix = `list:${status || "any"}:${isActive !== undefined ? isActive : "any"}:${deliveryZone || "any"}`;
+
+        // Pagination with sensible defaults
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = Math.min(parseInt(req.query.limit as string) || 20, 50); // Cap at 50
+        const skip = (page - 1) * limit;
+
+        const cacheKeySuffix = `list:${status || "any"}:${isActive !== undefined ? isActive : "any"}:${deliveryZone || "any"}:p${page}:l${limit}`;
 
         const cachedList = await restaurantCacheService.getCachedRestaurantList(cacheKeySuffix);
         if (cachedList) {
@@ -55,7 +77,14 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
         if (isActive !== undefined) filter.isActive = isActive === 'true';
         if (deliveryZone) filter.deliveryZone = deliveryZone;
 
-        const restaurants = await Restaurant.find(filter).populate("owner", "name email").lean();
+        // Select only listing-relevant fields — excludes bankDetails, fssaiNumber, panNumber, gstNumber, gallery, owner
+        const LISTING_FIELDS = 'name phone cuisines image logo rating isActive totalOrders status availabilityStatus location deliveryZone';
+
+        const restaurants = await Restaurant.find(filter)
+            .select(LISTING_FIELDS)
+            .skip(skip)
+            .limit(limit)
+            .lean();
 
         // Cache lists in Redis
         await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, restaurants);
@@ -130,13 +159,15 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        const { name, phone, location, isActive } = req.body;
+        const { name, phone, location, isActive, availabilityStatus, cuisines } = req.body;
 
         const updateFields: any = {};
         if (name !== undefined) updateFields.name = name;
         if (phone !== undefined) updateFields.phone = phone;
         if (location !== undefined) updateFields.location = location;
         if (isActive !== undefined) updateFields.isActive = isActive;
+        if (availabilityStatus !== undefined) updateFields.availabilityStatus = availabilityStatus;
+        if (cuisines !== undefined) updateFields.cuisines = cuisines;
 
         // Handle file uploads (image, logo, gallery) from multer
         if (req.files && typeof req.files === "object" && !Array.isArray(req.files)) {
@@ -144,27 +175,29 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
             
             const imageFile = filesObj["image"]?.[0];
             if (imageFile) {
+                // Fire-and-forget old asset deletion — user doesn't need to wait for cleanup
                 if (restaurantToUpdate.image?.publicId) {
-                    await deleteFromCloudinary(restaurantToUpdate.image.publicId);
+                    safeDeleteCloudinary(restaurantToUpdate.image.publicId);
                 }
                 updateFields.image = await uploadToCloudinary(imageFile.buffer, "restaurants");
             }
 
             const logoFile = filesObj["logo"]?.[0];
             if (logoFile) {
+                // Fire-and-forget old asset deletion
                 if (restaurantToUpdate.logo?.publicId) {
-                    await deleteFromCloudinary(restaurantToUpdate.logo.publicId);
+                    safeDeleteCloudinary(restaurantToUpdate.logo.publicId);
                 }
                 updateFields.logo = await uploadToCloudinary(logoFile.buffer, "restaurants");
             }
 
             const galleryFiles = filesObj["gallery"];
             if (galleryFiles && galleryFiles.length > 0) {
-                // Delete old gallery images in parallel
+                // Delete old gallery images safely in parallel
                 if (restaurantToUpdate.gallery && restaurantToUpdate.gallery.length > 0) {
                     await Promise.all(
                         (restaurantToUpdate.gallery as any[]).filter(img => img.publicId)
-                            .map(img => deleteFromCloudinary(img.publicId))
+                            .map(img => safeDeleteCloudinary(img.publicId))
                     );
                 }
                 // Upload new gallery images in parallel
@@ -198,12 +231,13 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
 
 export const updateRestaurantStatus = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { status, isBlocked, commission } = req.body;
+        const { status, isBlocked, commission, availabilityStatus } = req.body;
 
         const updateFields: any = {};
         if (status !== undefined) updateFields.status = status;
         if (isBlocked !== undefined) updateFields.isBlocked = isBlocked;
         if (commission !== undefined) updateFields.commission = commission;
+        if (availabilityStatus !== undefined) updateFields.availabilityStatus = availabilityStatus;
 
         const restaurant = await Restaurant.findByIdAndUpdate(
             req.params.id,
@@ -355,22 +389,18 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        // Handle image uploads (add to existing images or replace depending on logic)
-        // We will just append them for now, or replace them. Let's replace if new images provided.
         let imageUrls = menuItemToUpdate.images || [];
         if (req.files && Array.isArray(req.files) && req.files.length > 0) {
             if (menuItemToUpdate.images && menuItemToUpdate.images.length > 0) {
-                for (const img of (menuItemToUpdate.images as any[])) {
-                    if (img.publicId) {
-                        await deleteFromCloudinary(img.publicId);
-                    }
-                }
+                await Promise.all(
+                    (menuItemToUpdate.images as any[]).filter(img => img.publicId)
+                        .map(img => safeDeleteCloudinary(img.publicId))
+                );
             }
-            imageUrls = []; // replace existing images if new ones are uploaded
-            for (const file of req.files) {
-                const uploadResult = await uploadToCloudinary(file.buffer, "products");
-                imageUrls.push(uploadResult);
-            }
+            // Upload new images in parallel
+            imageUrls = await Promise.all(
+                (req.files as Express.Multer.File[]).map(file => uploadToCloudinary(file.buffer, "products"))
+            );
         }
 
         const updatedMenuItem = await MenuItem.findByIdAndUpdate(
@@ -378,7 +408,7 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             { 
                 name, 
                 description, 
-                price: price ? Number(price) : undefined, 
+                price: price !== undefined ? Number(price) : undefined, 
                 category, 
                 images: imageUrls, 
                 isAvailable: isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : undefined,
@@ -419,11 +449,10 @@ export const deleteMenuItem = async (req: Request, res: Response): Promise<void>
         }
 
         if (menuItem.images && menuItem.images.length > 0) {
-            for (const img of (menuItem.images as any[])) {
-                if (img.publicId) {
-                    await deleteFromCloudinary(img.publicId);
-                }
-            }
+            await Promise.all(
+                (menuItem.images as any[]).filter(img => img.publicId)
+                    .map(img => safeDeleteCloudinary(img.publicId))
+            );
         }
         
         const restId = menuItem.restaurant.toString();
@@ -440,3 +469,4 @@ export const deleteMenuItem = async (req: Request, res: Response): Promise<void>
         res.status(500).json({ success: false, message: error.message });
     }
 };
+

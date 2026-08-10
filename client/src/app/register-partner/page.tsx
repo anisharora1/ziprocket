@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiClient } from "@/services/api";
 import { getFriendlyErrorMessage } from "@/utils/errorHandler";
+import { MdCheckCircle, MdArrowBack, MdStorefront, MdCheck, MdArrowForward } from "react-icons/md";
 
 type Step = 1 | 2 | 3;
 
@@ -106,7 +107,7 @@ export default function RestaurantPartnerForm() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center w-full">
         <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-6 shrink-0">
-          <span className="material-symbols-outlined text-[48px]">check_circle</span>
+          <MdCheckCircle className="text-[48px]" />
         </div>
         <h1 className="text-2xl font-black text-slate-900 mb-2">Application Submitted!</h1>
         <p className="text-slate-600 w-full max-w-[320px] mx-auto mb-8 font-medium leading-relaxed">
@@ -124,11 +125,11 @@ export default function RestaurantPartnerForm() {
       {/* Header */}
       <header className="bg-white border-b border-slate-100 sticky top-0 z-40 px-4 h-16 flex items-center justify-between shadow-sm">
         <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-50 text-slate-700">
-          <span className="material-symbols-outlined">arrow_back</span>
+          <MdArrowBack className="text-xl" />
         </button>
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 bg-[#FF5C00] rounded-lg flex items-center justify-center">
-             <span className="material-symbols-outlined text-white text-[18px]">storefront</span>
+             <MdStorefront className="text-white text-[18px]" />
           </div>
           <span className="font-black text-lg tracking-tight text-slate-900">Partner with Us</span>
         </div>
@@ -145,7 +146,7 @@ export default function RestaurantPartnerForm() {
                   step === s ? 'bg-[#FF5C00] text-white ring-4 ring-[#FF5C00]/10' : 
                   step > s ? 'bg-green-500 text-white' : 'bg-slate-200 text-slate-500'
                 }`}>
-                  {step > s ? <span className="material-symbols-outlined text-[18px]">check</span> : s}
+                  {step > s ? <MdCheck className="text-[18px]" /> : s}
                 </div>
                 <span className={`text-[10px] font-black uppercase tracking-wider ${step >= s ? 'text-slate-900' : 'text-slate-400'}`}>
                   {s === 1 ? 'Information' : s === 2 ? 'Documents' : 'Contract'}
@@ -383,7 +384,7 @@ export default function RestaurantPartnerForm() {
                 ) : (
                   <>
                     {step === 3 ? 'Submit Application' : 'Continue'}
-                    {step < 3 && <span className="material-symbols-outlined text-[18px]">arrow_forward</span>}
+                    {step < 3 && <MdArrowForward className="text-[18px]" />}
                   </>
                 )}
               </button>
@@ -398,3 +399,4 @@ export default function RestaurantPartnerForm() {
     </div>
   );
 }
+

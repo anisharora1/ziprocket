@@ -5,6 +5,17 @@ import { useRouter } from "next/navigation";
 import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
 import OptimizedImage from "./OptimizedImage";
+import {
+  MdSearch,
+  MdClose,
+  MdMic,
+  MdSearchOff,
+  MdStorefront,
+  MdStar,
+  MdRestaurant,
+  MdShoppingBasket,
+  MdShoppingBag,
+} from "react-icons/md";
 
 interface SearchResults {
   restaurants: any[];
@@ -136,7 +147,7 @@ export default function SearchBar() {
     <div className="pt-md pb-xs relative" ref={containerRef}>
       <div className="relative group transition-all duration-200 active:scale-[0.99]">
         <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <span className="material-symbols-outlined text-slate-400">search</span>
+          <MdSearch className="text-slate-400 text-xl" />
         </div>
         <input
           value={query}
@@ -157,7 +168,7 @@ export default function SearchBar() {
               onClick={clearSearch}
               className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer flex items-center justify-center p-1 rounded-full hover:bg-slate-100"
             >
-              <span className="material-symbols-outlined text-sm font-bold">close</span>
+              <MdClose className="text-sm font-bold" />
             </button>
           )}
           <button
@@ -166,7 +177,7 @@ export default function SearchBar() {
             className={`flex items-center justify-center p-1.5 rounded-full hover:bg-slate-100 transition-all cursor-pointer ${isListening ? 'animate-pulse text-red-500 bg-red-50' : 'text-primary-container'}`}
             title="Search with your voice"
           >
-            <span className="material-symbols-outlined">mic</span>
+            <MdMic className="text-xl" />
           </button>
         </div>
       </div>
@@ -191,7 +202,7 @@ export default function SearchBar() {
           ) : !hasResults ? (
             /* Empty State */
             <div className="text-center py-10 px-5 text-slate-400">
-              <span className="material-symbols-outlined text-4xl text-slate-200 block mb-2">search_off</span>
+              <MdSearchOff className="text-4xl text-slate-200 block mb-2 mx-auto" />
               <p className="text-xs font-bold text-slate-500">No matches found for "{query}"</p>
               <p className="text-[10px] text-slate-400 mt-1">Try searching for other dishes, groceries, or cuisines.</p>
             </div>
@@ -202,7 +213,7 @@ export default function SearchBar() {
               {results.restaurants.length > 0 && (
                 <div className="p-4">
                   <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#FF5C00] mb-2.5 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px]">storefront</span>
+                    <MdStorefront className="text-[15px]" />
                     Restaurants
                   </h4>
                   <div className="space-y-2">
@@ -225,7 +236,7 @@ export default function SearchBar() {
                         </div>
                         <div className="flex items-center gap-1 bg-green-50 text-green-700 px-1.5 py-0.5 rounded text-[10px] font-extrabold shrink-0 border border-green-100">
                           <span>{rest.rating || "New"}</span>
-                          <span className="material-symbols-outlined text-[10px] font-bold" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                          <MdStar className="text-[10px]" />
                         </div>
                       </div>
                     ))}
@@ -237,7 +248,7 @@ export default function SearchBar() {
               {results.menuItems.length > 0 && (
                 <div className="p-4">
                   <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#FF5C00] mb-2.5 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px]">restaurant</span>
+                    <MdRestaurant className="text-[15px]" />
                     Dishes & Food
                   </h4>
                   <div className="space-y-2">
@@ -277,7 +288,7 @@ export default function SearchBar() {
               {results.groceryProducts.length > 0 && (
                 <div className="p-4">
                   <h4 className="text-[11px] font-extrabold uppercase tracking-widest text-[#FF5C00] mb-2.5 flex items-center gap-1.5">
-                    <span className="material-symbols-outlined text-[15px]">shopping_basket</span>
+                    <MdShoppingBasket className="text-[15px]" />
                     Groceries
                   </h4>
                   <div className="space-y-2">
@@ -295,7 +306,7 @@ export default function SearchBar() {
                             {prod.images && prod.images[0] ? (
                               <OptimizedImage src={prod.images[0]} alt={prod.name} className="w-full h-full object-contain" preset="thumbnail" />
                             ) : (
-                              <span className="material-symbols-outlined text-slate-300 text-xs">shopping_bag</span>
+                              <MdShoppingBag className="text-slate-300 text-xs" />
                             )}
                           </div>
                           <div className="flex flex-col">
@@ -322,3 +333,4 @@ export default function SearchBar() {
     </div>
   );
 }
+

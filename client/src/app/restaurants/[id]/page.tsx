@@ -9,6 +9,17 @@ import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
+import {
+  MdArrowBack,
+  MdFavoriteBorder,
+  MdStar,
+  MdStore,
+  MdInfo,
+  MdEngineering,
+  MdError,
+  MdRestaurantMenu,
+  MdAdd,
+} from "react-icons/md";
 
 export default function RestaurantMenuPage() {
   const { id } = useParams();
@@ -98,7 +109,7 @@ export default function RestaurantMenuPage() {
     return (
       <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6 text-center">
         <div className="w-24 h-24 bg-slate-200 rounded-full flex items-center justify-center mb-4">
-          <span className="material-symbols-outlined text-4xl text-slate-400">store_off</span>
+          <MdStore className="text-4xl text-slate-400" />
         </div>
         <h2 className="text-xl font-bold text-slate-800 mb-2">Restaurant Unavailable</h2>
         <p className="text-slate-500 mb-6">We couldn't find the restaurant you're looking for.</p>
@@ -123,11 +134,11 @@ export default function RestaurantMenuPage() {
       {/* Top AppBar */}
       <header className="bg-[#fef9f4] sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between">
         <Link href="/" className="w-10 h-10 flex items-center justify-center transition-transform active:scale-95 bg-white rounded-full shadow-sm">
-          <span className="material-symbols-outlined text-[#a73a00]">arrow_back</span>
+          <MdArrowBack className="text-[#a73a00] text-xl" />
         </Link>
         <h1 className="font-bold text-lg text-[#5a2000] truncate px-2">{restaurant.name}</h1>
         <button className="w-10 h-10 flex items-center justify-center transition-transform active:scale-95 shrink-0 bg-white rounded-full shadow-sm">
-          <span className="material-symbols-outlined text-[#a73a00]">favorite_border</span>
+          <MdFavoriteBorder className="text-[#a73a00] text-xl" />
         </button>
       </header>
 
@@ -135,21 +146,21 @@ export default function RestaurantMenuPage() {
       <div className="bg-[#fef9f4] px-4 pb-6 rounded-b-3xl shadow-sm">
         <div className="flex gap-3 justify-center mb-4">
           <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#faeddf] border border-[#f3dcb8]">
-            <span className="material-symbols-outlined text-[14px] text-[#a73a00]">star</span>
+            <MdStar className="text-[14px] text-[#a73a00]" />
             <div className="flex flex-col items-center">
               <span className="text-[11px] font-bold text-[#a73a00] leading-none">{restaurant.rating > 0 ? restaurant.rating : "New"}</span>
               <span className="text-[9px] text-[#a73a00] leading-none">Rating</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#e8f0f4] border border-[#d2e2eb]">
-            <span className="material-symbols-outlined text-[14px] text-slate-500">store</span>
+            <MdStore className="text-[14px] text-slate-500" />
             <div className="flex flex-col items-center">
               <span className="text-[11px] font-bold text-slate-700 leading-none">{restaurant.totalOrders || 0}</span>
               <span className="text-[9px] text-slate-500 leading-none">Orders</span>
             </div>
           </div>
           <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#e8f0f4] border border-[#d2e2eb]">
-            <span className="material-symbols-outlined text-[14px] text-slate-500">info</span>
+            <MdInfo className="text-[14px] text-slate-500" />
             <div className="flex flex-col items-center">
               <span className={`text-[11px] font-bold leading-none ${
                 settings?.maintenanceMode
@@ -185,9 +196,11 @@ export default function RestaurantMenuPage() {
 
         return (
           <div className="mx-4 mt-4 bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
-            <span className="material-symbols-outlined text-rose-500 shrink-0 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-              {settings?.maintenanceMode ? "engineering" : "error"}
-            </span>
+            {settings?.maintenanceMode ? (
+              <MdEngineering className="text-rose-500 shrink-0 text-[20px]" />
+            ) : (
+              <MdError className="text-rose-500 shrink-0 text-[20px]" />
+            )}
             <div className="space-y-1">
               <h4 className="text-[13px] font-bold text-rose-800">
                 {settings?.maintenanceMode 
@@ -215,7 +228,7 @@ export default function RestaurantMenuPage() {
               className={`px-5 py-2 rounded-full text-[13px] font-bold whitespace-nowrap transition-all shadow-sm ${
                 activeCategory === "All" 
                   ? "bg-[#a73a00] text-white scale-105" 
-                  : "bg-white text-slate-600 border border-slate-200"
+                  : "bg-white text-[#a73a00] border border-slate-200"
               }`}
             >
               All
@@ -242,7 +255,7 @@ export default function RestaurantMenuPage() {
         {(!menuItems || menuItems.length === 0) ? (
           <div className="text-center py-16 flex flex-col items-center">
             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-              <span className="material-symbols-outlined text-3xl text-slate-300">restaurant_menu</span>
+              <MdRestaurantMenu className="text-3xl text-slate-300" />
             </div>
             <h3 className="text-lg font-bold text-slate-700 mb-1">No Menu Items</h3>
             <p className="text-sm text-slate-500">This restaurant hasn't added any items yet.</p>
@@ -314,7 +327,7 @@ export default function RestaurantMenuPage() {
                               : 'bg-[#a73a00] text-white hover:bg-[#8e3100]'
                           }`}
                         >
-                          <span className="material-symbols-outlined text-[20px]">add</span>
+                          <MdAdd className="text-[20px]" />
                         </button>
                       </div>
                     </div>
@@ -331,3 +344,4 @@ export default function RestaurantMenuPage() {
     </div>
   );
 }
+

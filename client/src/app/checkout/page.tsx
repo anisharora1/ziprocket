@@ -11,6 +11,42 @@ import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
 import dynamic from "next/dynamic";
+import {
+  MdRemoveShoppingCart,
+  MdCheckCircle,
+  MdError,
+  MdWarning,
+  MdLocationOff,
+  MdClose,
+  MdArrowForward,
+  MdBlock,
+  MdTipsAndUpdates,
+  MdEditLocation,
+  MdArrowBack,
+  MdHome,
+  MdEdit,
+  MdSchedule,
+  MdCelebration,
+  MdLocalShipping,
+  MdShoppingBag,
+  MdFastfood,
+  MdSell,
+  MdChevronRight,
+  MdAccountBalanceWallet,
+  MdPayments,
+  MdThunderstorm,
+  MdWork,
+  MdHomeWork,
+  MdMyLocation,
+  MdMic,
+  MdMicOff,
+  MdSync,
+  MdSave,
+  MdInfo,
+  MdLocationOn,
+  MdDescription,
+  MdAdd,
+} from "react-icons/md";
 
 const LocationSelectorModal = dynamic(() => import("@/components/LocationSelectorModal"), { ssr: false });
 
@@ -780,7 +816,7 @@ export default function CheckoutPage() {
     if (cart.items.length === 0) {
         return (
             <div className="bg-[#fcfcfc] min-h-screen flex flex-col items-center justify-center p-4">
-                <span className="material-symbols-outlined text-[64px] text-slate-300 mb-4">remove_shopping_cart</span>
+                <MdRemoveShoppingCart className="text-[64px] text-slate-300 mb-4" />
                 <h2 className="text-xl font-bold text-slate-700 mb-2">Your cart is empty</h2>
                 <p className="text-slate-500 mb-6 text-center">Looks like you haven't added anything yet.</p>
                 <Link href="/" className="px-6 py-3 bg-[#FF5C00] text-white rounded-full font-medium shadow-md">
@@ -796,33 +832,34 @@ export default function CheckoutPage() {
 
             {/* ── Unified Notification Card Overlay ───────────────────────────── */}
             {notifCard && (() => {
-                const cfgMap = {
+                const cfgMap: Record<NotifType, { grad: string; iconComp: React.ComponentType<{ className?: string }>; btnGrad: string; btnShadow: string }> = {
                     success: {
                         grad: 'from-emerald-500 via-emerald-600 to-teal-600',
-                        icon: 'check_circle', iconColor: 'text-emerald-500',
+                        iconComp: MdCheckCircle,
                         btnGrad: 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-teal-700',
                         btnShadow: 'shadow-emerald-200',
                     },
                     error: {
                         grad: 'from-rose-500 via-rose-600 to-red-700',
-                        icon: 'error', iconColor: 'text-rose-500',
+                        iconComp: MdError,
                         btnGrad: 'from-rose-500 to-rose-600 hover:from-rose-600 hover:to-red-700',
                         btnShadow: 'shadow-rose-200',
                     },
                     warning: {
                         grad: 'from-amber-400 via-amber-500 to-orange-500',
-                        icon: 'warning', iconColor: 'text-amber-500',
+                        iconComp: MdWarning,
                         btnGrad: 'from-amber-500 to-orange-500 hover:from-orange-500 hover:to-orange-600',
                         btnShadow: 'shadow-amber-200',
                     },
                     zone: {
                         grad: 'from-rose-500 via-rose-600 to-orange-600',
-                        icon: 'location_off', iconColor: 'text-rose-500',
+                        iconComp: MdLocationOff,
                         btnGrad: 'from-[#FF5C00] to-[#e05200] hover:from-[#e05200] hover:to-[#c84900]',
                         btnShadow: 'shadow-orange-200',
                     },
                 };
                 const c = cfgMap[notifCard.type];
+                const IconComp = c.iconComp;
                 return (
                     <div
                         className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center"
@@ -842,13 +879,13 @@ export default function CheckoutPage() {
                                     onClick={closeCard}
                                     className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                    <MdClose className="text-[18px]" />
                                 </button>
                                 {/* Icon */}
                                 <div className="flex justify-center mb-5">
                                     <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
                                         <div className="w-14 h-14 rounded-full bg-white/30 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-[36px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>{c.icon}</span>
+                                            <IconComp className="text-[36px] text-white" />
                                         </div>
                                     </div>
                                 </div>
@@ -875,14 +912,14 @@ export default function CheckoutPage() {
                                         className={`w-full py-4 bg-gradient-to-r ${c.btnGrad} text-white rounded-2xl font-black text-[14px] flex items-center justify-center gap-2 shadow-lg ${c.btnShadow} transition-all active:scale-[0.98]`}
                                     >
                                         {notifCard.actionLabel}
-                                        <span className="material-symbols-outlined text-[18px]">arrow_forward</span>
+                                        <MdArrowForward className="text-[18px]" />
                                     </button>
                                 )}
                                 <button
                                     onClick={closeCard}
                                     className="w-full py-3.5 border-2 border-slate-200 hover:border-slate-300 text-slate-600 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">close</span>
+                                    <MdClose className="text-[18px]" />
                                     Dismiss
                                 </button>
                             </div>
@@ -910,11 +947,11 @@ export default function CheckoutPage() {
                                 <div className="relative">
                                     <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center">
                                         <div className="w-14 h-14 rounded-full bg-white/30 flex items-center justify-center">
-                                            <span className="material-symbols-outlined text-[36px] text-white" style={{ fontVariationSettings: "'FILL' 1" }}>location_off</span>
+                                            <MdLocationOff className="text-[36px] text-white" />
                                         </div>
                                     </div>
                                     <span className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-white flex items-center justify-center">
-                                        <span className="material-symbols-outlined text-[18px] text-rose-600" style={{ fontVariationSettings: "'FILL' 1" }}>block</span>
+                                        <MdBlock className="text-[18px] text-rose-600" />
                                     </span>
                                 </div>
                             </div>
@@ -938,7 +975,7 @@ export default function CheckoutPage() {
                                 </div>
                             )}
                             <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-3">
-                                <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>tips_and_updates</span>
+                                <MdTipsAndUpdates className="text-amber-600 text-[20px] shrink-0" />
                                 <p className="text-[12px] text-amber-800 font-semibold leading-relaxed">
                                     Try changing your delivery address to a location within our serviceable area to place your order.
                                 </p>
@@ -949,14 +986,14 @@ export default function CheckoutPage() {
                                 onClick={() => { setShowOutOfZoneOverlay(false); handleOpenAddressEditModal(); }}
                                 className="w-full py-4 bg-gradient-to-r from-[#FF5C00] to-[#e05200] hover:from-[#e05200] hover:to-[#c84900] text-white rounded-2xl font-black text-[14px] flex items-center justify-center gap-2.5 shadow-lg shadow-orange-200 transition-all active:scale-[0.98]"
                             >
-                                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>edit_location_alt</span>
+                                <MdEditLocation className="text-[20px]" />
                                 पता बदलें / Change Delivery Address
                             </button>
                             <button
                                 onClick={() => setShowOutOfZoneOverlay(false)}
                                 className="w-full py-3.5 border-2 border-slate-200 hover:border-slate-300 text-slate-600 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all"
                             >
-                                <span className="material-symbols-outlined text-[18px]">arrow_back</span>
+                                <MdArrowBack className="text-[18px]" />
                                 वापस जाएं / Go Back
                             </button>
                         </div>
@@ -973,7 +1010,7 @@ export default function CheckoutPage() {
             {/* Top AppBar */}
             <header className="bg-white sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between border-b border-slate-100">
                 <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center transition-transform active:scale-95 -ml-1">
-                    <span className="material-symbols-outlined text-[#a73a00]">arrow_back</span>
+                    <MdArrowBack className="text-[#a73a00] text-xl" />
                 </button>
                 <h1 className="font-bold text-[17px] text-slate-900 tracking-tight">Checkout</h1>
                 <span className="font-bold text-[17px] text-[#a73a00]">ZipRocket</span>
@@ -987,7 +1024,7 @@ export default function CheckoutPage() {
                 >
                     <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-lg bg-[#fff0e6] flex items-center justify-center text-[#a73a00] shrink-0 mt-0.5">
-                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>home</span>
+                            <MdHome className="text-xl" />
                         </div>
                         <div>
                             <h2 className="font-medium text-[15px] text-slate-900 leading-tight">Delivery Details</h2>
@@ -997,14 +1034,14 @@ export default function CheckoutPage() {
                             </p>
                         </div>
                     </div>
-                    <span className="material-symbols-outlined text-slate-400 text-sm shrink-0">edit</span>
+                    <MdEdit className="text-slate-400 text-sm shrink-0" />
                 </div>
 
                 {/* Feasibility Warn Banners */}
                 {checkoutError && (
                     <div className="bg-rose-50 border border-rose-100 rounded-xl p-3.5 flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
-                            <span className="material-symbols-outlined text-[16px]">warning</span>
+                            <MdWarning className="text-[16px]" />
                         </div>
                         <div>
                             <h3 className="font-bold text-rose-850 text-[14px]">Outside Service Limits</h3>
@@ -1019,7 +1056,7 @@ export default function CheckoutPage() {
                 {isCheckoutDisabled && checkoutDisabledMessage && (
                     <div className="bg-rose-50 border border-rose-100 rounded-xl p-3.5 flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
-                            <span className="material-symbols-outlined text-[16px]">error</span>
+                            <MdError className="text-[16px]" />
                         </div>
                         <div>
                             <h3 className="font-bold text-rose-850 text-[14px]">Ordering Currently Unavailable</h3>
@@ -1035,7 +1072,7 @@ export default function CheckoutPage() {
                     <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex justify-between items-center gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+                                <MdSchedule className="text-xl" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Dynamic Route ETA</h3>
@@ -1055,7 +1092,7 @@ export default function CheckoutPage() {
                 ) : activeDeliveryFee === 0 && !checkoutError ? (
                     <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100 flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 mt-0.5">
-                            <span className="material-symbols-outlined text-[16px]">celebration</span>
+                            <MdCelebration className="text-[16px]" />
                         </div>
                         <div>
                             <h3 className="font-semibold text-emerald-850 text-[14px]">Free delivery applied!</h3>
@@ -1065,7 +1102,7 @@ export default function CheckoutPage() {
                 ) : !checkoutError ? (
                     <div className="bg-[#fff5f0] rounded-xl p-3.5 border border-[#fdeadd] flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#fdeadd] flex items-center justify-center text-[#a73a00] shrink-0 mt-0.5">
-                            <span className="material-symbols-outlined text-[16px]">local_shipping</span>
+                            <MdLocalShipping className="text-[16px]" />
                         </div>
                         <div className="flex-1">
                             <h3 className="font-bold text-[#a73a00] text-[14px]">Standard Hyperlocal Delivery</h3>
@@ -1094,9 +1131,11 @@ export default function CheckoutPage() {
                                         </div>
                                     ) : (
                                         <div className="w-14 h-14 rounded-lg overflow-hidden bg-slate-50 flex items-center justify-center shrink-0 border border-slate-100">
-                                            <span className="material-symbols-outlined text-slate-350">
-                                                {cart.orderType === 'grocery' ? 'local_mall' : 'fastfood'}
-                                            </span>
+                                            {cart.orderType === 'grocery' ? (
+                                                <MdShoppingBag className="text-slate-350 text-xl" />
+                                            ) : (
+                                                <MdFastfood className="text-slate-350 text-xl" />
+                                            )}
                                         </div>
                                     )}
                                     <div>
@@ -1118,7 +1157,7 @@ export default function CheckoutPage() {
                         <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center justify-between shadow-sm animate-fadeIn">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                                    <span className="material-symbols-outlined font-fill text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>sell</span>
+                                    <MdSell className="text-[20px]" />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -1139,7 +1178,7 @@ export default function CheckoutPage() {
                         <div className="bg-[#fff9e6] border border-[#ffe0b3] rounded-xl p-4 flex items-center justify-between shadow-sm animate-fadeIn">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-lg bg-[#fff0e6] text-[#a73a00] flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[20px]">celebration</span>
+                                    <MdCelebration className="text-[20px]" />
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2">
@@ -1165,7 +1204,7 @@ export default function CheckoutPage() {
                     >
                         <div className="flex items-start gap-3">
                             <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center text-[#FF5C00] shrink-0 mt-0.5">
-                                <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>sell</span>
+                                <MdSell className="text-[20px]" />
                             </div>
                             <div>
                                 <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Coupons & Promo Offers</h3>
@@ -1176,7 +1215,7 @@ export default function CheckoutPage() {
                                 </p>
                             </div>
                         </div>
-                        <span className="material-symbols-outlined text-slate-400 text-sm shrink-0">chevron_right</span>
+                        <MdChevronRight className="text-slate-400 text-sm shrink-0" />
                     </div>
                 </section>
 
@@ -1192,7 +1231,7 @@ export default function CheckoutPage() {
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
-                                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>account_balance_wallet</span>
+                                    <MdAccountBalanceWallet className="text-[20px]" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-[14px] text-slate-900 leading-tight">UPI / Online Payment</h3>
@@ -1212,7 +1251,7 @@ export default function CheckoutPage() {
                         >
                             <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
-                                    <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>payments</span>
+                                    <MdPayments className="text-[20px]" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-[14px] text-slate-900 leading-tight">Cash on Delivery (COD)</h3>
@@ -1283,7 +1322,7 @@ export default function CheckoutPage() {
                             {billDetails && billDetails.surgeCharge > 0 && (
                                 <div className="flex justify-between text-[#c2410c] font-semibold animate-pulse">
                                     <span className="flex items-center gap-1">
-                                        <span className="material-symbols-outlined text-[15px]">thunderstorm</span>
+                                        <MdThunderstorm className="text-[15px]" />
                                         Surge Surcharge Active
                                     </span>
                                     <span>₹{billDetails.surgeCharge.toFixed(2)}</span>
@@ -1298,7 +1337,7 @@ export default function CheckoutPage() {
                             {billDetails && billDetails.discountAmount !== undefined && billDetails.discountAmount > 0 && (
                                 <div className="flex justify-between text-emerald-600 font-extrabold animate-pulse bg-emerald-50/50 p-2.5 rounded-xl border border-dashed border-emerald-200">
                                     <span className="flex items-center gap-1.5">
-                                        <span className="material-symbols-outlined text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>sell</span>
+                                        <MdSell className="text-[16px]" />
                                         Coupon Discount ({appliedCouponCode})
                                     </span>
                                     <span>-₹{billDetails.discountAmount.toFixed(2)}</span>
@@ -1340,7 +1379,7 @@ export default function CheckoutPage() {
                                         ? 'Processing...'
                                         : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
                     </span>
-                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && <span className="material-symbols-outlined text-[20px]">arrow_forward</span>}
+                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && <MdArrowForward className="text-[20px]" />}
                 </button>
                 <p className="text-center text-[10px] text-slate-500 mt-2.5">
                     By placing this order, you agree to our Terms & Conditions
@@ -1363,7 +1402,7 @@ export default function CheckoutPage() {
                                 onClick={() => setIsAddressEditModalOpen(false)}
                                 className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-450 transition-colors"
                             >
-                                <span className="material-symbols-outlined text-[18px]">close</span>
+                                <MdClose className="text-[18px]" />
                             </button>
                         </div>
 
@@ -1379,9 +1418,9 @@ export default function CheckoutPage() {
                                     <div className="space-y-3">
                                         {savedAddresses.map((addr) => {
                                             const isSelected = selectedAddressId === addr._id;
-                                            let icon = 'home';
-                                            if (addr.label === 'Work') icon = 'work';
-                                            if (addr.label === 'Other') icon = 'home_work';
+                                            let IconComp = MdHome;
+                                            if (addr.label === 'Work') IconComp = MdWork;
+                                            if (addr.label === 'Other') IconComp = MdHomeWork;
 
                                             return (
                                                 <div 
@@ -1397,7 +1436,7 @@ export default function CheckoutPage() {
                                                         <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
                                                             isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-550'
                                                         }`}>
-                                                            <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                                                            <IconComp className="text-[18px]" />
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
@@ -1424,7 +1463,7 @@ export default function CheckoutPage() {
                                     onClick={() => setCheckoutAddressStep('form')}
                                     className="w-full mt-4 py-3.5 bg-[#FF5C00]/10 hover:bg-[#FF5C00]/15 text-[#FF5C00] rounded-2xl font-bold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                                 >
-                                    <span className="material-symbols-outlined text-[18px]">add</span>
+                                    <MdAdd className="text-[18px]" />
                                     Add New Delivery Address
                                 </button>
                             </div>
@@ -1432,7 +1471,7 @@ export default function CheckoutPage() {
                             <div className="p-6 space-y-4.5 max-h-[60vh] overflow-y-auto">
                                 {editError && (
                                     <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex gap-2.5 items-start text-rose-700">
-                                        <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                                        <MdError className="text-[18px] shrink-0 mt-0.5" />
                                         <p className="text-[12px] font-bold leading-relaxed">{editError}</p>
                                     </div>
                                 )}
@@ -1440,15 +1479,16 @@ export default function CheckoutPage() {
                                 {/* Tag segmented control */}
                                 <div className="bg-[#f0f0f4] rounded-full p-1 flex justify-between gap-1 w-full">
                                     {([
-                                        { id: 'Home', label: 'House', icon: 'home' },
-                                        { id: 'Work', label: 'Office', icon: 'work' },
-                                        { id: 'Other', label: 'Other', icon: 'near_me' }
+                                        { id: 'Home', label: 'House', iconComp: MdHome },
+                                        { id: 'Work', label: 'Office', iconComp: MdWork },
+                                        { id: 'Other', label: 'Other', iconComp: MdMyLocation }
                                     ] as const).map((tag) => {
                                         const isActive = 
                                             (tag.id === 'Home' && (addressLabel === 'Home' || addressLabel === 'House')) ||
                                             (tag.id === 'Work' && (addressLabel === 'Work' || addressLabel === 'Office')) ||
                                             (tag.id === 'Other' && (addressLabel !== 'Home' && addressLabel !== 'House' && addressLabel !== 'Work' && addressLabel !== 'Office'));
-                                        
+                                        const TagIcon = tag.iconComp;
+
                                         return (
                                             <button
                                                 type="button"
@@ -1464,7 +1504,7 @@ export default function CheckoutPage() {
                                                         : 'text-slate-600 hover:text-slate-900 bg-transparent'
                                                 }`}
                                             >
-                                                <span className="material-symbols-outlined text-[16px]">{tag.icon}</span>
+                                                <TagIcon className="text-[16px]" />
                                                 <span>{tag.label}</span>
                                             </button>
                                         );
@@ -1521,12 +1561,7 @@ export default function CheckoutPage() {
                                         </div>
                                         
                                         {/* Pin Marker */}
-                                        <span 
-                                            className="material-symbols-outlined text-[24px] text-[#FF5C00] relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.15)] animate-bounce" 
-                                            style={{ fontVariationSettings: "'FILL' 1" }}
-                                        >
-                                            location_on
-                                        </span>
+                                        <MdLocationOn className="text-[24px] text-[#FF5C00] relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.15)] animate-bounce" />
                                         
                                         {/* Change text tag */}
                                         <span className="absolute bottom-1 text-[9px] font-black text-[#FF5C00] uppercase tracking-wider bg-white/95 px-1.5 py-0.5 rounded shadow-sm z-10 border border-slate-100">
@@ -1569,7 +1604,7 @@ export default function CheckoutPage() {
                                             onClick={() => setShowInstructions(true)}
                                             className="text-left text-[11.5px] font-bold text-[#FF5C00] hover:text-[#e05200] transition-colors flex items-center gap-1.5 pl-1"
                                         >
-                                            <span className="material-symbols-outlined text-[15px]">description</span>
+                                            <MdDescription className="text-[15px]" />
                                             Add Delivery Instructions (Optional)
                                         </button>
                                     ) : (
@@ -1619,12 +1654,12 @@ export default function CheckoutPage() {
                                     >
                                         {validatingEdit ? (
                                             <>
-                                                <span className="material-symbols-outlined text-[16px] animate-spin">sync</span>
+                                                <MdSync className="text-[16px] animate-spin" />
                                                 Saving...
                                             </>
                                         ) : (
                                             <>
-                                                <span className="material-symbols-outlined text-[16px]">save</span>
+                                                <MdSave className="text-[16px]" />
                                                 Confirm Address
                                             </>
                                         )}
@@ -1656,7 +1691,7 @@ export default function CheckoutPage() {
                                 onClick={() => { setIsCouponDrawerOpen(false); setCouponError(null); }}
                                 className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-450 transition-colors"
                             >
-                                <span className="material-symbols-outlined text-[18px]">close</span>
+                                <MdClose className="text-[18px]" />
                             </button>
                         </div>
 
@@ -1687,7 +1722,7 @@ export default function CheckoutPage() {
 
                             {couponError && (
                                 <div className="bg-rose-50 border border-rose-100 rounded-xl p-3 flex gap-2.5 items-start text-rose-700">
-                                    <span className="material-symbols-outlined text-[18px] shrink-0 mt-0.5">error</span>
+                                    <MdError className="text-[18px] shrink-0 mt-0.5" />
                                     <p className="text-[12px] font-bold leading-relaxed">{couponError}</p>
                                 </div>
                             )}
@@ -1715,7 +1750,7 @@ export default function CheckoutPage() {
                                             </div>
                                             <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 text-[11px]">
                                                 <span className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
-                                                    <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                                                    <MdCheckCircle className="text-[14px]" />
                                                     Eligible for this order
                                                 </span>
                                                 <button
@@ -1750,7 +1785,7 @@ export default function CheckoutPage() {
                                                 <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed font-medium">{coupon.description}</p>
                                             </div>
                                             <div className="border-t border-slate-200/60 pt-3 mt-1 flex items-start gap-2 text-[10px] text-rose-600 font-bold leading-tight">
-                                                <span className="material-symbols-outlined text-[14px] shrink-0">info</span>
+                                                <MdInfo className="text-[14px] shrink-0" />
                                                 <span>{coupon.reason || "Terms & conditions not met"}</span>
                                             </div>
                                         </div>
@@ -1760,7 +1795,7 @@ export default function CheckoutPage() {
 
                             {availableCoupons.length === 0 && unapplicableCoupons.length === 0 && (
                                 <div className="text-center py-10 flex flex-col items-center justify-center">
-                                    <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">sell</span>
+                                    <MdSell className="text-[48px] text-slate-300 mb-3" />
                                     <p className="text-[13px] text-slate-500 font-bold">No coupons available / कोई कूपन उपलब्ध नहीं है</p>
                                     <p className="text-[11px] text-slate-400 mt-1 font-medium">Keep shopping to unlock future rewards!</p>
                                 </div>

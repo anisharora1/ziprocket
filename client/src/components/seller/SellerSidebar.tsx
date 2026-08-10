@@ -5,6 +5,20 @@ import { usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { apiClient } from '../../services/api';
 import OptimizedImage from '../OptimizedImage';
+import {
+  MdRestaurant,
+  MdHome,
+  MdReceiptLong,
+  MdRestaurantMenu,
+  MdPayments,
+} from 'react-icons/md';
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  home: MdHome,
+  receipt_long: MdReceiptLong,
+  restaurant_menu: MdRestaurantMenu,
+  payments: MdPayments,
+};
 
 export default function SellerSidebar() {
   const pathname = usePathname();
@@ -25,17 +39,17 @@ export default function SellerSidebar() {
   }, []);
 
   const navLinks = [
-    { name: 'Dashboard', href: '/seller/dashboard', icon: 'home' },
-    { name: 'Orders', href: '/seller/orders', icon: 'receipt_long' },
-    { name: 'Menu', href: '/seller/menu', icon: 'restaurant_menu' },
-    { name: 'Finance', href: '/seller/finance', icon: 'payments' },
+    { name: 'Dashboard', href: '/seller/dashboard', iconKey: 'home' },
+    { name: 'Orders', href: '/seller/orders', iconKey: 'receipt_long' },
+    { name: 'Menu', href: '/seller/menu', iconKey: 'restaurant_menu' },
+    { name: 'Finance', href: '/seller/finance', iconKey: 'payments' },
   ];
 
   return (
     <div className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col h-screen sticky top-0 shrink-0">
       <div className="h-16 flex items-center px-6 border-b border-slate-100">
         <span className="text-xl font-black tracking-tight text-primary flex items-center gap-2">
-          <span className="material-symbols-outlined text-[24px]">restaurant</span>
+          <MdRestaurant className="text-[24px]" />
           Kitchen OS
         </span>
       </div>
@@ -43,6 +57,7 @@ export default function SellerSidebar() {
       <nav className="flex-1 py-6 px-4 flex flex-col gap-2">
         {navLinks.map((link) => {
           const isActive = pathname === link.href;
+          const IconComp = iconMap[link.iconKey];
           return (
             <Link
               key={link.name}
@@ -52,9 +67,9 @@ export default function SellerSidebar() {
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                 }`}
             >
-              <span className={`material-symbols-outlined ${isActive ? 'text-emerald-600' : 'text-slate-400'}`}>
-                {link.icon}
-              </span>
+              {IconComp && (
+                <IconComp className={`text-[20px] ${isActive ? 'text-emerald-600' : 'text-slate-400'}`} />
+              )}
               {link.name}
             </Link>
           );
@@ -91,3 +106,4 @@ export default function SellerSidebar() {
     </div>
   );
 }
+

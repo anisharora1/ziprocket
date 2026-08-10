@@ -6,6 +6,7 @@ import { apiClient } from "@/services/api";
 import { useCart } from "@/context/CartContext";
 import ProductCard, { Product } from "./ProductCard";
 import { GroceryListSkeleton } from "./Skeletons";
+import { MdChevronRight } from "react-icons/md";
 
 export default function GroceryList() {
   const { addToCart, cart, updateQuantity } = useCart();
@@ -55,7 +56,7 @@ export default function GroceryList() {
           className="text-[#FF5C00] font-bold text-xs hover:text-[#e05200] flex items-center gap-0.5 transition-colors"
         >
           See all
-          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+          <MdChevronRight className="text-[14px]" />
         </Link>
       </div>
 
@@ -77,3 +78,4 @@ export default function GroceryList() {
     </section>
   );
 }
+

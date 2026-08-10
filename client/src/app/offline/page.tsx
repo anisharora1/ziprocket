@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { MdBolt, MdSync, MdHome } from 'react-icons/md';
 
 export default function OfflinePage() {
   const handleReload = () => {
@@ -13,7 +14,7 @@ export default function OfflinePage() {
         
         {/* Animated Brand Rocket Icon in Orange */}
         <div className="w-20 h-20 rounded-full bg-[#FF5C00]/10 flex items-center justify-center text-[#FF5C00] animate-bounce duration-1000">
-          <span className="material-symbols-outlined text-[42px] font-bold">bolt</span>
+          <MdBolt className="text-[42px] font-bold" />
         </div>
 
         <div className="space-y-2">
@@ -34,7 +35,7 @@ export default function OfflinePage() {
             onClick={handleReload}
             className="w-full py-3.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-bold rounded-2xl transition-all active:scale-[0.98] shadow-md shadow-[#FF5C00]/25 flex items-center justify-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">sync</span>
+            <MdSync className="text-[18px]" />
             Try Again
           </button>
           
@@ -42,7 +43,7 @@ export default function OfflinePage() {
             href="/"
             className="w-full py-3.5 bg-slate-50 dark:bg-slate-850 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-sm font-bold rounded-2xl border border-slate-100 dark:border-slate-800 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">home</span>
+            <MdHome className="text-[18px]" />
             Go to Home
           </Link>
         </div>

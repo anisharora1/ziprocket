@@ -8,6 +8,23 @@ import { apiClient } from '@/services/api';
 import { getHighAccuracyGPSFix } from '@/utils/geolocation';
 import Header from '@/components/Header';
 import BottomNavBar from '@/components/BottomNavBar';
+import {
+  MdSync,
+  MdAdd,
+  MdHomeWork,
+  MdHome,
+  MdWork,
+  MdCheckCircle,
+  MdEdit,
+  MdDelete,
+  MdClose,
+  MdSearch,
+  MdCancel,
+  MdLocationOn,
+  MdMyLocation,
+  MdWarning,
+  MdSave,
+} from 'react-icons/md';
 
 interface AddressData {
   _id?: string;
@@ -351,7 +368,7 @@ export default function AddressesPage() {
   if (loading) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-[#fcfcfc] gap-3">
-        <span className="material-symbols-outlined text-[40px] text-[#FF5C00] animate-spin">sync</span>
+        <MdSync className="text-[40px] text-[#FF5C00] animate-spin" />
         <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Loading address book...</p>
       </div>
     );
@@ -373,7 +390,7 @@ export default function AddressesPage() {
             onClick={handleOpenCreate}
             className="flex items-center gap-2 bg-[#FF5C00] hover:bg-[#e05200] px-4 py-3 rounded-2xl text-xs font-black text-white uppercase tracking-wider shadow-md transition-all active:scale-95 shrink-0 w-full sm:w-auto justify-center"
           >
-            <span className="material-symbols-outlined text-[16px]">add</span>
+            <MdAdd className="text-[16px]" />
             Add Address
           </button>
         </div>
@@ -385,7 +402,7 @@ export default function AddressesPage() {
             style={{ width: "100%", maxWidth: "576px" }}
             className="bg-white rounded-3xl p-6 sm:p-10 flex flex-col items-center justify-center text-center py-12 sm:py-20 border border-slate-100 shadow-sm mx-auto my-6 sm:my-12"
           >
-            <span className="material-symbols-outlined text-[48px] text-slate-350 mb-4 animate-pulse">home_work</span>
+            <MdHomeWork className="text-[48px] text-slate-350 mb-4 animate-pulse" />
             <h3 className="font-extrabold text-slate-700 text-[17px] leading-none">Your Address Book is empty</h3>
             <p className="text-slate-400 text-xs font-semibold max-w-[320px] mx-auto leading-relaxed mt-2.5 mb-8">
               Add your Home, Work, or Custom delivery locations to checkout in a single click next time.
@@ -402,9 +419,9 @@ export default function AddressesPage() {
           <div className="grid grid-cols-1 gap-4">
             {savedAddresses.map((addr) => {
               const isSelected = selectedAddressId === addr._id;
-              let icon = 'home';
-              if (addr.label === 'Work') icon = 'work';
-              if (addr.label === 'Other') icon = 'home_work';
+              let IconComp = MdHome;
+              if (addr.label === 'Work') IconComp = MdWork;
+              if (addr.label === 'Other') IconComp = MdHomeWork;
 
               return (
                 <div 
@@ -417,7 +434,7 @@ export default function AddressesPage() {
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
                       isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'
                     }`}>
-                      <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                      <IconComp className="text-[20px]" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
@@ -442,7 +459,7 @@ export default function AddressesPage() {
                         )}
                         {isSelected ? (
                           <span className="text-slate-400 text-xs font-bold flex items-center gap-1 leading-none select-none">
-                            <span className="material-symbols-outlined text-[14px] text-emerald-500">check_circle</span>
+                            <MdCheckCircle className="text-[14px] text-emerald-500" />
                             Selected
                           </span>
                         ) : (
@@ -464,14 +481,14 @@ export default function AddressesPage() {
                       onClick={() => handleOpenEdit(addr)}
                       className="flex-1 sm:flex-initial px-4 py-2 border border-slate-100 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                     >
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
+                      <MdEdit className="text-[16px]" />
                       Edit
                     </button>
                     <button
                       onClick={() => handleDeleteAddress(addr._id!)}
                       className="flex-1 sm:flex-initial px-4 py-2 border border-rose-100 hover:bg-rose-50 text-rose-600 rounded-xl text-xs font-extrabold flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                     >
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
+                      <MdDelete className="text-[16px]" />
                       Remove
                     </button>
                   </div>
@@ -516,7 +533,7 @@ export default function AddressesPage() {
                 onClick={() => setIsModalOpen(false)}
                 className="w-10 h-10 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500"
               >
-                <span className="material-symbols-outlined">close</span>
+                <MdClose className="text-xl" />
               </button>
             </div>
 
@@ -527,7 +544,7 @@ export default function AddressesPage() {
               <div className="relative space-y-2">
                 <label className="block text-[11px] font-black text-slate-700 uppercase tracking-wider">Search Street/Area</label>
                 <div className="relative flex items-center">
-                  <span className="material-symbols-outlined text-slate-400 absolute left-4 text-[20px]">search</span>
+                  <MdSearch className="text-slate-400 absolute left-4 text-[20px]" />
                   <input 
                     type="text"
                     value={searchQuery}
@@ -541,7 +558,7 @@ export default function AddressesPage() {
                       onClick={() => setSearchQuery('')}
                       className="absolute right-4 text-slate-400 hover:text-slate-650"
                     >
-                      <span className="material-symbols-outlined text-[16px]">cancel</span>
+                      <MdCancel className="text-[16px]" />
                     </button>
                   )}
                 </div>
@@ -562,7 +579,7 @@ export default function AddressesPage() {
                         onClick={() => handleSelectSuggestion(s.place_id)}
                         className="w-full text-left px-5 py-3 hover:bg-slate-50 flex items-start gap-3 border-b border-slate-50 transition-colors"
                       >
-                        <span className="material-symbols-outlined text-slate-400 mt-0.5 shrink-0 text-[18px]">location_on</span>
+                        <MdLocationOn className="text-slate-400 mt-0.5 shrink-0 text-[18px]" />
                         <span className="text-xs font-medium text-slate-700 leading-snug">{s.description}</span>
                       </button>
                     ))}
@@ -579,12 +596,12 @@ export default function AddressesPage() {
               >
                 {gpsLoading ? (
                   <>
-                    <span className="material-symbols-outlined animate-spin text-[18px]">sync</span>
+                    <MdSync className="animate-spin text-[18px]" />
                     Detecting GPS Location...
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">my_location</span>
+                    <MdMyLocation className="text-[18px]" />
                     Lock Current GPS Location
                   </>
                 )}
@@ -593,7 +610,7 @@ export default function AddressesPage() {
               {/* Validation Warnings */}
               {validationError && (
                 <div className="bg-rose-50 border border-rose-100 text-rose-700 rounded-xl px-3 py-2 text-[11px] font-semibold flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[16px] text-rose-500">warning</span>
+                  <MdWarning className="text-[16px] text-rose-500" />
                   <span>{validationError}</span>
                 </div>
               )}
@@ -692,9 +709,9 @@ export default function AddressesPage() {
                 <div className="grid grid-cols-3 gap-3">
                   {(["Home", "Work", "Other"] as const).map((l) => {
                     const isSelected = currentAddress.label === l;
-                    let icon = 'home';
-                    if (l === 'Work') icon = 'work';
-                    if (l === 'Other') icon = 'home_work';
+                    let IconComp = MdHome;
+                    if (l === 'Work') IconComp = MdWork;
+                    if (l === 'Other') IconComp = MdHomeWork;
 
                     return (
                       <button
@@ -707,7 +724,7 @@ export default function AddressesPage() {
                             : 'bg-white border-slate-200 text-slate-650 hover:bg-slate-50'
                         }`}
                       >
-                        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                        <IconComp className="text-[18px]" />
                         {l}
                       </button>
                     );
@@ -755,7 +772,7 @@ export default function AddressesPage() {
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-[18px]">save</span>
+                    <MdSave className="text-[18px]" />
                     Save Address
                   </>
                 )}
@@ -769,3 +786,4 @@ export default function AddressesPage() {
     </div>
   );
 }
+

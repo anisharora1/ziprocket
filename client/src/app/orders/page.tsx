@@ -6,6 +6,20 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import {
+    MdReceiptLong,
+    MdRestaurant,
+    MdTwoWheeler,
+    MdCheckCircle,
+    MdAccountCircle,
+    MdInfo,
+    MdAccessTime,
+    MdError,
+    MdCreditCard,
+    MdHistory,
+    MdCancel,
+    MdRefresh,
+} from "react-icons/md";
 
 export default function OrdersPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -235,10 +249,10 @@ export default function OrdersPage() {
     }, [activeOrders.length]);
 
     const trackingSteps = [
-        { id: 0, title: "Order Placed", description: "We have received your order", icon: "receipt_long" },
-        { id: 1, title: "Preparing Order", description: "Your order is being prepared in the kitchen", icon: "restaurant" },
-        { id: 2, title: "Out for Delivery", description: "Delivery partner is on the way to you", icon: "two_wheeler" },
-        { id: 3, title: "Delivered", description: "Enjoy your items!", icon: "check_circle" },
+        { id: 0, title: "Order Placed", description: "We have received your order", iconComp: MdReceiptLong },
+        { id: 1, title: "Preparing Order", description: "Your order is being prepared in the kitchen", iconComp: MdRestaurant },
+        { id: 2, title: "Out for Delivery", description: "Delivery partner is on the way to you", iconComp: MdTwoWheeler },
+        { id: 3, title: "Delivered", description: "Enjoy your items!", iconComp: MdCheckCircle },
     ];
 
     if (authLoading || loading) {
@@ -278,7 +292,7 @@ export default function OrdersPage() {
                     className="mx-auto bg-white rounded-3xl border border-slate-100 shadow-sm p-8 flex flex-col items-center justify-center text-center py-16 animate-in fade-in zoom-in-95 duration-200"
                 >
                     <div className="w-20 h-20 bg-[#FFF1E6] rounded-full flex items-center justify-center mb-5 border border-[#FFE2CC]/40 shadow-inner">
-                        <span className="material-symbols-outlined text-4xl text-[#FF5C00]">account_circle</span>
+                        <MdAccountCircle className="text-4xl text-[#FF5C00]" />
                     </div>
                     <h2 className="text-xl font-black text-slate-800 mb-2 leading-none">Access Order History</h2>
                     <p className="text-slate-400 text-xs font-semibold max-w-xs leading-relaxed mb-6 mt-1">
@@ -307,7 +321,7 @@ export default function OrdersPage() {
                 {/* Multiple Active Orders Notification Alert */}
                 {activeOrders.length > 1 && (
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 mb-6 shadow-sm">
-                        <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5">info</span>
+                        <MdInfo className="text-amber-600 text-[20px] shrink-0 mt-0.5" />
                         <p className="text-xs font-bold text-amber-800 leading-relaxed">
                             You currently have {activeOrders.length} active orders. Tracking the most recent order below.
                         </p>
@@ -318,7 +332,7 @@ export default function OrdersPage() {
                 {currentActiveOrder ? (
                     <section className="mb-10 animate-in fade-in duration-200">
                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-[#FF5C00] animate-spin" style={{ animationDuration: '3s' }}>clock_loader_40</span>
+                            <MdAccessTime className="text-[#FF5C00] animate-spin" />
                             Active Order
                         </h2>
 
@@ -350,7 +364,7 @@ export default function OrdersPage() {
                                 <div className="bg-[#fff5f0] border border-[#fdeadd] rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 animate-in slide-in-from-top duration-300">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-[#FF5C00]/10 flex items-center justify-center text-[#FF5C00] shrink-0">
-                                            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>error</span>
+                                            <MdError className="text-[20px]" />
                                         </div>
                                         <div>
                                             <h4 className="text-xs font-bold text-slate-800 leading-tight">Unpaid Online Order</h4>
@@ -369,7 +383,7 @@ export default function OrdersPage() {
                                             </>
                                         ) : (
                                             <>
-                                                <span className="material-symbols-outlined text-[14px]">credit_card</span>
+                                                <MdCreditCard className="text-[14px]" />
                                                 Pay Now
                                             </>
                                         )}
@@ -386,6 +400,7 @@ export default function OrdersPage() {
                                         const isActiveStep = activeStep === step.id;
                                         const isCompleted = activeStep > step.id;
                                         const isPending = activeStep < step.id;
+                                        const StepIcon = step.iconComp;
 
                                         return (
                                             <div key={step.id} className="relative flex gap-5 items-start">
@@ -395,9 +410,7 @@ export default function OrdersPage() {
                                                         ? 'bg-[#FF5C00] text-white shadow-[0_0_0_4px_rgba(255,92,0,0.25)] animate-pulse'
                                                         : 'bg-slate-100 text-slate-350'
                                                     }`}>
-                                                    <span className="material-symbols-outlined text-[15px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                                        {step.icon}
-                                                    </span>
+                                                    <StepIcon className="text-[15px]" />
 
                                                     {/* Connecting Line Fill (Dynamic) */}
                                                     {index < trackingSteps.length - 1 && isCompleted && (
@@ -444,7 +457,7 @@ export default function OrdersPage() {
                         className="mx-auto my-6 text-center py-16 px-6 bg-white rounded-3xl border border-slate-100 shadow-sm animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center justify-center"
                     >
                         <div className="w-20 h-20 bg-[#FFF1E6] rounded-full flex items-center justify-center mb-5 border border-[#FFE2CC]/40 shadow-inner">
-                            <span className="material-symbols-outlined text-4xl text-[#FF5C00]">receipt_long</span>
+                            <MdReceiptLong className="text-4xl text-[#FF5C00]" />
                         </div>
                         <h3 className="font-black text-slate-800 text-lg mb-2 leading-none">No Orders Found</h3>
                         <p className="text-slate-400 text-xs font-semibold leading-relaxed mb-6 mt-1">
@@ -458,7 +471,7 @@ export default function OrdersPage() {
                     /* Past Orders Section */
                     <section className="animate-in fade-in duration-200">
                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <span className="material-symbols-outlined text-slate-400">history</span>
+                            <MdHistory className="text-slate-400" />
                             Past Orders
                         </h2>
 
@@ -474,9 +487,7 @@ export default function OrdersPage() {
                                                     ? 'bg-rose-50 text-rose-700'
                                                     : 'bg-emerald-50 text-emerald-700'
                                                     }`}>
-                                                    <span className="material-symbols-outlined text-[12px]">
-                                                        {isCancelled ? 'cancel' : 'check_circle'}
-                                                    </span>
+                                                    {isCancelled ? <MdCancel className="text-[12px]" /> : <MdCheckCircle className="text-[12px]" />}
                                                     {order.orderStatus || order.status}
                                                 </span>
                                                 <span className="text-[11px] font-semibold text-slate-400">
@@ -515,7 +526,7 @@ export default function OrdersPage() {
                                                     href={order.orderType === 'food' && order.restaurant ? `/restaurants/${order.restaurant._id}` : '/grocery'}
                                                     className="text-[11px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
                                                 >
-                                                    <span className="material-symbols-outlined text-[13px]">refresh</span>
+                                                    <MdRefresh className="text-[13px]" />
                                                     Reorder
                                                 </Link>
                                             </div>
@@ -551,7 +562,7 @@ export default function OrdersPage() {
                     >
                         <div className="flex items-start gap-4">
                             <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
-                                <span className="material-symbols-outlined text-[24px]">cancel</span>
+                                <MdCancel className="text-[24px]" />
                             </div>
                             <div className="flex-1">
                                 <h3 className="text-[17px] font-black text-slate-800 leading-none mb-1.5">Cancel Order</h3>
@@ -577,12 +588,12 @@ export default function OrdersPage() {
                                         onClick={() => setCancelReason(reason)}
                                         className={`px-4 py-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between ${cancelReason === reason
                                                 ? 'border-[#FF5C00] bg-[#FF5C00]/5 text-[#FF5C00]'
-                                                : 'border-slate-100 hover:border-slate-200 text-slate-650'
+                                                : 'border-slate-100 hover:border-slate-200 text-slate-655'
                                             }`}
                                     >
                                         <span>{reason}</span>
                                         {cancelReason === reason && (
-                                            <span className="material-symbols-outlined text-[16px] text-[#FF5C00]">check_circle</span>
+                                            <MdCheckCircle className="text-[16px] text-[#FF5C00]" />
                                         )}
                                     </button>
                                 ))}

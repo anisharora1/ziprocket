@@ -9,6 +9,19 @@ import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
 import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
+import {
+  MdArrowBack,
+  MdShoppingBasket,
+  MdStore,
+  MdRestaurant,
+  MdError,
+  MdShoppingBag,
+  MdFastfood,
+  MdRemove,
+  MdAdd,
+  MdLock,
+  MdArrowForward,
+} from "react-icons/md";
 
 export default function CartPage() {
     const { cart, updateQuantity, clearCart, addToCart } = useCart();
@@ -113,7 +126,7 @@ export default function CartPage() {
             {/* Header */}
             <header className="bg-white sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between border-b border-slate-100">
                 <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center transition-transform active:scale-95">
-                    <span className="material-symbols-outlined text-slate-700">arrow_back</span>
+                    <MdArrowBack className="text-slate-700 text-xl" />
                 </button>
                 <h1 className="font-bold text-[16px] text-slate-800 tracking-tight">Shopping Cart</h1>
                 {items.length > 0 ? (
@@ -134,17 +147,17 @@ export default function CartPage() {
                     /* Blinkit Style Empty State */
                     <div className="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center shadow-sm py-16">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
-                            <span className="material-symbols-outlined text-[36px] text-slate-300">shopping_basket</span>
+                            <MdShoppingBasket className="text-[36px] text-slate-300" />
                         </div>
                         <h2 className="text-[17px] font-extrabold text-slate-800 mb-1">Your cart is empty</h2>
                         <p className="text-[12px] text-slate-400 mb-6 max-w-[240px] leading-relaxed">
                             No items in your basket. Fill it up with delicious food or fresh groceries!
                         </p>
                         <div className="flex gap-2 w-full">
-                            <Link href="/restaurants" className="flex-1 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm">
+                            <Link href="/restaurants" className="flex-1 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex justify-center items-center">
                                 Order Food
                             </Link>
-                            <Link href="/grocery" className="flex-1 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all">
+                            <Link href="/grocery" className="flex-1 py-3 border border-slate-200 hover:bg-slate-50 text-slate-600 font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all flex justify-center items-center">
                                 Shop Groceries
                             </Link>
                         </div>
@@ -157,9 +170,11 @@ export default function CartPage() {
                         <div className="bg-white rounded-xl border border-slate-100 p-3.5 shadow-sm flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-lg bg-orange-50 text-[#FF5C00] flex items-center justify-center">
-                                    <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                        {cart.orderType === 'grocery' ? 'store' : 'restaurant'}
-                                    </span>
+                                    {cart.orderType === 'grocery' ? (
+                                        <MdStore className="text-[18px]" />
+                                    ) : (
+                                        <MdRestaurant className="text-[18px]" />
+                                    )}
                                 </div>
                                 <div>
                                     <p className="text-[9px] font-black text-slate-450 uppercase tracking-widest leading-none">Ordering From</p>
@@ -171,9 +186,7 @@ export default function CartPage() {
                         {/* Service Unavailable Warning */}
                         {isCartServiceClosed && cartServiceMessage && (
                             <div className="bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
-                                <span className="material-symbols-outlined text-rose-500 shrink-0 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                    error
-                                </span>
+                                <MdError className="text-rose-500 shrink-0 text-[20px]" />
                                 <div className="space-y-1">
                                     <h4 className="text-[13px] font-bold text-rose-800">Checkout Closed</h4>
                                     <p className="text-[12px] text-rose-605 leading-relaxed font-semibold">
@@ -194,9 +207,11 @@ export default function CartPage() {
                                             </div>
                                         ) : (
                                             <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100/50 flex items-center justify-center shrink-0">
-                                                <span className="material-symbols-outlined text-slate-300">
-                                                    {cart.orderType === 'grocery' ? 'local_mall' : 'fastfood'}
-                                                </span>
+                                                {cart.orderType === 'grocery' ? (
+                                                    <MdShoppingBag className="text-slate-300 text-xl" />
+                                                ) : (
+                                                    <MdFastfood className="text-slate-300 text-xl" />
+                                                )}
                                             </div>
                                         )}
 
@@ -211,7 +226,7 @@ export default function CartPage() {
                                                 onClick={() => updateQuantity(item.id, item.quantity - 1)}
                                                 className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
                                             >
-                                                <span className="material-symbols-outlined text-[15px] font-black">remove</span>
+                                                <MdRemove className="text-[15px] font-black" />
                                             </button>
                                             <span className="w-6 text-center text-[12px] font-black text-[#FF5C00]">
                                                 {item.quantity}
@@ -220,7 +235,7 @@ export default function CartPage() {
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                                 className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
                                             >
-                                                <span className="material-symbols-outlined text-[15px] font-black">add</span>
+                                                <MdAdd className="text-[15px] font-black" />
                                             </button>
                                         </div>
                                     </div>
@@ -257,10 +272,10 @@ export default function CartPage() {
                                                 <div className="w-full h-24 rounded-lg bg-slate-50 overflow-hidden mb-2 border border-slate-100/50 flex items-center justify-center relative">
                                                     {item.images?.[0] ? (
                                                         <OptimizedImage src={item.images[0]} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
+                                                    ) : cart.orderType === 'grocery' ? (
+                                                        <MdShoppingBag className="text-slate-300 text-[24px]" />
                                                     ) : (
-                                                        <span className="material-symbols-outlined text-slate-300 text-[24px]">
-                                                            {cart.orderType === 'grocery' ? 'local_mall' : 'fastfood'}
-                                                        </span>
+                                                        <MdFastfood className="text-slate-300 text-[24px]" />
                                                     )}
                                                 </div>
                                                 
@@ -312,7 +327,7 @@ export default function CartPage() {
                                 className="bg-slate-200 text-slate-400 px-7 py-3 rounded-xl font-black text-xs uppercase tracking-wider cursor-not-allowed flex items-center gap-1.5"
                             >
                                 Closed
-                                <span className="material-symbols-outlined text-[16px] font-black">lock</span>
+                                <MdLock className="text-[16px]" />
                             </button>
                         ) : (
                             <Link
@@ -320,7 +335,7 @@ export default function CartPage() {
                                 className="bg-[#FF5C00] hover:bg-[#e05200] active:scale-[0.98] text-white px-7 py-3 rounded-xl font-black text-xs uppercase tracking-wider shadow-md transition-all flex items-center gap-1.5"
                             >
                                 Next: Checkout
-                                <span className="material-symbols-outlined text-[16px] font-black">arrow_forward</span>
+                                <MdArrowForward className="text-[16px]" />
                             </Link>
                         )}
                     </div>
@@ -333,3 +348,4 @@ export default function CartPage() {
         </div>
     );
 }
+

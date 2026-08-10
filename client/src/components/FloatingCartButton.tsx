@@ -1,6 +1,7 @@
 'use client';
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { MdPlayArrow } from "react-icons/md";
 
 export default function FloatingCartButton() {
   const { cart } = useCart();
@@ -30,9 +31,10 @@ export default function FloatingCartButton() {
         </div>
         <div className="flex items-center gap-1 font-bold text-[14px]">
           View Cart
-          <span className="material-symbols-outlined text-[20px]">play_arrow</span>
+          <MdPlayArrow className="text-[20px]" />
         </div>
       </Link>
     </div>
   );
 }
+

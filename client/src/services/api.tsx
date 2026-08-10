@@ -69,6 +69,7 @@ interface CacheEntry {
 const cache = new Map<string, CacheEntry>();
 const inFlightRequests = new Map<string, Promise<any>>();
 const CACHE_TTL = 60 * 1000; // 60 seconds (1 minute)
+const MAX_CACHE_SIZE = 50; // Prevent unbounded memory growth
 const SESSION_CACHE_PREFIX = "ziprocket_api_cache_";
 
 // Safe endpoints to cache
@@ -118,6 +119,12 @@ const getCachedEntry = (cacheKey: string): CacheEntry | null => {
 };
 
 const setCachedEntry = (cacheKey: string, data: any) => {
+  // Evict oldest entry if over size limit (Map preserves insertion order)
+  if (cache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = cache.keys().next().value;
+    if (oldestKey) cache.delete(oldestKey);
+  }
+
   const entry: CacheEntry = {
     data,
     timestamp: Date.now(),
