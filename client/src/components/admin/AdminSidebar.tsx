@@ -55,23 +55,22 @@ export default function AdminSidebar() {
     <aside className="w-64 bg-white border-r border-slate-200 flex-shrink-0 flex flex-col sticky top-0 h-screen">
       {/* Logo */}
       <div className="h-16 flex items-center px-6 border-b border-slate-100 shrink-0">
-        <span className="font-bold text-xl text-primary tracking-tight">ZipRocket</span>
+        <Link href="/" className="font-bold text-2xl text-primary tracking-tight">ZipRocket</Link>
       </div>
-      
+
       {/* Navigation */}
       <nav className="flex-1 py-4 flex flex-col gap-1 px-3 overflow-y-auto">
         {navLinks.map((link) => {
           const isActive = pathname === link.href;
           const IconComp = iconMap[link.iconKey];
           return (
-            <Link 
-              key={link.name} 
-              href={link.href} 
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg relative font-medium text-[13px] transition-colors ${
-                isActive 
-                  ? 'bg-primary-container/10 text-primary-container' 
-                  : 'text-slate-500 hover:text-primary hover:bg-primary-container/5'
-              }`}
+            <Link
+              key={link.name}
+              href={link.href}
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg relative font-medium text-[13px] transition-colors ${isActive
+                ? 'bg-primary-container/10 text-primary-container'
+                : 'text-slate-500 hover:text-primary hover:bg-primary-container/5'
+                }`}
             >
               {IconComp && <IconComp className="text-[20px]" />}
               {link.name}
@@ -103,11 +102,11 @@ export default function AdminSidebar() {
         return (
           <div className="p-4 border-t border-slate-100 shrink-0">
             <div className="bg-slate-50 border border-slate-100 rounded-lg p-3">
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">System Status</p>
-                <div className="flex items-center gap-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">System Status</p>
+              <div className="flex items-center gap-2">
                 <div className={`w-1.5 h-1.5 rounded-full ${statusColor}`}></div>
                 <span className="text-[12px] font-medium text-slate-700">{statusText}</span>
-                </div>
+              </div>
             </div>
           </div>
         );

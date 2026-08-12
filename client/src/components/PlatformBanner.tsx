@@ -49,7 +49,7 @@ export default function PlatformBanner() {
     IconComponent = MdBlock;
   } else if (isOutsideHours) {
     const openTime = formatToAMPM(settings.operatingHours.open);
-    message = `Orders are currently closed. We will reopen at ${openTime || "8:00 AM"}.`;
+    message = `⚠️ Orders are currently closed. We will reopen at ${openTime || "8:00 AM"}.`;
     IconComponent = MdSchedule;
   }
 

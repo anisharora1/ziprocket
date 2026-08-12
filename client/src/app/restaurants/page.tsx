@@ -99,6 +99,8 @@ export default function RestaurantsPage() {
       <div className="max-w-7xl mx-auto w-full">
         {/* Top Search Bar */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center justify-between gap-4">
+          <Link href="/" className="font-bold text-sm sm:text-xl text-primary tracking-tight">ZipRocket</Link>
+
           <div className="flex items-center gap-2 flex-1 max-w-md bg-slate-100 rounded-full px-3 py-1.5 border border-slate-200">
             <MdSearch className="text-slate-400 text-lg" />
             <input
@@ -110,36 +112,26 @@ export default function RestaurantsPage() {
               suppressHydrationWarning={true}
             />
           </div>
-          <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 cursor-pointer shrink-0 relative">
-            <OptimizedImage
-              alt="User Profile"
-              className="w-full h-full object-cover"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5iEnRAbZdcMCEE6FhrZx4jSPayqCNcc13TkynQfP8Ng5bKnT9LupfoId4PYadysnp5cErwKtTUS3JAeY8hYJLszSf_x_r_rX4Jpz3N0O_nT77wcoQTamIwUSvVHlNLZHPXpSLfOPIPphXQc4o4n12VZBz5DWo_h8OnCypahluYJeLZuxn5O7Mmsa0IgVei7eZGnJv7iphDh1Hswpkx2nFlKPs57_gzSD5TBFyWYd4ntPScL37OM-jaZl1g-6MjcYGxmtvD3O7Zds"
-              preset="avatar"
-            />
-          </div>
         </header>
 
         {/* Filter Chips */}
         <div className="flex gap-2.5 justify-start overflow-x-auto no-scrollbar px-4 sm:px-6 lg:px-8 py-4">
-          <button 
+          <button
             onClick={() => setVegOnly(!vegOnly)}
-            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border transition-all active:scale-95 cursor-pointer text-[13px] font-medium ${
-              vegOnly 
-                ? "border-green-600 bg-green-50 text-green-800" 
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full border transition-all active:scale-95 cursor-pointer text-[13px] font-medium ${vegOnly
+              ? "border-green-600 bg-green-50 text-green-800"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
           >
             <span>Veg Only</span>
             <span className={`w-2 h-2 rounded-full ${vegOnly ? 'bg-green-700' : 'bg-slate-300'}`}></span>
           </button>
-          <button 
+          <button
             onClick={() => setSortByRating(!sortByRating)}
-            className={`flex items-center gap-1 px-4 py-1.5 rounded-full border transition-all active:scale-95 cursor-pointer text-[13px] font-medium ${
-              sortByRating 
-                ? "border-[#a73a00] bg-[#faeddf] text-[#a73a00]" 
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
+            className={`flex items-center gap-1 px-4 py-1.5 rounded-full border transition-all active:scale-95 cursor-pointer text-[13px] font-medium ${sortByRating
+              ? "border-[#a73a00] bg-[#faeddf] text-[#a73a00]"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              }`}
           >
             <span>Top Rated</span>
             <MdStar className="text-[14px]" />
@@ -163,8 +155,8 @@ export default function RestaurantsPage() {
               <MdStore className="text-5xl text-slate-300" />
               <h3 className="text-lg font-bold text-slate-700 mt-2">No Restaurants Found</h3>
               <p className="text-sm text-slate-500 mt-1">
-                {zoneId 
-                  ? "Try removing filters or check back later." 
+                {zoneId
+                  ? "Try removing filters or check back later."
                   : "Please select a delivery location to see restaurants in your area."}
               </p>
             </div>
