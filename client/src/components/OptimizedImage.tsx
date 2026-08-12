@@ -99,7 +99,7 @@ export const getOptimizedSrc = (
   preset: "thumbnail" | "card" | "large" | "avatar" = "card"
 ): string => {
   if (!src) return "";
-  
+
   // Safe extraction if src is an object (e.g. Cloudinary image data or database subdocument)
   let url = src;
   if (typeof src === "object" && src !== null) {
@@ -178,7 +178,7 @@ export default function OptimizedImage({
           <MdImage className="text-slate-400 text-2xl" />
         </div>
       )}
-      
+
       <Image
         src={optimizedSrc || "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4"}
         alt={alt || "Optimized Image"}
@@ -189,9 +189,8 @@ export default function OptimizedImage({
         loading={priority ? undefined : (loading || "lazy")}
         sizes={computedSizes}
         onLoad={() => setLoaded(true)}
-        className={`transition-opacity duration-300 ${
-          className.includes("object-contain") ? "object-contain" : "object-cover"
-        } ${loaded ? "opacity-100" : "opacity-0"}`}
+        className={`transition-opacity duration-300 ${className.includes("object-contain") ? "object-contain" : "object-cover"
+          } ${loaded ? "opacity-100" : "opacity-0"}`}
         {...(props as any)}
       />
     </div>

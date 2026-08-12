@@ -32,7 +32,7 @@ const CATEGORIES = [
   {
     id: "Vegetables & Fruits",
     name: "Fruits & Veggies",
-    image: "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1786564029/copy_of_fruitsandveg.avif",
     color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   },
   {
