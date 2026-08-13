@@ -2,6 +2,27 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdRefresh, 
+  MdStorefront, 
+  MdCheckCircle, 
+  MdPending, 
+  MdBlock, 
+  MdSearch, 
+  MdRestaurant, 
+  MdCheck, 
+  MdClose, 
+  MdEdit, 
+  MdStar, 
+  MdVisibilityOff, 
+  MdVerifiedUser, 
+  MdDone, 
+  MdLockOpen, 
+  MdLock, 
+  MdAssignment, 
+  MdAccountBalance, 
+  MdAnalytics 
+} from "react-icons/md";
 
 interface BankDetails {
   accountNumber: string;
@@ -172,7 +193,7 @@ export default function RestaurantsAdminPage() {
           onClick={fetchRestaurants}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          <MdRefresh className="text-[18px]" />
           Refresh List
         </button>
       </div>
@@ -185,7 +206,7 @@ export default function RestaurantsAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{totalPartners}</h3>
             <span className="w-9 h-9 bg-primary-container/10 text-primary-container rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">storefront</span>
+              <MdStorefront className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -196,7 +217,7 @@ export default function RestaurantsAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{activeNow}</h3>
             <span className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">check_circle</span>
+              <MdCheckCircle className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -207,7 +228,7 @@ export default function RestaurantsAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{pendingVerification}</h3>
             <span className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">pending</span>
+              <MdPending className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -218,7 +239,7 @@ export default function RestaurantsAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{blockedCount}</h3>
             <span className="w-9 h-9 bg-rose-50 text-rose-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">block</span>
+              <MdBlock className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -230,7 +251,7 @@ export default function RestaurantsAdminPage() {
         {/* Toolbar */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
           <div className="relative w-full md:w-96">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+            <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" />
             <input
               type="text"
               placeholder="Search by name, owner, cuisines or address..."
@@ -279,8 +300,8 @@ export default function RestaurantsAdminPage() {
                 </tr>
               ) : filteredRestaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-20 text-center text-slate-400 font-bold text-xs">
-                    <span className="material-symbols-outlined text-[40px] text-slate-200 block mb-2">storefront</span>
+                  <td colSpan={6} className="py-20 text-center text-slate-400 font-bold text-xs flex flex-col items-center justify-center">
+                    <MdStorefront className="text-[40px] text-slate-200 mb-2" />
                     No restaurants found in database.
                   </td>
                 </tr>
@@ -295,7 +316,7 @@ export default function RestaurantsAdminPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-4">
                             <div className="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200/50 flex-shrink-0 flex items-center justify-center text-slate-400">
-                              <span className="material-symbols-outlined text-[24px]">restaurant</span>
+                              <MdRestaurant className="text-[24px]" />
                             </div>
                             <div>
                               <h4 className="text-[14px] font-black text-slate-800 leading-snug">{res.name}</h4>
@@ -335,14 +356,14 @@ export default function RestaurantsAdminPage() {
                                 className="p-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-lg flex items-center justify-center"
                                 title="Save"
                               >
-                                <span className="material-symbols-outlined text-[14px]">check</span>
+                                <MdCheck className="text-[14px]" />
                               </button>
                               <button
                                 onClick={() => setEditingCommissionId(null)}
                                 className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-lg flex items-center justify-center"
                                 title="Cancel"
                               >
-                                <span className="material-symbols-outlined text-[14px]">close</span>
+                                <MdClose className="text-[14px]" />
                               </button>
                             </div>
                           ) : (
@@ -353,7 +374,7 @@ export default function RestaurantsAdminPage() {
                                 className="opacity-0 group-hover/comm:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded transition-all"
                                 title="Modify Commission Rate"
                               >
-                                <span className="material-symbols-outlined text-[14px]">edit</span>
+                                <MdEdit className="text-[14px]" />
                               </button>
                             </div>
                           )}
@@ -394,7 +415,7 @@ export default function RestaurantsAdminPage() {
                             {/* Rating / Orders */}
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                               <span className="flex items-center text-amber-500 gap-0.5">
-                                <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                                <MdStar className="text-[12px]" />
                                 {res.rating || "0.0"}
                               </span>
                               <span>•</span>
@@ -411,9 +432,7 @@ export default function RestaurantsAdminPage() {
                               isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
                             }`}
                           >
-                            <span className="material-symbols-outlined text-[14px]">
-                              {isExpanded ? "visibility_off" : "verified_user"}
-                            </span>
+                            {isExpanded ? <MdVisibilityOff className="text-[14px]" /> : <MdVerifiedUser className="text-[14px]" />}
                             {isExpanded ? "Hide" : "Verify Compliance"}
                           </button>
                         </td>
@@ -427,7 +446,7 @@ export default function RestaurantsAdminPage() {
                                 onClick={() => handleUpdateStatus(res._id, "approved")}
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-colors shadow-sm inline-flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-[14px]">done</span>
+                                <MdDone className="text-[14px]" />
                                 Approve
                               </button>
                             )}
@@ -438,7 +457,7 @@ export default function RestaurantsAdminPage() {
                                 onClick={() => handleUpdateStatus(res._id, "rejected")}
                                 className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-800 hover:border-slate-300 font-extrabold text-[11px] rounded-xl transition-colors inline-flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-[14px]">close</span>
+                                <MdClose className="text-[14px]" />
                                 Reject
                               </button>
                             )}
@@ -452,9 +471,7 @@ export default function RestaurantsAdminPage() {
                                   : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100"
                               }`}
                             >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {res.isBlocked ? "lock_open" : "lock"}
-                              </span>
+                              {res.isBlocked ? <MdLockOpen className="text-[14px]" /> : <MdLock className="text-[14px]" />}
                               {res.isBlocked ? "Reactivate" : "Suspend"}
                             </button>
                           </div>
@@ -470,7 +487,7 @@ export default function RestaurantsAdminPage() {
                               {/* Left box: FSSAI and Licenses */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-500">assignment</span>
+                                  <MdAssignment className="text-[16px] text-amber-500" />
                                   Licenses & Registrations
                                 </h5>
                                 <div className="space-y-2 text-[12px] font-semibold text-slate-600">
@@ -492,7 +509,7 @@ export default function RestaurantsAdminPage() {
                               {/* Center box: Bank Account */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-emerald-600">account_balance</span>
+                                  <MdAccountBalance className="text-[16px] text-emerald-600" />
                                   Settlement Account Details
                                 </h5>
                                 {res.bankDetails ? (
@@ -518,7 +535,7 @@ export default function RestaurantsAdminPage() {
                               {/* Right box: Quick Statistics & Health */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-rose-500">analytics</span>
+                                  <MdAnalytics className="text-[16px] text-rose-500" />
                                   Fulfillment Metrics
                                 </h5>
                                 <div className="space-y-2 text-[12px] font-semibold text-slate-600">

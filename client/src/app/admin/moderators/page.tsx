@@ -2,6 +2,14 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdEditNote, 
+  MdPersonAdd, 
+  MdSearch, 
+  MdGroups, 
+  MdLocationOn, 
+  MdEdit 
+} from "react-icons/md";
 
 interface Zone {
   _id: string;
@@ -179,7 +187,7 @@ export default function AdminModerators() {
         <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col justify-start lg:col-span-1 h-fit">
           <div className="flex items-center gap-3 mb-5">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${editingModId ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'}`}>
-              <span className="material-symbols-outlined text-[22px]">{editingModId ? 'edit_note' : 'person_add'}</span>
+              {editingModId ? <MdEditNote className="text-[22px]" /> : <MdPersonAdd className="text-[22px]" />}
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-slate-800">{editingModId ? 'Edit Moderator' : 'Enroll Moderator'}</h3>
@@ -240,7 +248,7 @@ export default function AdminModerators() {
               
               {/* Mini Search within Zone box */}
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]">search</span>
+                <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[16px]" />
                 <input 
                   type="text"
                   placeholder="Search active zones..."
@@ -343,8 +351,8 @@ export default function AdminModerators() {
                   </tr>
                 ) : moderators.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold">
-                      <span className="material-symbols-outlined text-[32px] text-slate-200 block mb-1">group</span>
+                    <td colSpan={4} className="py-12 text-center text-slate-400 text-xs font-bold flex flex-col items-center justify-center">
+                      <MdGroups className="text-[32px] text-slate-200 mb-1" />
                       No moderators enrolled yet. Create one on the left!
                     </td>
                   </tr>
@@ -366,7 +374,7 @@ export default function AdminModerators() {
                                   key={zoneId} 
                                   className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100/50 font-extrabold text-[9px] rounded-md uppercase tracking-wider"
                                 >
-                                  <span className="material-symbols-outlined text-[9px]">location_on</span>
+                                  <MdLocationOn className="text-[9px]" />
                                   {zoneName}
                                 </span>
                               );
@@ -397,7 +405,7 @@ export default function AdminModerators() {
                             onClick={() => handleStartEdit(mod)}
                             className="px-3 py-1.5 bg-slate-50 hover:bg-amber-50 hover:text-amber-700 border border-slate-200/60 hover:border-amber-200 rounded-xl font-bold text-[11px] text-slate-600 transition-all flex items-center gap-1"
                           >
-                            <span className="material-symbols-outlined text-[13px]">edit</span>
+                            <MdEdit className="text-[13px]" />
                             Edit
                           </button>
                         </div>

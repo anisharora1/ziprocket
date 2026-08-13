@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { MdSearch, MdRefresh, MdChevronRight } from "react-icons/md";
 
 interface Order {
   _id: string;
@@ -93,7 +94,7 @@ export default function OrdersAdminPage() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-[300px]">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]">search</span>
+            <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]" />
             <input
               type="text"
               placeholder="Search by Order ID or Customer..."
@@ -106,7 +107,7 @@ export default function OrdersAdminPage() {
             onClick={fetchOrders}
             className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-lg text-[13px] font-bold hover:bg-slate-50 transition-colors flex items-center gap-2 shadow-sm"
           >
-            <span className="material-symbols-outlined text-[18px]">refresh</span>
+            <MdRefresh className="text-[18px]" />
             Refresh
           </button>
         </div>
@@ -242,7 +243,7 @@ export default function OrdersAdminPage() {
                       </span>
                     </td>
                     <td className="py-5 px-6 text-right">
-                      <span className="material-symbols-outlined text-slate-300 text-[20px] group-hover:text-slate-500 transition-colors">chevron_right</span>
+                      <MdChevronRight className="text-slate-300 text-[20px] group-hover:text-slate-500 transition-colors inline-block" />
                     </td>
                   </tr>
                 ))

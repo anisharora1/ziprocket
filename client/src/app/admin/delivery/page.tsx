@@ -2,6 +2,24 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdRefresh, 
+  MdDirectionsBike, 
+  MdSensors, 
+  MdLocalShipping, 
+  MdPendingActions, 
+  MdSearch, 
+  MdStar, 
+  MdVisibilityOff, 
+  MdVerifiedUser, 
+  MdDone, 
+  MdClose, 
+  MdLockOpen, 
+  MdLock, 
+  MdSportsMotorsports, 
+  MdBadge, 
+  MdAccountBalance 
+} from "react-icons/md";
 
 interface BankDetails {
   accountNumber: string;
@@ -166,7 +184,7 @@ export default function DeliveryAdminPage() {
           onClick={fetchProfiles}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          <MdRefresh className="text-[18px]" />
           Refresh Fleet
         </button>
       </div>
@@ -179,7 +197,7 @@ export default function DeliveryAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{totalFleet}</h3>
             <span className="w-9 h-9 bg-primary-container/10 text-primary-container rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">directions_bike</span>
+              <MdDirectionsBike className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -191,7 +209,7 @@ export default function DeliveryAdminPage() {
           <div className="flex items-center justify-between pl-1">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{onlineCount}</h3>
             <span className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">sensors</span>
+              <MdSensors className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -203,7 +221,7 @@ export default function DeliveryAdminPage() {
           <div className="flex items-center justify-between pl-1">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{busyCount}</h3>
             <span className="w-9 h-9 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">local_shipping</span>
+              <MdLocalShipping className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -214,7 +232,7 @@ export default function DeliveryAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">{pendingCount}</h3>
             <span className="w-9 h-9 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">pending_actions</span>
+              <MdPendingActions className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -226,7 +244,7 @@ export default function DeliveryAdminPage() {
         {/* Toolbar */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
           <div className="relative w-full md:w-96">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+            <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" />
             <input
               type="text"
               placeholder="Search by name, phone, vehicle no, city..."
@@ -279,7 +297,7 @@ export default function DeliveryAdminPage() {
               ) : filteredProfiles.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="py-20 text-center text-slate-400 font-bold text-xs">
-                    <span className="material-symbols-outlined text-[40px] text-slate-200 block mb-2">directions_bike</span>
+                    <MdDirectionsBike className="text-[40px] text-slate-200 block mb-2 mx-auto" />
                     No courier fleet records found in database.
                   </td>
                 </tr>
@@ -329,7 +347,7 @@ export default function DeliveryAdminPage() {
                         {/* Rating */}
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-1 text-[13px] font-black text-slate-800">
-                            <span className="material-symbols-outlined text-[14px] text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                            <MdStar className="text-[14px] text-amber-500" />
                             {getRating(p)}
                           </div>
                           <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-wider">
@@ -397,9 +415,7 @@ export default function DeliveryAdminPage() {
                               isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
                             }`}
                           >
-                            <span className="material-symbols-outlined text-[14px]">
-                              {isExpanded ? "visibility_off" : "verified_user"}
-                            </span>
+                            {isExpanded ? <MdVisibilityOff className="text-[14px]" /> : <MdVerifiedUser className="text-[14px]" />}
                             {isExpanded ? "Hide" : "Verify Courier"}
                           </button>
                         </td>
@@ -413,7 +429,7 @@ export default function DeliveryAdminPage() {
                                 onClick={() => handleUpdateStatus(p._id, "approved")}
                                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-colors shadow-sm inline-flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-[14px]">done</span>
+                                <MdDone className="text-[14px]" />
                                 Approve
                               </button>
                             )}
@@ -424,7 +440,7 @@ export default function DeliveryAdminPage() {
                                 onClick={() => handleUpdateStatus(p._id, "rejected")}
                                 className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-800 hover:border-slate-300 font-extrabold text-[11px] rounded-xl transition-colors inline-flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-[14px]">close</span>
+                                <MdClose className="text-[14px]" />
                                 Reject
                               </button>
                             )}
@@ -438,9 +454,7 @@ export default function DeliveryAdminPage() {
                                   : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100"
                               }`}
                             >
-                              <span className="material-symbols-outlined text-[14px]">
-                                {p.isBlocked ? "lock_open" : "lock"}
-                              </span>
+                              {p.isBlocked ? <MdLockOpen className="text-[14px]" /> : <MdLock className="text-[14px]" />}
                               {p.isBlocked ? "Reactivate" : "Suspend"}
                             </button>
                           </div>
@@ -456,7 +470,7 @@ export default function DeliveryAdminPage() {
                               {/* Left box: Rider Profile & Vehicle details */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-amber-500">sports_motorsports</span>
+                                  <MdSportsMotorsports className="text-[16px] text-amber-500" />
                                   Vehicle & Logistics
                                 </h5>
                                 <div className="space-y-2 text-[12px] font-semibold text-slate-600">
@@ -482,7 +496,7 @@ export default function DeliveryAdminPage() {
                               {/* Center box: Legal Documents */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-blue-600">badge</span>
+                                  <MdBadge className="text-[16px] text-blue-600" />
                                   Legal Credentials
                                 </h5>
                                 <div className="space-y-2 text-[12px] font-semibold text-slate-600">
@@ -504,7 +518,7 @@ export default function DeliveryAdminPage() {
                               {/* Right box: Settlement Account Details */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                  <span className="material-symbols-outlined text-[16px] text-emerald-600">account_balance</span>
+                                  <MdAccountBalance className="text-[16px] text-emerald-600" />
                                   Settlement Account Details
                                 </h5>
                                 {p.bankDetails ? (

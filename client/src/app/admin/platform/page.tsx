@@ -2,6 +2,16 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdCheckCircle, 
+  MdError, 
+  MdRefresh, 
+  MdSettingsSuggest, 
+  MdSchedule, 
+  MdSave, 
+  MdInfo, 
+  MdStorefront 
+} from "react-icons/md";
 
 interface PlatformSettings {
   isPlatformOpen: boolean;
@@ -158,9 +168,7 @@ export default function PlatformManagementPage() {
           toast.type === "success" ? "bg-emerald-650 shadow-emerald-100" : "bg-rose-650 shadow-rose-100"
         }`} style={{ backgroundColor: toast.type === "success" ? "#10B981" : "#EF4444" }}>
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-[18px]">
-              {toast.type === "success" ? "check_circle" : "error"}
-            </span>
+            {toast.type === "success" ? <MdCheckCircle className="text-[18px]" /> : <MdError className="text-[18px]" />}
             {toast.message}
           </div>
         </div>
@@ -178,7 +186,7 @@ export default function PlatformManagementPage() {
           onClick={() => { fetchSettings(); fetchRestaurants(); }}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm cursor-pointer"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          <MdRefresh className="text-[18px]" />
           Refresh Live States
         </button>
       </div>
@@ -191,7 +199,7 @@ export default function PlatformManagementPage() {
           {/* Global platform toggles */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#FF5C00] text-[24px]">settings_suggest</span>
+              <MdSettingsSuggest className="text-[#FF5C00] text-[24px]" />
               Global Operations
             </h3>
 
@@ -275,7 +283,7 @@ export default function PlatformManagementPage() {
           {/* Operating hours settings */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#FF5C00] text-[24px]">schedule</span>
+              <MdSchedule className="text-[#FF5C00] text-[24px]" />
               Operating Hours Control
             </h3>
 
@@ -323,7 +331,7 @@ export default function PlatformManagementPage() {
                     disabled={savingSettings}
                     className="w-full sm:w-auto px-6 py-3.5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-400 text-white rounded-2xl font-black text-xs shadow-md shadow-slate-100 flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
                   >
-                    <span className="material-symbols-outlined text-[16px]">save</span>
+                    <MdSave className="text-[16px]" />
                     {savingSettings ? "Saving configuration..." : "Save Platform Configuration"}
                   </button>
                 </div>
@@ -380,7 +388,7 @@ export default function PlatformManagementPage() {
           
           <div className="bg-[#FFF8F5] border border-[#FFE2D6]/70 rounded-3xl p-6">
             <h4 className="text-[13px] font-black text-[#5A2000] uppercase tracking-wider mb-2 flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[18px]">info</span>
+              <MdInfo className="text-[18px]" />
               Operations Note
             </h4>
             <p className="text-xs font-medium text-[#7D3F1E] leading-relaxed">
@@ -429,8 +437,8 @@ export default function PlatformManagementPage() {
                 </tr>
               ) : restaurants.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-16 text-center text-slate-400 font-bold text-xs">
-                    <span className="material-symbols-outlined text-[40px] text-slate-200 block mb-2">storefront</span>
+                  <td colSpan={5} className="py-16 text-center text-slate-400 font-bold text-xs flex flex-col items-center justify-center">
+                    <MdStorefront className="text-[40px] text-slate-200 mb-2" />
                     No approved restaurants to configure.
                   </td>
                 </tr>
@@ -441,7 +449,7 @@ export default function PlatformManagementPage() {
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-xl bg-slate-50 border border-slate-200/50 flex items-center justify-center text-slate-450 shrink-0">
-                          <span className="material-symbols-outlined text-[20px]">storefront</span>
+                          <MdStorefront className="text-[20px]" />
                         </div>
                         <div>
                           <h4 className="text-[13px] font-black text-slate-850 leading-snug">{res.name}</h4>

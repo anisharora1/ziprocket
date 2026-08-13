@@ -3,6 +3,19 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import Link from "next/link";
+import { 
+  MdRefresh, 
+  MdInventory2, 
+  MdTrendingUp, 
+  MdPayments, 
+  MdGroups, 
+  MdExplore, 
+  MdMap, 
+  MdLocationOn, 
+  MdAdminPanelSettings, 
+  MdCreditCard, 
+  MdError 
+} from "react-icons/md";
 
 interface Stats {
   totalUsers: number;
@@ -100,7 +113,7 @@ export default function AdminDashboard() {
           onClick={fetchDashboardData}
           className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-[13px] font-semibold text-slate-700 shadow-sm hover:border-[#FF5C00] hover:text-[#FF5C00] transition-colors"
         >
-          <span className="material-symbols-outlined text-[16px]">refresh</span>
+          <MdRefresh className="text-[16px]" />
           Refresh Stats
         </button>
       </div>
@@ -111,10 +124,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center text-[#FF5C00]">
-              <span className="material-symbols-outlined text-[20px]">inventory_2</span>
+              <MdInventory2 className="text-[20px]" />
             </div>
             <div className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
+              <MdTrendingUp className="text-[14px]" />
               Active
             </div>
           </div>
@@ -128,10 +141,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <span className="material-symbols-outlined text-[20px]">payments</span>
+              <MdPayments className="text-[20px]" />
             </div>
             <div className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
+              <MdTrendingUp className="text-[14px]" />
               Settled
             </div>
           </div>
@@ -145,10 +158,10 @@ export default function AdminDashboard() {
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-              <span className="material-symbols-outlined text-[20px]">groups</span>
+              <MdGroups className="text-[20px]" />
             </div>
             <div className="flex items-center gap-1 text-[#FF5C00] bg-orange-50 px-2 py-1 rounded text-[11px] font-bold">
-              <span className="material-symbols-outlined text-[14px]">trending_up</span>
+              <MdTrendingUp className="text-[14px]" />
               Live
             </div>
           </div>
@@ -164,7 +177,7 @@ export default function AdminDashboard() {
         <div className="flex justify-between items-center mb-6">
           <div>
             <h3 className="font-bold text-[16px] text-slate-900 flex items-center gap-2">
-              <span className="material-symbols-outlined text-[#FF5C00]">explore</span>
+              <MdExplore className="text-[#FF5C00] text-[20px]" />
               Zone Logistics & Analytics Console
             </h3>
             <p className="text-[12px] text-slate-500 mt-0.5">Performance tracking, orders count, and active grocery moderators per zone</p>
@@ -177,8 +190,8 @@ export default function AdminDashboard() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {!stats.zoneAnalytics || stats.zoneAnalytics.length === 0 ? (
-            <div className="col-span-full py-8 text-center text-slate-400 text-xs font-bold bg-slate-50/50 rounded-2xl border border-dashed border-slate-200">
-              <span className="material-symbols-outlined text-[36px] text-slate-250 block mb-1">map</span>
+            <div className="col-span-full py-8 text-center text-slate-400 text-xs font-bold bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 flex flex-col items-center justify-center">
+              <MdMap className="text-[36px] text-slate-300 mb-1" />
               No active delivery zones found.
             </div>
           ) : (
@@ -187,7 +200,7 @@ export default function AdminDashboard() {
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h4 className="text-sm font-extrabold text-slate-800 flex items-center gap-1.5">
-                      <span className="material-symbols-outlined text-[16px] text-slate-400 group-hover:text-[#FF5C00] transition-colors">location_on</span>
+                      <MdLocationOn className="text-[16px] text-slate-400 group-hover:text-[#FF5C00] transition-colors" />
                       {zone.name}
                     </h4>
                     <p className="text-[9px] font-semibold text-slate-400 mt-0.5">Radius: {zone.radiusKm} KM</p>
@@ -205,7 +218,7 @@ export default function AdminDashboard() {
                   <div className="text-center bg-white p-2.5 rounded-xl border border-slate-100">
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide leading-none mb-1">Mods</p>
                     <span className="text-sm font-black text-slate-800 flex justify-center items-center gap-0.5">
-                      <span className="material-symbols-outlined text-[12px] text-emerald-600">shield_person</span>
+                      <MdAdminPanelSettings className="text-[14px] text-emerald-600" />
                       {zone.activeModerators}
                     </span>
                   </div>
@@ -238,7 +251,7 @@ export default function AdminDashboard() {
           <div className="bg-blue-50/40 rounded-xl p-4 border border-blue-100 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Online Payments</span>
-              <span className="material-symbols-outlined text-blue-600 text-[18px]">credit_card</span>
+              <MdCreditCard className="text-blue-600 text-[18px]" />
             </div>
             <div>
               <h4 className="text-2xl font-black text-slate-900">{loading ? "..." : stats.onlinePaymentsCount}</h4>
@@ -250,7 +263,7 @@ export default function AdminDashboard() {
           <div className="bg-amber-50/40 rounded-xl p-4 border border-amber-100 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">COD Orders</span>
-              <span className="material-symbols-outlined text-amber-600 text-[18px]">payments</span>
+              <MdPayments className="text-amber-600 text-[18px]" />
             </div>
             <div>
               <h4 className="text-2xl font-black text-slate-900">{loading ? "..." : stats.codOrdersCount}</h4>
@@ -262,7 +275,7 @@ export default function AdminDashboard() {
           <div className="bg-rose-50/40 rounded-xl p-4 border border-rose-100 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-rose-700">Failed Payments</span>
-              <span className="material-symbols-outlined text-rose-600 text-[18px]">error</span>
+              <MdError className="text-rose-600 text-[18px]" />
             </div>
             <div>
               <h4 className="text-2xl font-black text-slate-900">{loading ? "..." : stats.failedPaymentsCount}</h4>
@@ -279,7 +292,7 @@ export default function AdminDashboard() {
           <div className="bg-emerald-50/40 rounded-xl p-4 border border-emerald-100 flex flex-col justify-between">
             <div className="flex justify-between items-center mb-3">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">Net Settlements</span>
-              <span className="material-symbols-outlined text-emerald-600 text-[18px]">trending_up</span>
+              <MdTrendingUp className="text-emerald-600 text-[18px]" />
             </div>
             <div>
               <h4 className="text-2xl font-black text-slate-900">₹{loading ? "..." : stats.totalRevenue.toLocaleString()}</h4>

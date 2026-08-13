@@ -2,6 +2,17 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdVerified, 
+  MdSavings, 
+  MdLeaderboard, 
+  MdEditNote, 
+  MdAddCircle, 
+  MdPauseCircle, 
+  MdPlayCircle, 
+  MdEdit, 
+  MdDelete 
+} from "react-icons/md";
 
 interface Zone {
   _id: string;
@@ -240,7 +251,7 @@ export default function AdminCouponsPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-center mb-4">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Loyalty Performance</span>
-            <span className="material-symbols-outlined text-[#FF5C00] text-[18px]">verified</span>
+            <MdVerified className="text-[#FF5C00] text-[18px]" />
           </div>
           <div>
             <h4 className="text-3xl font-black text-slate-800">{analytics.totalRedemptions}</h4>
@@ -252,7 +263,7 @@ export default function AdminCouponsPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-center mb-4">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Savings Volume</span>
-            <span className="material-symbols-outlined text-emerald-600 text-[18px]">savings</span>
+            <MdSavings className="text-emerald-600 text-[18px]" />
           </div>
           <div>
             <h4 className="text-3xl font-black text-emerald-600">₹{analytics.totalDiscountGiven.toLocaleString()}</h4>
@@ -264,7 +275,7 @@ export default function AdminCouponsPage() {
         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between">
           <div className="flex justify-between items-center mb-4">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top Performer</span>
-            <span className="material-symbols-outlined text-blue-600 text-[18px]">leaderboard</span>
+            <MdLeaderboard className="text-blue-600 text-[18px]" />
           </div>
           <div>
             <h4 className="text-lg font-black text-slate-800 leading-tight">
@@ -282,7 +293,7 @@ export default function AdminCouponsPage() {
         <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm h-fit lg:col-span-1">
           <div className="flex items-center gap-3 mb-6">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${editingCouponId ? 'bg-amber-50 text-amber-600' : 'bg-orange-50 text-[#FF5C00]'}`}>
-              <span className="material-symbols-outlined text-[20px]">{editingCouponId ? 'edit_note' : 'add_circle'}</span>
+              {editingCouponId ? <MdEditNote className="text-[20px]" /> : <MdAddCircle className="text-[20px]" />}
             </div>
             <div>
               <h3 className="text-sm font-extrabold text-slate-800">{editingCouponId ? 'Edit Coupon' : 'Create Coupon'}</h3>
@@ -625,21 +636,21 @@ export default function AdminCouponsPage() {
                               className={`p-1.5 rounded-lg border text-slate-500 hover:text-[#FF5C00] bg-white transition-all`}
                               title={coupon.isActive ? "Pause Campaign" : "Resume Campaign"}
                             >
-                              <span className="material-symbols-outlined text-[16px]">{coupon.isActive ? 'pause_circle' : 'play_circle'}</span>
+                              {coupon.isActive ? <MdPauseCircle className="text-[16px]" /> : <MdPlayCircle className="text-[16px]" />}
                             </button>
                             <button
                               onClick={() => handleStartEdit(coupon)}
                               className="p-1.5 bg-white border rounded-lg text-slate-500 hover:text-amber-600 transition-all"
                               title="Edit Parameters"
                             >
-                              <span className="material-symbols-outlined text-[16px]">edit</span>
+                              <MdEdit className="text-[16px]" />
                             </button>
                             <button
                               onClick={() => handleDelete(coupon._id)}
                               className="p-1.5 bg-white border rounded-lg text-slate-500 hover:text-rose-600 transition-all"
                               title="Delete Coupon"
                             >
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                              <MdDelete className="text-[16px]" />
                             </button>
                           </div>
                         </td>

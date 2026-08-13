@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { apiClient } from "@/services/api";
+import { MdSync, MdAddLocationAlt, MdMap, MdEdit, MdClose, MdSave } from "react-icons/md";
 
 interface ZoneData {
   _id?: string;
@@ -183,7 +184,7 @@ export default function AdminZonesPage() {
   if (loading && zones.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-screen bg-[#fafafa] gap-3">
-        <span className="material-symbols-outlined text-[40px] text-primary animate-spin">sync</span>
+        <MdSync className="text-[40px] text-primary animate-spin" />
         <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Loading zones panel...</p>
       </div>
     );
@@ -202,7 +203,7 @@ export default function AdminZonesPage() {
           onClick={handleOpenCreate}
           className="flex items-center gap-2 bg-[#FF5C00] hover:bg-[#e05200] px-5 py-3 rounded-2xl text-xs font-black text-white uppercase tracking-wider shadow-lg shadow-[#FF5C00]/25 transition-all active:scale-95 shrink-0"
         >
-          <span className="material-symbols-outlined text-[18px]">add_location_alt</span>
+          <MdAddLocationAlt className="text-[18px]" />
           Create Zone
         </button>
       </div>
@@ -210,7 +211,7 @@ export default function AdminZonesPage() {
       {/* ZONES LIST GRID */}
       {zones.length === 0 ? (
         <div className="bg-white rounded-3xl p-10 flex flex-col items-center justify-center text-center py-20 border border-slate-200/80 shadow-sm w-[576px] max-w-full mx-auto my-12">
-          <span className="material-symbols-outlined text-[48px] text-slate-350 mb-4 animate-pulse">map</span>
+          <MdMap className="text-[48px] text-slate-350 mb-4 animate-pulse" />
           <h3 className="font-extrabold text-slate-700 text-[18px] leading-none">No active zones defined</h3>
           <p className="text-slate-400 text-xs font-semibold max-w-[320px] mx-auto leading-relaxed mt-2.5 mb-8">
             Operating zones are required to filter listings, claim logistics, and calculate dynamic checkout fares.
@@ -281,7 +282,7 @@ export default function AdminZonesPage() {
                   onClick={() => handleOpenEdit(zone)}
                   className="flex-1 py-3 bg-slate-50 hover:bg-slate-100 border border-slate-100 rounded-xl text-slate-700 text-xs font-black uppercase tracking-wider transition-all active:scale-98 text-center flex items-center justify-center gap-1.5"
                 >
-                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <MdEdit className="text-[16px]" />
                   Edit Settings
                 </button>
               </div>
@@ -306,7 +307,7 @@ export default function AdminZonesPage() {
                 onClick={() => setIsModalOpen(false)}
                 className="w-10 h-10 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500"
               >
-                <span className="material-symbols-outlined">close</span>
+                <MdClose className="text-[20px]" />
               </button>
             </div>
 
@@ -657,7 +658,7 @@ export default function AdminZonesPage() {
                     </>
                   ) : (
                     <>
-                      <span className="material-symbols-outlined text-[16px]">save</span>
+                      <MdSave className="text-[16px]" />
                       Save Settings
                     </>
                   )}

@@ -3,6 +3,15 @@
 import { useState, useEffect } from "react";
 import { apiClient } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { 
+  MdVisibility, 
+  MdClose, 
+  MdInfo, 
+  MdDescription, 
+  MdAccountBalance, 
+  MdPerson, 
+  MdBadge 
+} from "react-icons/md";
 
 export default function ApplicationsPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -89,7 +98,7 @@ export default function ApplicationsPage() {
                     onClick={() => { setSelectedApp(app); setSelectedAppType("restaurant"); }}
                     className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm flex items-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                    <MdVisibility className="text-[16px]" />
                     View
                   </button>
                   <button 
@@ -128,7 +137,7 @@ export default function ApplicationsPage() {
                     onClick={() => { setSelectedApp(app); setSelectedAppType("delivery"); }}
                     className="px-4 py-2 bg-slate-100 text-slate-700 font-bold rounded-xl hover:bg-slate-200 transition-colors text-sm flex items-center gap-1.5"
                   >
-                    <span className="material-symbols-outlined text-[16px]">visibility</span>
+                    <MdVisibility className="text-[16px]" />
                     View
                   </button>
                   <button 
@@ -163,7 +172,7 @@ export default function ApplicationsPage() {
                 onClick={() => setSelectedApp(null)}
                 className="text-slate-400 hover:text-slate-600 transition-colors w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
               >
-                <span className="material-symbols-outlined">close</span>
+                <MdClose className="text-xl" />
               </button>
             </div>
             
@@ -171,7 +180,7 @@ export default function ApplicationsPage() {
               {selectedAppType === "restaurant" && (
                 <>
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">info</span> Basic Information</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdInfo className="text-[16px]" /> Basic Information</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="Restaurant Name" value={selectedApp.name} />
                       <DetailRow label="Owner Name" value={selectedApp.ownerName || (selectedApp.owner?.name || "N/A")} />
@@ -187,7 +196,7 @@ export default function ApplicationsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">description</span> Legal Documents</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdDescription className="text-[16px]" /> Legal Documents</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="FSSAI License" value={selectedApp.fssaiNumber || "N/A"} />
                       <DetailRow label="PAN Card" value={<span className="uppercase">{selectedApp.panNumber || "N/A"}</span>} />
@@ -198,7 +207,7 @@ export default function ApplicationsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">account_balance</span> Bank Details</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdAccountBalance className="text-[16px]" /> Bank Details</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="Account Number" value={selectedApp.bankDetails?.accountNumber || "N/A"} />
                       <DetailRow label="IFSC Code" value={<span className="uppercase">{selectedApp.bankDetails?.ifscCode || "N/A"}</span>} />
@@ -210,7 +219,7 @@ export default function ApplicationsPage() {
               {selectedAppType === "delivery" && (
                 <>
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">person</span> Personal Details</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdPerson className="text-[16px]" /> Personal Details</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="Full Name" value={selectedApp.fullName} />
                       <DetailRow label="Phone Number" value={selectedApp.phone} />
@@ -228,7 +237,7 @@ export default function ApplicationsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">badge</span> KYC Documents</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdBadge className="text-[16px]" /> KYC Documents</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="Aadhaar Number" value={selectedApp.aadhaarNumber || "N/A"} />
                       <DetailRow label="PAN Number" value={<span className="uppercase">{selectedApp.panNumber || "N/A"}</span>} />
@@ -244,7 +253,7 @@ export default function ApplicationsPage() {
                   </div>
 
                   <div>
-                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><span className="material-symbols-outlined text-[16px]">account_balance</span> Payout Details</h4>
+                    <h4 className="text-[13px] font-black text-[#FF5C00] uppercase tracking-wider mb-3 flex items-center gap-2"><MdAccountBalance className="text-[16px]" /> Payout Details</h4>
                     <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
                       <DetailRow label="Account Number" value={selectedApp.bankDetails?.accountNumber || "N/A"} />
                       <DetailRow label="IFSC Code" value={<span className="uppercase">{selectedApp.bankDetails?.ifscCode || "N/A"}</span>} />

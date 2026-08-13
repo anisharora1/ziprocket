@@ -2,6 +2,16 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdRefresh, 
+  MdAddPhotoAlternate, 
+  MdStars, 
+  MdCampaign, 
+  MdDelete, 
+  MdLink, 
+  MdCalendarToday, 
+  MdTrendingUp 
+} from "react-icons/md";
 
 interface Restaurant {
   _id: string;
@@ -197,7 +207,7 @@ export default function PromotionsAdminPage() {
           onClick={fetchData}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
         >
-          <span className="material-symbols-outlined text-[18px]">refresh</span>
+          <MdRefresh className="text-[18px]" />
           Refresh Desk
         </button>
       </div>
@@ -210,7 +220,7 @@ export default function PromotionsAdminPage() {
           {/* Add Banner Form */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-6">
-              <span className="material-symbols-outlined text-[22px] text-slate-800">add_photo_alternate</span>
+              <MdAddPhotoAlternate className="text-[22px] text-slate-800" />
               <h3 className="font-black text-[17px] text-slate-800">Publish Promo Banner</h3>
             </div>
             
@@ -328,7 +338,7 @@ export default function PromotionsAdminPage() {
           {/* Promote Restaurant Form */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6">
             <div className="flex items-center gap-2 mb-6">
-              <span className="material-symbols-outlined text-[22px] text-slate-800">stars</span>
+              <MdStars className="text-[22px] text-slate-800" />
               <h3 className="font-black text-[17px] text-slate-800">Promote Active Restaurant</h3>
             </div>
             
@@ -422,8 +432,8 @@ export default function PromotionsAdminPage() {
                   Loading live ads desk...
                 </div>
               ) : promotions.length === 0 ? (
-                <div className="py-20 text-center text-slate-400 font-bold text-xs my-auto">
-                  <span className="material-symbols-outlined text-[40px] text-slate-200 block mb-2">campaign</span>
+                <div className="py-20 text-center text-slate-400 font-bold text-xs my-auto flex flex-col items-center justify-center">
+                  <MdCampaign className="text-[40px] text-slate-200 mb-2" />
                   No promotional placements or active banners found in database.
                 </div>
               ) : (
@@ -465,7 +475,7 @@ export default function PromotionsAdminPage() {
                               className="p-1 hover:bg-rose-50 text-slate-300 hover:text-rose-600 rounded-lg transition-colors"
                               title="Delete Promotion"
                             >
-                              <span className="material-symbols-outlined text-[16px]">delete</span>
+                              <MdDelete className="text-[16px]" />
                             </button>
                           </div>
                         </div>
@@ -476,13 +486,13 @@ export default function PromotionsAdminPage() {
 
                         <div className="flex flex-wrap items-center gap-y-1 gap-x-4 text-[10px] font-bold text-slate-400 tracking-wide uppercase">
                           <span className="flex items-center gap-1 shrink-0">
-                            <span className="material-symbols-outlined text-[13px] text-slate-350">link</span> 
+                            <MdLink className="text-[13px] text-slate-350" /> 
                             {promo.category || "/"}
                           </span>
                           
                           {promo.startDate && (
                             <span className="flex items-center gap-1 shrink-0">
-                              <span className="material-symbols-outlined text-[13px] text-slate-350">calendar_today</span> 
+                              <MdCalendarToday className="text-[13px] text-slate-350" /> 
                               {new Date(promo.startDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })} 
                               {" - "}
                               {new Date(promo.endDate).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
@@ -524,7 +534,7 @@ export default function PromotionsAdminPage() {
                 {promotions.length > 0 ? `${(promotions.length * 14.5).toFixed(1)}k` : "0.0k"}
               </h3>
               <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                <MdTrendingUp className="text-[14px]" />
                 100% Real DB Backed
               </p>
             </div>

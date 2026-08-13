@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { MdSearch, MdImage } from "react-icons/md";
 
 interface Product {
   _id: string;
@@ -95,8 +96,8 @@ export default function AdminGroceryAuditor() {
       {/* Filter and Search Bar */}
       <div className="bg-white border border-slate-100 rounded-3xl p-5 shadow-sm">
         <form onSubmit={handleSearchSubmit} className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 flex bg-slate-50 border-2 border-slate-200/60 rounded-2xl overflow-hidden focus-within:border-primary-container/60 transition-colors">
-            <span className="material-symbols-outlined text-slate-400 text-[20px] flex items-center pl-4 pr-2">search</span>
+          <div className="flex-1 flex items-center bg-slate-50 border-2 border-slate-200/60 rounded-2xl overflow-hidden focus-within:border-primary-container/60 transition-colors px-4">
+            <MdSearch className="text-slate-400 text-[20px] shrink-0 mr-2" />
             <input 
               type="text" 
               placeholder="Search global items by brand, category, or title..."
@@ -168,7 +169,7 @@ export default function AdminGroceryAuditor() {
                           {product.images && product.images[0] ? (
                             <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                           ) : (
-                            <span className="material-symbols-outlined text-slate-400 text-[18px]">image</span>
+                            <MdImage className="text-slate-400 text-[18px]" />
                           )}
                         </div>
                         <div>

@@ -2,6 +2,18 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { 
+  MdCalculate, 
+  MdPayments, 
+  MdTrendingUp, 
+  MdHourglassEmpty, 
+  MdPriceCheck, 
+  MdSearch, 
+  MdDownloadForOffline, 
+  MdAccountBalanceWallet, 
+  MdAccountBalance, 
+  MdClose 
+} from "react-icons/md";
 
 interface BankDetails {
   accountNumber: string;
@@ -245,7 +257,7 @@ export default function FinanceAdminPage() {
             onClick={handleCalculateSettlements}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-[12px] font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm"
           >
-            <span className="material-symbols-outlined text-[18px]">calculate</span>
+            <MdCalculate className="text-[18px]" />
             Calculate Settlements
           </button>
         </div>
@@ -259,7 +271,7 @@ export default function FinanceAdminPage() {
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">₹{stats.totalRevenue.toLocaleString()}</h3>
             <span className="w-9 h-9 bg-primary-container/10 text-primary-container rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">payments</span>
+              <MdPayments className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -271,7 +283,7 @@ export default function FinanceAdminPage() {
           <div className="flex items-center justify-between pl-1">
             <h3 className="text-3xl font-black text-slate-800 leading-none">₹{platformProfitTotal.toLocaleString()}</h3>
             <span className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">trending_up</span>
+              <MdTrendingUp className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -283,7 +295,7 @@ export default function FinanceAdminPage() {
           <div className="flex items-center justify-between pl-1">
             <h3 className="text-3xl font-black text-slate-800 leading-none">₹{stats.pendingSettlement.toLocaleString()}</h3>
             <span className="w-9 h-9 bg-orange-50 text-orange-600 rounded-xl flex items-center justify-center">
-              <span className="material-symbols-outlined text-[20px]">hourglass_empty</span>
+              <MdHourglassEmpty className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -299,7 +311,7 @@ export default function FinanceAdminPage() {
             <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${
               stats.codCashToCollect > 2000 ? "bg-rose-100 text-rose-600 animate-bounce" : "bg-rose-50 text-rose-500"
             }`}>
-              <span className="material-symbols-outlined text-[20px]">price_check</span>
+              <MdPriceCheck className="text-[20px]" />
             </span>
           </div>
         </div>
@@ -346,7 +358,7 @@ export default function FinanceAdminPage() {
         {activeTab !== "grocery" && (
           <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/10">
             <div className="relative w-full md:w-96">
-              <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+              <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" />
               <input
                 type="text"
                 placeholder="Search by name or phone..."
@@ -374,7 +386,7 @@ export default function FinanceAdminPage() {
                 onClick={handleExportCSV}
                 className="px-4 py-2 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl text-[12px] font-bold hover:bg-slate-50 flex items-center gap-2 shadow-sm transition-all"
               >
-                <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+                <MdDownloadForOffline className="text-[18px]" />
                 Export CSV Report
               </button>
             </div>
@@ -438,8 +450,8 @@ export default function FinanceAdminPage() {
               )}
             </div>
           ) : filteredPayouts.length === 0 ? (
-            <div className="py-20 text-center text-slate-400 font-bold text-xs">
-              <span className="material-symbols-outlined text-[40px] text-slate-200 block mb-2">account_balance_wallet</span>
+            <div className="py-20 text-center text-slate-400 font-bold text-xs flex flex-col items-center justify-center">
+              <MdAccountBalanceWallet className="text-[40px] text-slate-200 mb-2" />
               No weekly payout logs found for this cycle.
             </div>
           ) : (
@@ -537,7 +549,7 @@ export default function FinanceAdminPage() {
                           onClick={() => openSettleModal(p)}
                           className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1"
                         >
-                          <span className="material-symbols-outlined text-[14px]">account_balance</span>
+                          <MdAccountBalance className="text-[14px]" />
                           Update Payout
                         </button>
                       </td>
@@ -569,7 +581,7 @@ export default function FinanceAdminPage() {
                 onClick={() => setSelectedPayout(null)}
                 className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
               >
-                <span className="material-symbols-outlined">close</span>
+                <MdClose className="text-xl" />
               </button>
             </div>
 
