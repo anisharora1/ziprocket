@@ -2,6 +2,26 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "../../../services/api";
+import {
+  MdStar,
+  MdSportsMotorsports,
+  MdDirectionsBike,
+  MdPowerSettingsNew,
+  MdInfo,
+  MdExplore,
+  MdTaskAlt,
+  MdHistory,
+  MdDoNotDisturbOn,
+  MdStore,
+  MdNavigation,
+  MdLocationOn,
+  MdContentCopy,
+  MdClose,
+  MdCheck,
+  MdCall,
+  MdCheckCircle,
+  MdMap,
+} from "react-icons/md";
 
 interface OrderItem {
   _id: string;
@@ -255,7 +275,7 @@ export default function DeliveryDashboardPage() {
             <div>
               <h2 className="font-extrabold text-[16px] text-slate-800 leading-tight">{profile.fullName}</h2>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="material-symbols-outlined text-[14px] text-amber-500" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+                <MdStar className="text-[14px] text-amber-500" />
                 <span className="text-[11px] font-bold text-slate-500">{profile.rating || 5.0} Rating</span>
                 <span className="text-slate-300">•</span>
                 <span className="text-[11px] font-bold text-slate-500 uppercase">{profile.vehicleType}</span>
@@ -275,9 +295,11 @@ export default function DeliveryDashboardPage() {
           <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${
             isActive ? 'bg-emerald-50 text-emerald-600 animate-pulse' : 'bg-slate-100 text-slate-400'
           }`}>
-            <span className="material-symbols-outlined text-[22px]">
-              {isActive ? 'sports_motorsports' : 'pedal_bike'}
-            </span>
+            {isActive ? (
+              <MdSportsMotorsports className="text-[22px]" />
+            ) : (
+              <MdDirectionsBike className="text-[22px]" />
+            )}
           </div>
           <div className="flex flex-col">
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">Duty Status</span>
@@ -306,7 +328,7 @@ export default function DeliveryDashboardPage() {
       {!isActive ? (
         <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100 flex flex-col items-center justify-center text-center py-16 animate-in fade-in zoom-in-95 duration-200">
           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100 shadow-inner">
-            <span className="material-symbols-outlined text-[42px] text-slate-400">directions_bike</span>
+            <MdDirectionsBike className="text-[42px] text-slate-400" />
           </div>
           <h3 className="font-black text-slate-800 text-[20px] mb-2 leading-none">You are Off Duty</h3>
           <p className="text-slate-400 text-xs font-semibold max-w-xs leading-relaxed mb-6 mt-1">
@@ -316,7 +338,7 @@ export default function DeliveryDashboardPage() {
             onClick={handleToggleAvailability}
             className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-[18px]">power_settings_new</span>
+            <MdPowerSettingsNew className="text-[18px]" />
             Start Duty
           </button>
         </div>
@@ -328,37 +350,37 @@ export default function DeliveryDashboardPage() {
               onClick={() => setActiveTab("pending")}
               className={`flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                 activeTab === "pending"
-                  ? "bg-[#FF5C00] text-white shadow-sm"
+                  ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-850"
               }`}
             >
-              Queue ({pendingOrders.length})
+              Pending ({pendingOrders.length})
             </button>
             <button
               onClick={() => setActiveTab("accepted")}
               className={`flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                 activeTab === "accepted"
-                  ? "bg-[#FF5C00] text-white shadow-sm"
+                  ? "bg-emerald-600 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-850"
               }`}
             >
-              Tasks ({activeDeliveries.length})
+              Active ({activeDeliveries.length})
             </button>
             <button
               onClick={() => setActiveTab("history")}
               className={`flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                 activeTab === "history"
-                  ? "bg-[#FF5C00] text-white shadow-sm"
+                  ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-850"
               }`}
             >
-              Delivered ({completedDeliveries.length})
+              History ({completedDeliveries.length})
             </button>
             <button
               onClick={() => setActiveTab("rejected")}
               className={`flex-1 min-w-[80px] px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all whitespace-nowrap ${
                 activeTab === "rejected"
-                  ? "bg-[#FF5C00] text-white shadow-sm"
+                  ? "bg-slate-900 text-white shadow-sm"
                   : "text-slate-500 hover:text-slate-850"
               }`}
             >
@@ -369,7 +391,7 @@ export default function DeliveryDashboardPage() {
           {/* Active alerts inside Pending Queue */}
           {activeTab === "pending" && pendingOrders.length > 0 && (
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 shadow-sm animate-in slide-in-from-top-4 duration-200">
-              <span className="material-symbols-outlined text-amber-600 text-[20px] shrink-0 mt-0.5 animate-bounce">info</span>
+              <MdInfo className="text-amber-600 text-[20px] shrink-0 mt-0.5 animate-bounce" />
               <p className="text-xs font-bold text-amber-800 leading-relaxed">
                 {pendingOrders.length} unclaimed deliveries are waiting in your local queue! Claim them now.
               </p>
@@ -379,7 +401,7 @@ export default function DeliveryDashboardPage() {
           {/* Empty States */}
           {activeTab === "pending" && pendingOrders.length === 0 && (
             <div className="bg-white rounded-3xl p-10 flex flex-col items-center justify-center text-center py-16 border border-slate-100 shadow-sm animate-in fade-in duration-200">
-              <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3 animate-pulse">explore</span>
+              <MdExplore className="text-[48px] text-slate-300 mb-3 animate-pulse mx-auto" />
               <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">Scanning for requests...</h3>
               <p className="text-slate-400 text-xs font-semibold max-w-[240px] leading-relaxed mt-2">No new deliveries found. We will alert you instantly when a shop updates orders!</p>
             </div>
@@ -387,7 +409,7 @@ export default function DeliveryDashboardPage() {
 
           {activeTab === "accepted" && activeDeliveries.length === 0 && (
             <div className="bg-white rounded-3xl p-10 flex flex-col items-center justify-center text-center py-16 border border-slate-100 shadow-sm animate-in fade-in duration-200">
-              <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">task_alt</span>
+              <MdTaskAlt className="text-[48px] text-slate-300 mb-3 mx-auto" />
               <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">No Active Tasks</h3>
               <p className="text-slate-400 text-xs font-semibold max-w-[240px] leading-relaxed mt-2">Go to the Pending Queue tab to accept active deliveries.</p>
             </div>
@@ -395,7 +417,7 @@ export default function DeliveryDashboardPage() {
 
           {activeTab === "history" && completedDeliveries.length === 0 && (
             <div className="bg-white rounded-3xl p-10 flex flex-col items-center justify-center text-center py-16 border border-slate-100 shadow-sm animate-in fade-in duration-200">
-              <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">history</span>
+              <MdHistory className="text-[48px] text-slate-300 mb-3 mx-auto" />
               <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">No History Found</h3>
               <p className="text-slate-400 text-xs font-semibold max-w-[240px] leading-relaxed mt-2">Completed settlements will be logged here chronologically.</p>
             </div>
@@ -403,7 +425,7 @@ export default function DeliveryDashboardPage() {
 
           {activeTab === "rejected" && rejectedOrders.length === 0 && (
             <div className="bg-white rounded-3xl p-10 flex flex-col items-center justify-center text-center py-16 border border-slate-100 shadow-sm animate-in fade-in duration-200">
-              <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">do_not_disturb_on</span>
+              <MdDoNotDisturbOn className="text-[48px] text-slate-300 mb-3 mx-auto" />
               <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">No Rejected Requests</h3>
               <p className="text-slate-400 text-xs font-semibold max-w-[240px] leading-relaxed mt-2">Orders rejected during duty hours are saved here.</p>
             </div>
@@ -441,7 +463,7 @@ export default function DeliveryDashboardPage() {
                 <div className="border-t border-slate-50 pt-3 space-y-2">
                   <div className="flex gap-2.5 items-start text-xs font-semibold w-full justify-between">
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">store</span>
+                      <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-slate-800 font-bold">Pick Up Location</p>
                         <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Hub"}</p>
@@ -457,14 +479,14 @@ export default function DeliveryDashboardPage() {
                         title="Navigate to Pick Up"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="material-symbols-outlined text-[16px]">navigation</span>
+                        <MdNavigation className="text-[16px]" />
                       </a>
                     )}
                   </div>
 
                   <div className="flex gap-2.5 items-start text-xs font-semibold w-full justify-between">
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">location_on</span>
+                      <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-slate-800 font-bold">Delivery Destination</p>
                         <p className="text-slate-500 font-medium leading-relaxed">{order.address?.fullAddress || "Customer address details hidden"}</p>
@@ -480,7 +502,7 @@ export default function DeliveryDashboardPage() {
                         className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors shadow-sm ml-1"
                         title="Copy Customer Address"
                       >
-                        <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                        <MdContentCopy className="text-[16px]" />
                       </button>
                       {order.address?.lat !== undefined && (
                         <a
@@ -491,7 +513,7 @@ export default function DeliveryDashboardPage() {
                           title="Navigate to Destination"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <span className="material-symbols-outlined text-[16px]">navigation</span>
+                          <MdNavigation className="text-[16px]" />
                         </a>
                       )}
                     </div>
@@ -504,7 +526,7 @@ export default function DeliveryDashboardPage() {
                     disabled={actioningId === order._id}
                     className="flex items-center justify-center gap-1.5 py-3 border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                   >
-                    <span className="material-symbols-outlined text-[16px]">close</span>
+                    <MdClose className="text-[16px]" />
                     Reject
                   </button>
                   <button
@@ -512,7 +534,7 @@ export default function DeliveryDashboardPage() {
                     disabled={actioningId === order._id}
                     className="flex items-center justify-center gap-1.5 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                   >
-                    <span className="material-symbols-outlined text-[16px]">check</span>
+                    <MdCheck className="text-[16px]" />
                     Accept Order
                   </button>
                 </div>
@@ -553,7 +575,7 @@ export default function DeliveryDashboardPage() {
                 <div className="border-t border-slate-50 pt-3 space-y-3">
                   <div className="flex gap-2.5 items-start text-xs font-semibold w-full justify-between">
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[18px] mt-0.5">store</span>
+                      <MdStore className="text-slate-400 text-[18px] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-slate-855 font-bold">1. Pick Up Vendor</p>
                         <p className="text-slate-650 font-bold">{order.restaurant?.name || "ZipGrocery Hyperlocal Hub"}</p>
@@ -568,14 +590,14 @@ export default function DeliveryDashboardPage() {
                         className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
                         title="Navigate to Pick Up"
                       >
-                        <span className="material-symbols-outlined text-[16px]">navigation</span>
+                        <MdNavigation className="text-[16px]" />
                       </a>
                     )}
                   </div>
 
                   <div className="flex gap-2.5 items-start text-xs font-semibold w-full justify-between">
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[18px] mt-0.5">location_on</span>
+                      <MdLocationOn className="text-slate-400 text-[18px] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-slate-855 font-bold">2. Customer Drop-off</p>
                         <p className="text-slate-700 font-bold">{customerName}</p>
@@ -592,7 +614,7 @@ export default function DeliveryDashboardPage() {
                         className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors shadow-sm ml-1"
                         title="Copy Customer Address"
                       >
-                        <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                        <MdContentCopy className="text-[16px]" />
                       </button>
                       {order.address?.lat !== undefined && (
                         <a
@@ -602,7 +624,7 @@ export default function DeliveryDashboardPage() {
                           className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-1"
                           title="Navigate to Destination"
                         >
-                          <span className="material-symbols-outlined text-[16px]">navigation</span>
+                          <MdNavigation className="text-[16px]" />
                         </a>
                       )}
                     </div>
@@ -614,7 +636,7 @@ export default function DeliveryDashboardPage() {
                     href={`tel:${order.user?.phone || '9999999999'}`}
                     className="flex items-center justify-center gap-1.5 py-3.5 border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 text-center"
                   >
-                    <span className="material-symbols-outlined text-[16px]">call</span>
+                    <MdCall className="text-[16px]" />
                     Call Client
                   </a>
                   <button
@@ -622,7 +644,7 @@ export default function DeliveryDashboardPage() {
                     disabled={actioningId === order._id}
                     className="flex items-center justify-center gap-1.5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                   >
-                    <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                    <MdCheckCircle className="text-[16px]" />
                     Delivered
                   </button>
                 </div>
@@ -641,7 +663,7 @@ export default function DeliveryDashboardPage() {
               <div key={delivery._id} className="bg-white rounded-[24px] p-5 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.01)] flex flex-col justify-between animate-in fade-in duration-200">
                 <div className="flex justify-between items-start mb-3 pb-3 border-b border-slate-50">
                   <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                    <MdCheckCircle className="text-[12px]" />
                     Delivered
                   </span>
                   <span className="text-[11px] font-semibold text-slate-400">
@@ -682,7 +704,7 @@ export default function DeliveryDashboardPage() {
               <div key={order._id} className="bg-white rounded-[24px] p-5 border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.01)] flex flex-col justify-between animate-in fade-in duration-200">
                 <div className="flex justify-between items-start mb-3 pb-3 border-b border-slate-50">
                   <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-50 px-2 py-0.5 rounded flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[12px]">do_not_disturb_on</span>
+                    <MdDoNotDisturbOn className="text-[12px]" />
                     Rejected
                   </span>
                   <span className="text-[11px] font-semibold text-slate-400">
@@ -712,7 +734,7 @@ export default function DeliveryDashboardPage() {
       {/* Floating Map Button (Only active when online) */}
       {isActive && (
         <button className="absolute bottom-6 right-6 w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl border-[3px] border-white hover:bg-emerald-700 transition-all z-40 active:scale-95">
-          <span className="material-symbols-outlined text-[24px]">map</span>
+          <MdMap className="text-[24px]" />
         </button>
       )}
 

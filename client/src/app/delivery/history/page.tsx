@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "../../../services/api";
+import {
+  MdSync,
+  MdHistory,
+  MdCheckCircle,
+  MdStore,
+  MdLocationOn,
+  MdShoppingBag,
+} from "react-icons/md";
 
 interface OrderItem {
   _id: string;
@@ -81,7 +89,7 @@ export default function DeliveryHistoryPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <span className="material-symbols-outlined text-[40px] text-emerald-600 animate-spin">sync</span>
+        <MdSync className="text-[40px] text-emerald-600 animate-spin" />
         <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Loading Logs...</p>
       </div>
     );
@@ -117,7 +125,7 @@ export default function DeliveryHistoryPage() {
 
         {completedDeliveries.length === 0 ? (
           <div className="bg-white rounded-[24px] p-10 border border-slate-100 shadow-sm text-center py-16">
-            <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">history</span>
+            <MdHistory className="text-[48px] text-slate-300 mb-3 mx-auto" />
             <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">No History Found</h3>
             <p className="text-slate-400 text-xs font-semibold max-w-[240px] mx-auto leading-relaxed mt-2">
               All successful deliveries and payments collected on doorstep will be logged here.
@@ -134,7 +142,7 @@ export default function DeliveryHistoryPage() {
                   <div className="flex justify-between items-start pb-3 border-b border-slate-50">
                     <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg flex items-center gap-1 self-start">
-                        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+                        <MdCheckCircle className="text-[12px]" />
                         SUCCESSFUL DROP-OFF
                       </span>
                       <h3 className="font-black text-[15px] text-slate-800 leading-tight mt-1">{orderId}</h3>
@@ -146,19 +154,19 @@ export default function DeliveryHistoryPage() {
 
                   <div className="space-y-2 text-xs font-semibold text-slate-600">
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">store</span>
+                      <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                       <div>
                         <span className="font-bold text-slate-800">Picked From:</span> {order.restaurant?.name || "Grocery Store Hub"}
                       </div>
                     </div>
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">location_on</span>
+                      <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                       <div>
                         <span className="font-bold text-slate-800">Delivered To:</span> {order.address?.fullAddress || "Customer Destination"}
                       </div>
                     </div>
                     <div className="flex gap-2.5 items-start">
-                      <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">shopping_bag</span>
+                      <MdShoppingBag className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                       <div>
                         <span className="font-bold text-slate-800">Basket:</span> {getItemsSummary(order.items, order.orderType)}
                       </div>

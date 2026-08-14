@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
+import { MdAdd, MdEdit, MdDelete, MdClose } from "react-icons/md";
 
 interface MenuItem {
   _id: string;
@@ -213,7 +214,7 @@ export default function SellerMenuPage() {
             onClick={() => { resetForm(); setIsModalOpen(true); }}
             className="w-full md:w-auto flex items-center justify-center gap-2 px-5 py-3 bg-emerald-700 text-white rounded-lg text-[14px] font-bold shadow-sm hover:bg-emerald-800 transition-colors"
           >
-            <span className="material-symbols-outlined text-[18px]">add</span>
+            <MdAdd className="text-[18px]" />
             Add New Item
           </button>
         </div>
@@ -240,14 +241,14 @@ export default function SellerMenuPage() {
                   className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md text-slate-600 hover:text-emerald-600 transition-colors"
                   title="Edit Item"
                 >
-                  <span className="material-symbols-outlined text-[16px]">edit</span>
+                  <MdEdit className="text-[16px]" />
                 </button>
                 <button 
                   onClick={() => handleDelete(item._id)}
                   className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md text-slate-600 hover:text-red-600 transition-colors"
                   title="Delete Item"
                 >
-                  <span className="material-symbols-outlined text-[16px]">delete</span>
+                  <MdDelete className="text-[16px]" />
                 </button>
               </div>
               
@@ -288,7 +289,7 @@ export default function SellerMenuPage() {
           className="bg-slate-50 border-2 border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center min-h-[350px] group hover:bg-emerald-50 hover:border-emerald-200 transition-all"
         >
           <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center text-emerald-600 mb-4 group-hover:scale-110 transition-transform">
-            <span className="material-symbols-outlined text-[24px]">add</span>
+            <MdAdd className="text-[24px]" />
           </div>
           <span className="text-[14px] font-bold text-slate-500 group-hover:text-emerald-700 transition-colors">Add New Menu Item</span>
         </button>
@@ -300,7 +301,7 @@ export default function SellerMenuPage() {
         onClick={() => { resetForm(); setIsModalOpen(true); }}
         className="md:hidden fixed bottom-20 right-6 w-14 h-14 bg-emerald-700 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-emerald-800 transition-colors z-40"
       >
-        <span className="material-symbols-outlined text-[28px]">add</span>
+        <MdAdd className="text-[28px]" />
       </button>
 
       {/* Modal for Add/Edit Menu Item */}
@@ -318,7 +319,7 @@ export default function SellerMenuPage() {
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
               <h2 className="text-xl font-bold text-slate-800">{editingItemId ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1">
-                <span className="material-symbols-outlined">close</span>
+                <MdClose className="text-[20px]" />
               </button>
             </div>
             

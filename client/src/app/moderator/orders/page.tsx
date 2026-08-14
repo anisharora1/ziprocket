@@ -1,8 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
+import { useOrderSocket } from "@/hooks/useOrderSocket";
+import {
+  MdSearch,
+  MdReceiptLong,
+  MdLocationOn,
+  MdLocalMall,
+  MdCreditCardOff,
+} from "react-icons/md";
 
 interface OrderItem {
   _id: string;
@@ -51,7 +59,7 @@ export default function ModeratorOrdersPage() {
   const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("active");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const res = await apiClient.get("/orders/grocery");
       if (res.data.success) {
@@ -62,18 +70,47 @@ export default function ModeratorOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-    // Real-time polling every 5 seconds for new grocery orders if tab is active
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
+  }, [fetchOrders]);
+
+  // Real-time socket event updates
+  useOrderSocket({
+    onNewOrder: (data) => {
+      if (data?.order && data?.orderType === "grocery") {
+        setOrders((prev) => {
+          const exists = prev.some((o) => o._id === data.order._id);
+          if (exists) return prev;
+          return [data.order, ...prev];
+        });
+      } else {
         fetchOrders();
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    },
+    onOrderStatusUpdated: (data) => {
+      if (data?.orderId && data?.orderStatus) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: data.orderStatus as any } : o
+          )
+        );
+      }
+    },
+    onOrderCancelled: (data) => {
+      if (data?.orderId) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
+          )
+        );
+      }
+    },
+    onReconnect: () => {
+      fetchOrders();
+    },
+  });
 
   const handleUpdateStatus = async (orderId: string, nextStatus: string) => {
     setUpdatingId(orderId);
@@ -148,14 +185,14 @@ export default function ModeratorOrdersPage() {
     <div className="flex-1 flex flex-col bg-slate-50">
       <ModeratorHeader title="Grocery Orders Desk" />
 
-      <main className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
         {/* Controls Panel */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Tab Filter */}
-          <div className="flex bg-slate-100 p-1.5 rounded-2xl shrink-0 w-fit">
+          <div className="flex bg-slate-100 p-1.5 rounded-2xl shrink-0 w-full lg:w-fit overflow-x-auto scrollbar-none">
             <button
               onClick={() => setActiveTab("active")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === "active"
                   ? "bg-white text-emerald-800 shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
@@ -165,7 +202,7 @@ export default function ModeratorOrdersPage() {
             </button>
             <button
               onClick={() => setActiveTab("completed")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === "completed"
                   ? "bg-white text-emerald-800 shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
@@ -175,7 +212,7 @@ export default function ModeratorOrdersPage() {
             </button>
             <button
               onClick={() => setActiveTab("all")}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-4 sm:px-5 py-2.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
                 activeTab === "all"
                   ? "bg-white text-emerald-800 shadow-sm"
                   : "text-slate-500 hover:text-slate-800"
@@ -186,8 +223,8 @@ export default function ModeratorOrdersPage() {
           </div>
 
           {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+          <div className="relative flex-1 max-w-full lg:max-w-md">
+            <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" />
             <input
               type="text"
               placeholder="Search by Order ID, Customer Name, or Phone..."
@@ -221,7 +258,7 @@ export default function ModeratorOrdersPage() {
           /* Empty State */
           <div className="bg-white border border-slate-100 rounded-3xl p-16 flex flex-col items-center justify-center text-center max-w-lg mx-auto shadow-sm">
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-5 border border-emerald-100">
-              <span className="material-symbols-outlined text-[36px] text-emerald-600">receipt_long</span>
+              <MdReceiptLong className="text-[36px] text-emerald-600" />
             </div>
             <h3 className="text-lg font-black text-slate-800 leading-none">No Grocery Orders Found</h3>
             <p className="text-slate-400 text-xs font-semibold leading-relaxed mt-2.5 max-w-xs">
@@ -250,7 +287,7 @@ export default function ModeratorOrdersPage() {
                           </span>
                           {order.deliveryZone && (
                             <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-100/50 text-[8px] font-black uppercase rounded">
-                              <span className="material-symbols-outlined text-[8px]">location_on</span>
+                              <MdLocationOn className="text-[10px]" />
                               {order.deliveryZone.name}
                             </span>
                           )}
@@ -291,7 +328,7 @@ export default function ModeratorOrdersPage() {
                                 {item.groceryItem?.images && item.groceryItem.images[0] ? (
                                   <img src={item.groceryItem.images[0]} alt={item.groceryItem.name} className="w-full h-full object-cover" />
                                 ) : (
-                                  <span className="material-symbols-outlined text-[14px] text-slate-450">local_mall</span>
+                                  <MdLocalMall className="text-[14px] text-slate-400" />
                                 )}
                               </div>
                               <span className="text-slate-800 line-clamp-1">
@@ -337,7 +374,7 @@ export default function ModeratorOrdersPage() {
                       {isUnpaidOnline ? (
                         /* Unpaid Online Orders Warning for Moderator */
                         <div className="text-[10px] font-black text-rose-700 bg-rose-50/70 border border-rose-100 px-4 py-2.5 rounded-xl flex items-center gap-1.5 select-none">
-                          <span className="material-symbols-outlined text-[15px]">credit_card_off</span>
+                          <MdCreditCardOff className="text-[15px]" />
                           Waiting for online payment
                         </div>
                       ) : (

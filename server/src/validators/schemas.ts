@@ -3,6 +3,7 @@ import { z } from "zod";
 export const createOrderSchema = z.object({
     orderType: z.enum(["food", "grocery"]).default("food"),
     restaurant: z.string().optional(),
+    user: z.string().optional(),
     items: z.array(z.object({
         menuItem: z.string().optional(),
         groceryItem: z.string().optional(),
@@ -17,13 +18,25 @@ export const createOrderSchema = z.object({
         fullAddress: z.string().min(3, "Full address is required"),
         lat: z.number({ message: "Latitude coordinate is required" }),
         lng: z.number({ message: "Longitude coordinate is required" }),
-        deliveryAddress: z.string().optional(),
-        pincode: z.string().optional()
+        deliveryAddress: z.union([
+            z.string(),
+            z.object({
+                houseNumber: z.string().optional().nullable(),
+                street: z.string().optional().nullable(),
+                locality: z.string().optional().nullable(),
+                village: z.string().optional().nullable(),
+                landmark: z.string().optional().nullable(),
+                pincode: z.string().optional().nullable(),
+                instructions: z.string().optional().nullable()
+            }),
+            z.record(z.string(), z.any())
+        ]).optional().nullable(),
+        pincode: z.string().optional().nullable()
     }),
     whatsappOrder: z.boolean().optional().default(false),
-    couponCode: z.string().optional(),
-    phone: z.string().optional()
-});
+    couponCode: z.string().optional().nullable(),
+    phone: z.string().optional().nullable()
+}).passthrough();
 
 export const validateCouponSchema = z.object({
     code: z.string().min(1, "Coupon code is required"),

@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { apiClient } from "@/services/api";
+import { useOrderSocket } from "@/hooks/useOrderSocket";
 import { MdSearch, MdRefresh, MdChevronRight } from "react-icons/md";
 
 interface Order {
@@ -27,7 +28,7 @@ export default function OrdersAdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async () => {
     try {
       const res = await apiClient.get("/orders");
       if (res.data.success) {
@@ -38,17 +39,56 @@ export default function OrdersAdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrders();
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
+  }, [fetchOrders]);
+
+  // Real-time updates for Admin
+  useOrderSocket({
+    onNewOrder: (data) => {
+      if (data?.order) {
+        setOrders((prev) => {
+          const exists = prev.some((o) => o._id === data.order._id);
+          if (exists) return prev;
+          return [data.order, ...prev];
+        });
+      } else {
         fetchOrders();
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    },
+    onOrderStatusUpdated: (data) => {
+      if (data?.orderId && data?.orderStatus) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o
+          )
+        );
+      }
+    },
+    onOrderCancelled: (data) => {
+      if (data?.orderId) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
+          )
+        );
+      }
+    },
+    onPaymentStatusUpdated: (data) => {
+      if (data?.orderId && data?.paymentStatus) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, paymentStatus: data.paymentStatus as any } : o
+          )
+        );
+      }
+    },
+    onReconnect: () => {
+      fetchOrders();
+    },
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {

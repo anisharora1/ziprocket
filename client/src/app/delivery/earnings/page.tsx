@@ -2,6 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "../../../services/api";
+import {
+  MdSync,
+  MdPayments,
+  MdPaid,
+  MdCalendarToday,
+} from "react-icons/md";
 
 interface OrderItem {
   _id: string;
@@ -80,7 +86,7 @@ export default function DeliveryEarningsPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <span className="material-symbols-outlined text-[40px] text-emerald-600 animate-spin">sync</span>
+        <MdSync className="text-[40px] text-emerald-600 animate-spin" />
         <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Compiling Statement...</p>
       </div>
     );
@@ -127,7 +133,7 @@ export default function DeliveryEarningsPage() {
       {/* PREMIUM PAYOUT CARD */}
       <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-[28px] p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 bottom-0 opacity-10 translate-x-4 translate-y-4">
-          <span className="material-symbols-outlined text-[180px] select-none">payments</span>
+          <MdPayments className="text-[180px] select-none" />
         </div>
 
         <div className="relative z-10 space-y-4">
@@ -184,7 +190,7 @@ export default function DeliveryEarningsPage() {
 
         {dailyGroups.length === 0 ? (
           <div className="bg-white rounded-[24px] p-10 border border-slate-100 shadow-sm text-center py-16">
-            <span className="material-symbols-outlined text-[48px] text-slate-300 mb-3">paid</span>
+            <MdPaid className="text-[48px] text-slate-300 mb-3 mx-auto" />
             <h3 className="font-extrabold text-slate-700 text-[16px] leading-none">No Earnings Recorded</h3>
             <p className="text-slate-400 text-xs font-semibold max-w-[240px] mx-auto leading-relaxed mt-2">
               Deliveries will log and calculate payouts dynamically here on a daily cycle basis.
@@ -196,7 +202,7 @@ export default function DeliveryEarningsPage() {
               <div key={group.dateString} className="bg-white rounded-[20px] p-4 border border-slate-100 shadow-sm flex items-center justify-between animate-in fade-in duration-200">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                    <span className="material-symbols-outlined text-[20px]">calendar_today</span>
+                    <MdCalendarToday className="text-[20px]" />
                   </div>
                   <div>
                     <h3 className="font-extrabold text-[14px] text-slate-800 leading-tight">{group.dateString}</h3>

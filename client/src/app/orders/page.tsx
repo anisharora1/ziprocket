@@ -2,9 +2,10 @@
 
 import Header from "@/components/Header";
 import BottomNavBar from "@/components/BottomNavBar";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/services/api";
+import { useOrderSocket } from "@/hooks/useOrderSocket";
 import Link from "next/link";
 import {
     MdReceiptLong,
@@ -62,7 +63,7 @@ export default function OrdersPage() {
         }
     };
 
-    const fetchOrders = async () => {
+    const fetchOrders = useCallback(async () => {
         if (!user) return;
         try {
             const res = await apiClient.get(`/orders/user/${user._id}`);
@@ -74,7 +75,7 @@ export default function OrdersPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
 
     useEffect(() => {
         if (!authLoading && user) {
@@ -82,7 +83,68 @@ export default function OrdersPage() {
         } else if (!authLoading && !user) {
             setLoading(false);
         }
-    }, [user, authLoading]);
+    }, [user, authLoading, fetchOrders]);
+
+    // Live real-time socket tracking for customer orders
+    useOrderSocket({
+        onOrderStatusUpdated: (data) => {
+            if (data?.orderId && data?.orderStatus) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o
+                    )
+                );
+            }
+        },
+        onDeliveryStatusUpdated: (data) => {
+            if (data?.orderId && data?.status) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, orderStatus: data.status } : o
+                    )
+                );
+            }
+        },
+        onDeliveryAccepted: (data) => {
+            if (data?.orderId) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, orderStatus: "accepted_by_delivery" } : o
+                    )
+                );
+            }
+        },
+        onOrderDelivered: (data) => {
+            if (data?.orderId) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, orderStatus: "delivered" } : o
+                    )
+                );
+            }
+        },
+        onOrderCancelled: (data) => {
+            if (data?.orderId) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
+                    )
+                );
+            }
+        },
+        onPaymentStatusUpdated: (data) => {
+            if (data?.orderId && data?.paymentStatus) {
+                setOrders((prev) =>
+                    prev.map((o) =>
+                        o._id === data.orderId ? { ...o, paymentStatus: data.paymentStatus } : o
+                    )
+                );
+            }
+        },
+        onReconnect: () => {
+            fetchOrders();
+        },
+    });
 
     // Parse status to stepper step
     const getStatusStep = (status: string) => {

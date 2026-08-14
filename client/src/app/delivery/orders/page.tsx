@@ -1,7 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { apiClient } from "../../../services/api";
+import { useOrderSocket } from "../../../hooks/useOrderSocket";
+import { useSocket } from "../../../context/SocketContext";
+import {
+  MdSync,
+  MdTask,
+  MdStore,
+  MdNavigation,
+  MdLocationOn,
+  MdContentCopy,
+  MdCall,
+  MdCheckCircle,
+  MdExplore,
+  MdClose,
+  MdCheck,
+} from "react-icons/md";
 
 interface OrderItem {
   _id: string;
@@ -53,13 +68,14 @@ export default function DeliveryOrdersPage() {
   const [pendingQueue, setPendingQueue] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
+  const { joinDeliveryZone } = useSocket();
 
   const handleCopyAddress = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Address copied to clipboard! / पता कॉपी हो गया!");
   };
 
-  const fetchOrdersData = async () => {
+  const fetchOrdersData = useCallback(async () => {
     try {
       const [tasksRes, queueRes] = await Promise.all([
         apiClient.get("/delivery/my-deliveries"),
@@ -77,18 +93,51 @@ export default function DeliveryOrdersPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchOrdersData();
-    // Poll data every 5 seconds for dynamic synchronization if tab is active
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
+
+    // Auto-join delivery zone for targeted zone broadcasts
+    apiClient.get("/delivery/profile/my-profile").then((res) => {
+      if (res.data?.success && res.data?.profile?.deliveryZone) {
+        const zoneId = res.data.profile.deliveryZone._id || res.data.profile.deliveryZone;
+        joinDeliveryZone(zoneId.toString());
+      }
+    }).catch(() => {});
+  }, [fetchOrdersData, joinDeliveryZone]);
+
+  // Real-time socket event integration
+  useOrderSocket({
+    onNewOrder: () => {
+      fetchOrdersData();
+    },
+    onDeliveryAssigned: () => {
+      fetchOrdersData();
+    },
+    onDeliveryAccepted: (data) => {
+      if (data?.orderId) {
+        setPendingQueue((prev) => prev.filter((o) => o._id !== data.orderId));
+      } else {
         fetchOrdersData();
       }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    },
+    onDeliveryStatusUpdated: () => {
+      fetchOrdersData();
+    },
+    onOrderCancelled: (data) => {
+      if (data?.orderId) {
+        setPendingQueue((prev) => prev.filter((o) => o._id !== data.orderId));
+      }
+      fetchOrdersData();
+    },
+    onOrderDelivered: () => {
+      fetchOrdersData();
+    },
+    onReconnect: () => {
+      fetchOrdersData();
+    },
+  });
 
   const handleAccept = async (orderId: string) => {
     setActioningId(orderId);
@@ -147,7 +196,7 @@ export default function DeliveryOrdersPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-3">
-        <span className="material-symbols-outlined text-[40px] text-emerald-600 animate-spin">sync</span>
+        <MdSync className="text-[40px] text-emerald-600 animate-spin" />
         <p className="text-slate-400 text-xs font-black uppercase tracking-widest">Fulfilling orders...</p>
       </div>
     );
@@ -169,7 +218,7 @@ export default function DeliveryOrdersPage() {
 
         {activeTasks.length === 0 ? (
           <div className="bg-white rounded-[24px] p-6 border border-slate-100/80 shadow-sm text-center py-10">
-            <span className="material-symbols-outlined text-[36px] text-slate-300">task</span>
+            <MdTask className="text-[36px] text-slate-300 mx-auto" />
             <p className="text-slate-400 text-xs font-bold leading-relaxed mt-2">No active tasks assigned.</p>
             <p className="text-[11px] text-slate-350 font-medium leading-relaxed">Claim unclaimed requests from the dispatcher queue below.</p>
           </div>
@@ -204,7 +253,7 @@ export default function DeliveryOrdersPage() {
                   <div className="border-t border-slate-50 pt-3 space-y-2 text-xs font-semibold">
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
-                        <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">store</span>
+                        <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                         <div>
                           <p className="text-slate-800 font-bold">Pick Up Location</p>
                           <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
@@ -219,13 +268,13 @@ export default function DeliveryOrdersPage() {
                           className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
                           title="Navigate to Pick Up"
                         >
-                          <span className="material-symbols-outlined text-[16px]">navigation</span>
+                          <MdNavigation className="text-[16px]" />
                         </a>
                       )}
                     </div>
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
-                        <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">location_on</span>
+                        <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                         <div>
                           <p className="text-slate-800 font-bold">Delivery Destination</p>
                           <p className="text-slate-500 font-medium">{order.address?.fullAddress || "Address details hidden"}</p>
@@ -241,7 +290,7 @@ export default function DeliveryOrdersPage() {
                           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors shadow-sm ml-1"
                           title="Copy Customer Address"
                         >
-                          <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                          <MdContentCopy className="text-[16px]" />
                         </button>
                         {order.address?.lat !== undefined && (
                           <a
@@ -251,7 +300,7 @@ export default function DeliveryOrdersPage() {
                             className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-1"
                             title="Navigate to Destination"
                           >
-                            <span className="material-symbols-outlined text-[16px]">navigation</span>
+                            <MdNavigation className="text-[16px]" />
                           </a>
                         )}
                       </div>
@@ -263,7 +312,7 @@ export default function DeliveryOrdersPage() {
                       href={`tel:${order.user?.phone || '9999999999'}`}
                       className="flex items-center justify-center gap-1.5 py-3 border border-slate-250 hover:bg-slate-50 text-slate-600 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 text-center"
                     >
-                      <span className="material-symbols-outlined text-[16px]">call</span>
+                      <MdCall className="text-[16px]" />
                       Call client
                     </a>
                     <button
@@ -271,7 +320,7 @@ export default function DeliveryOrdersPage() {
                       disabled={actioningId === order._id}
                       className="flex items-center justify-center gap-1.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-[16px]">check_circle</span>
+                      <MdCheckCircle className="text-[16px]" />
                       Delivered
                     </button>
                   </div>
@@ -288,7 +337,7 @@ export default function DeliveryOrdersPage() {
 
         {pendingQueue.length === 0 ? (
           <div className="bg-white rounded-[24px] p-6 border border-slate-100/80 shadow-sm text-center py-10">
-            <span className="material-symbols-outlined text-[36px] text-slate-350 animate-pulse">explore</span>
+            <MdExplore className="text-[36px] text-slate-350 animate-pulse mx-auto" />
             <p className="text-slate-400 text-xs font-bold leading-relaxed mt-2">Dispatcher queue is empty.</p>
             <p className="text-[11px] text-slate-350 font-medium leading-relaxed">New hyper-local grocery and restaurant orders will show up here instantly!</p>
           </div>
@@ -321,7 +370,7 @@ export default function DeliveryOrdersPage() {
                   <div className="border-t border-slate-50 pt-3 space-y-2 text-xs font-semibold">
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
-                        <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">store</span>
+                        <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                         <div>
                           <p className="text-slate-800 font-bold">Pick Up Location</p>
                           <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
@@ -336,13 +385,13 @@ export default function DeliveryOrdersPage() {
                           className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
                           title="Navigate to Pick Up"
                         >
-                          <span className="material-symbols-outlined text-[16px]">navigation</span>
+                          <MdNavigation className="text-[16px]" />
                         </a>
                       )}
                     </div>
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
-                        <span className="material-symbols-outlined text-slate-400 text-[16px] mt-0.5">location_on</span>
+                        <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
                         <div>
                           <p className="text-slate-800 font-bold">Delivery Destination</p>
                           <p className="text-slate-500 font-medium">{order.address?.fullAddress || "Customer address details hidden"}</p>
@@ -358,7 +407,7 @@ export default function DeliveryOrdersPage() {
                           className="w-8 h-8 rounded-full bg-slate-50 hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors shadow-sm ml-1"
                           title="Copy Customer Address"
                         >
-                          <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                          <MdContentCopy className="text-[16px]" />
                         </button>
                         {order.address?.lat !== undefined && (
                           <a
@@ -368,7 +417,7 @@ export default function DeliveryOrdersPage() {
                             className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-1"
                             title="Navigate to Destination"
                           >
-                            <span className="material-symbols-outlined text-[16px]">navigation</span>
+                            <MdNavigation className="text-[16px]" />
                           </a>
                         )}
                       </div>
@@ -381,7 +430,7 @@ export default function DeliveryOrdersPage() {
                       disabled={actioningId === order._id}
                       className="flex items-center justify-center gap-1.5 py-3 border border-rose-200 hover:bg-rose-50 text-rose-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-[16px]">close</span>
+                      <MdClose className="text-[16px]" />
                       Reject
                     </button>
                     <button
@@ -389,7 +438,7 @@ export default function DeliveryOrdersPage() {
                       disabled={actioningId === order._id}
                       className="flex items-center justify-center gap-1.5 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                     >
-                      <span className="material-symbols-outlined text-[16px]">check</span>
+                      <MdCheck className="text-[16px]" />
                       Claim Task
                     </button>
                   </div>

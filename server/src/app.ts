@@ -65,6 +65,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/orders", orderRoutes);
 app.use("/api/deliveries", deliveryRoutes);
+app.use("/api/delivery", deliveryRoutes);
 app.use("/api/delivery-zones", deliveryZoneRoutes);
 app.use("/api/grocery", groceryRoutes);
 app.use("/api/addresses", addressRoutes);

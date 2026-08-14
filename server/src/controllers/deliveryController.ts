@@ -3,8 +3,8 @@ import Delivery from "../models/Delivery";
 import Order from "../models/Order";
 import DeliveryProfile from "../models/DeliveryProfile";
 import { uploadToCloudinary } from "../services/cloudinaryService";
-
 import { DELIVERY_CONSTANTS } from "../constants";
+import { emitToRooms } from "../services/socketService";
 
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
@@ -26,6 +26,24 @@ export const assignDelivery = async (req: Request, res: Response): Promise<void>
         });
 
         await newDelivery.save();
+
+        // --- Socket.IO: Notify the delivery boy and the customer ---
+        try {
+            const order = await Order.findById(orderId).select("user deliveryZone orderType restaurant").lean();
+            if (order) {
+                emitToRooms(
+                    [`delivery:${deliveryBoyId}`, `user:${order.user.toString()}`, "admin"],
+                    "delivery_assigned",
+                    {
+                        orderId: orderId.toString(),
+                        deliveryBoyId: deliveryBoyId.toString(),
+                        userId: order.user.toString(),
+                    }
+                );
+            }
+        } catch (emitErr: any) {
+            console.error("[Socket] delivery_assigned emit error:", emitErr.message);
+        }
 
         res.status(201).json({
             success: true,
@@ -62,6 +80,27 @@ export const updateDeliveryStatus = async (req: Request, res: Response): Promise
                 }
             }
             await Order.findByIdAndUpdate(delivery.order, orderUpdate);
+        }
+
+        // --- Socket.IO: Notify customer and admin of delivery status change ---
+        try {
+            const orderDoc = await Order.findById(delivery.order).select("user deliveryZone orderType restaurant").lean();
+            if (orderDoc) {
+                const rooms: string[] = [`user:${orderDoc.user.toString()}`, "admin"];
+                if (orderDoc.orderType === "food" && orderDoc.restaurant) {
+                    rooms.push(`seller:${orderDoc.restaurant.toString()}`);
+                } else if (orderDoc.orderType === "grocery" && (orderDoc as any).deliveryZone) {
+                    rooms.push(`grocery:${(orderDoc as any).deliveryZone.toString()}`);
+                }
+                emitToRooms(rooms, "delivery_status_updated", {
+                    orderId: delivery.order.toString(),
+                    deliveryId: delivery._id.toString(),
+                    status,
+                    userId: orderDoc.user.toString(),
+                });
+            }
+        } catch (emitErr: any) {
+            console.error("[Socket] delivery_status_updated emit error:", emitErr.message);
         }
 
         res.status(200).json({
@@ -292,6 +331,22 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
         order.orderStatus = "accepted_by_delivery";
         await order.save();
 
+        // --- Socket.IO: Notify customer and admin that a delivery boy accepted ---
+        try {
+            const rooms: string[] = [`user:${order.user.toString()}`, "admin"];
+            // Also emit to zone room so other delivery boys' UIs can remove this from queue
+            if ((order as any).deliveryZone) {
+                rooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
+            }
+            emitToRooms(rooms, "delivery_accepted", {
+                orderId: orderId.toString(),
+                deliveryBoyId: deliveryBoyId?.toString(),
+                userId: order.user.toString(),
+            });
+        } catch (emitErr: any) {
+            console.error("[Socket] delivery_accepted emit error:", emitErr.message);
+        }
+
         res.status(200).json({
             success: true,
             message: "Delivery order accepted successfully",
@@ -375,6 +430,22 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
                 order.paymentStatus = "paid"; // cash collected on doorstep
             }
             await order.save();
+
+            // --- Socket.IO: Notify customer and admin that order is delivered ---
+            try {
+                const rooms: string[] = [`user:${order.user.toString()}`, "admin"];
+                if (order.orderType === "food" && order.restaurant) {
+                    rooms.push(`seller:${order.restaurant.toString()}`);
+                } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                    rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                }
+                emitToRooms(rooms, "order_delivered", {
+                    orderId: orderId.toString(),
+                    userId: order.user.toString(),
+                });
+            } catch (emitErr: any) {
+                console.error("[Socket] order_delivered emit error:", emitErr.message);
+            }
         }
 
         res.status(200).json({

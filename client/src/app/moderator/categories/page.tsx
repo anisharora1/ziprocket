@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
+import { MdCategory, MdKeyboardArrowDown } from "react-icons/md";
 
 interface Product {
   _id: string;
@@ -72,16 +73,16 @@ export default function ModeratorCategories() {
     <div className="flex-1 flex flex-col bg-slate-50">
       <ModeratorHeader title="Categories & Subcategories" />
 
-      <div className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
         <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Category Deck</h2>
+          <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none">Category Deck</h2>
           <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-widest">
             Audit standard quick-commerce categories & live subcategory distribution
           </p>
         </div>
 
         {/* Category Accordion */}
-        <div className="grid grid-cols-1 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4">
           {Object.keys(CATEGORIES_MAP).map((catName) => {
             const isExpanded = expandedCategory === catName;
             const subcats = CATEGORIES_MAP[catName];
@@ -95,11 +96,11 @@ export default function ModeratorCategories() {
                 {/* Accordion Trigger */}
                 <button 
                   onClick={() => setExpandedCategory(isExpanded ? null : catName)}
-                  className="w-full text-left px-6 py-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
+                  className="w-full text-left px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
-                      <span className="material-symbols-outlined text-[20px]">category</span>
+                      <MdCategory className="text-[20px]" />
                     </div>
                     <div>
                       <h3 className="text-sm font-extrabold text-slate-800">{catName}</h3>
@@ -118,9 +119,10 @@ export default function ModeratorCategories() {
                         {catStats.stock} units total
                       </span>
                     </div>
-                    <span className="material-symbols-outlined text-slate-400 transition-transform duration-200" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-                      keyboard_arrow_down
-                    </span>
+                    <MdKeyboardArrowDown 
+                      className="text-slate-400 text-[22px] transition-transform duration-200" 
+                      style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }} 
+                    />
                   </div>
                 </button>
 

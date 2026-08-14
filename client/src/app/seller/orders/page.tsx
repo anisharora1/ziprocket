@@ -1,46 +1,78 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
+import { useOrderSocket } from "../../../hooks/useOrderSocket";
+import { MdClose, MdCheck } from "react-icons/md";
 
 export default function SellerOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(true);
-  
+
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
 
+  const fetchOrders = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/orders/my-orders');
+      if (res.data.success) {
+        setOrders(res.data.orders);
+      }
+    } catch (err) {
+      console.error("Failed to fetch seller orders", err);
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (!user || user.role !== 'seller') {
       router.push('/auth/login');
       return;
     }
 
-    const fetchOrders = async () => {
-      try {
-        const res = await apiClient.get('/orders/my-orders');
-        if (res.data.success) {
-          setOrders(res.data.orders);
-        }
-      } catch (err) {
-        console.error("Failed to fetch seller orders", err);
-      } finally {
-        setIsDataLoading(false);
-      }
-    };
-
     fetchOrders();
-    const interval = setInterval(() => {
-      if (typeof document !== "undefined" && !document.hidden) {
+  }, [user, authLoading, router, fetchOrders]);
+
+  // Real-time socket events
+  useOrderSocket({
+    onNewOrder: (data) => {
+      if (data?.order) {
+        setOrders((prev) => {
+          const exists = prev.some((o) => o._id === data.order._id);
+          if (exists) return prev;
+          return [data.order, ...prev];
+        });
+      } else {
         fetchOrders();
       }
-    }, 10000); // Poll every 10s
-    return () => clearInterval(interval);
-  }, [user, authLoading, router]);
+    },
+    onOrderStatusUpdated: (data) => {
+      if (data?.orderId && data?.orderStatus) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o
+          )
+        );
+      }
+    },
+    onOrderCancelled: (data) => {
+      if (data?.orderId) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
+          )
+        );
+      }
+    },
+    onReconnect: () => {
+      fetchOrders();
+    },
+  });
 
   const updateOrderStatus = async (orderId: string, status: string) => {
     try {
@@ -62,7 +94,7 @@ export default function SellerOrdersPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto flex flex-col h-full">
-      
+
       {/* Desktop Header */}
       <div className="hidden md:flex justify-between items-end mb-8">
         <div>
@@ -72,10 +104,10 @@ export default function SellerOrdersPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 md:gap-8 items-start">
-        
+
         {/* Left Column: Incoming Orders */}
         <div className="xl:col-span-1 flex flex-col gap-4">
-          
+
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-[20px] font-bold text-slate-900">Incoming</h2>
             <span className="px-2.5 py-1 bg-amber-500 text-white text-[11px] font-bold rounded-full">{incomingOrders.length} New</span>
@@ -113,18 +145,18 @@ export default function SellerOrdersPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={() => updateOrderStatus(order._id, 'cancelled')}
                   className="flex items-center justify-center gap-2 py-3 border border-slate-200 rounded-xl text-[14px] font-bold text-slate-600 hover:bg-slate-50 transition-colors"
                 >
-                  <span className="material-symbols-outlined text-[18px]">close</span>
+                  <MdClose className="text-[18px]" />
                   Reject
                 </button>
-                <button 
+                <button
                   onClick={() => updateOrderStatus(order._id, 'accepted')}
                   className="flex items-center justify-center gap-2 py-3 bg-emerald-700 text-white rounded-xl text-[14px] font-bold hover:bg-emerald-800 transition-colors shadow-sm"
                 >
-                  <span className="material-symbols-outlined text-[18px]">check</span>
+                  <MdCheck className="text-[18px]" />
                   Accept
                 </button>
               </div>
@@ -135,7 +167,7 @@ export default function SellerOrdersPage() {
 
         {/* Right Column: Current Kitchen Queue */}
         <div className="xl:col-span-2 flex flex-col gap-4 mt-8 xl:mt-0">
-          
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
             <h2 className="text-[18px] md:text-[20px] font-bold text-slate-900">Current Orders</h2>
           </div>
@@ -175,14 +207,14 @@ export default function SellerOrdersPage() {
                         </td>
                         <td className="py-5 px-6 text-right">
                           {order.orderStatus === 'accepted' ? (
-                            <button 
+                            <button
                               onClick={() => updateOrderStatus(order._id, 'preparing')}
                               className="px-3 py-1 bg-amber-600 text-white text-[12px] font-bold rounded hover:bg-amber-700"
                             >
                               Start Cooking
                             </button>
                           ) : (
-                            <button 
+                            <button
                               onClick={() => updateOrderStatus(order._id, 'on_the_way')}
                               className="px-3 py-1 bg-emerald-600 text-white text-[12px] font-bold rounded hover:bg-emerald-700"
                             >

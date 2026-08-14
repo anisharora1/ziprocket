@@ -11,6 +11,7 @@ import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
 import PlatformSettings from "../models/PlatformSettings";
 import { calculateDistance } from "../services/distanceService";
+import { emitToRooms } from "../services/socketService";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -290,6 +291,23 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             }
         }
 
+        let formattedDeliveryAddress = undefined;
+        if (address.deliveryAddress) {
+            if (typeof address.deliveryAddress === "object") {
+                formattedDeliveryAddress = address.deliveryAddress;
+            } else if (typeof address.deliveryAddress === "string") {
+                formattedDeliveryAddress = {
+                    houseNumber: address.deliveryAddress,
+                    landmark: address.deliveryAddress,
+                    street: "",
+                    locality: "",
+                    village: "",
+                    pincode: address.pincode || "",
+                    instructions: ""
+                };
+            }
+        }
+
         try {
             const newOrder = new Order({
                 user,
@@ -304,7 +322,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     fullAddress: address.fullAddress,
                     lat: address.lat,
                     lng: address.lng,
-                    deliveryAddress: address.deliveryAddress || undefined
+                    deliveryAddress: formattedDeliveryAddress
                 },
                 whatsappOrder,
                 deliveryZone,
@@ -340,6 +358,24 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 // Increment coupon usedCount
                 const CouponModel = mongoose.model("Coupon");
                 await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: 1 } });
+            }
+
+            // --- Socket.IO: Notify seller/grocery moderator of new order ---
+            try {
+                const rooms: string[] = ["admin"];
+                if (orderType === "food" && restaurant) {
+                    rooms.push(`seller:${restaurant}`);
+                } else if (orderType === "grocery" && deliveryZone) {
+                    rooms.push(`grocery:${deliveryZone.toString()}`);
+                }
+                emitToRooms(rooms, "new_order", {
+                    order: newOrder,
+                    orderType,
+                    restaurantId: orderType === "food" ? restaurant : undefined,
+                    zoneId: orderType === "grocery" ? deliveryZone?.toString() : undefined,
+                });
+            } catch (emitErr: any) {
+                console.error("[Socket] new_order emit error:", emitErr.message);
             }
 
             res.status(201).json({
@@ -588,6 +624,29 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
             }
         }
 
+        // --- Socket.IO: Notify relevant parties of order status change ---
+        try {
+            const rooms: string[] = [
+                `user:${order.user.toString()}`,
+                "admin",
+            ];
+            if (order.orderType === "food" && order.restaurant) {
+                rooms.push(`seller:${order.restaurant.toString()}`);
+            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+            }
+            emitToRooms(rooms, "order_status_updated", {
+                orderId: order._id.toString(),
+                orderStatus,
+                orderType: order.orderType,
+                restaurantId: order.restaurant?.toString(),
+                zoneId: (order as any).deliveryZone?.toString(),
+                userId: order.user.toString(),
+            });
+        } catch (emitErr: any) {
+            console.error("[Socket] order_status_updated emit error:", emitErr.message);
+        }
+
         res.status(200).json({
             success: true,
             message: `Order status updated to ${orderStatus}`,
@@ -624,6 +683,17 @@ export const updatePaymentStatus = async (req: Request, res: Response): Promise<
         // Invalidate Redis caches
         await redisService.del(`order:detail:${orderId}`);
         await redisService.del(`order:user_recent:${order.user.toString()}`);
+
+        // --- Socket.IO: Notify customer of payment status change ---
+        try {
+            emitToRooms([`user:${order.user.toString()}`, "admin"], "payment_status_updated", {
+                orderId: order._id.toString(),
+                paymentStatus,
+                userId: order.user.toString(),
+            });
+        } catch (emitErr: any) {
+            console.error("[Socket] payment_status_updated emit error:", emitErr.message);
+        }
 
         res.status(200).json({
             success: true,
@@ -803,6 +873,32 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         // Invalidate Redis caches
         await redisService.del(`order:detail:${id}`);
         await redisService.del(`order:user_recent:${order.user.toString()}`);
+
+        // --- Socket.IO: Notify seller/grocery moderator + delivery boys of cancellation ---
+        try {
+            const rooms: string[] = [
+                `user:${order.user.toString()}`,
+                "admin",
+            ];
+            if (order.orderType === "food" && order.restaurant) {
+                rooms.push(`seller:${order.restaurant.toString()}`);
+            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+            }
+            if ((order as any).deliveryZone) {
+                rooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
+            }
+            emitToRooms(rooms, "order_cancelled", {
+                orderId: id,
+                reason: order.cancellationReason,
+                orderType: order.orderType,
+                restaurantId: order.restaurant?.toString(),
+                zoneId: (order as any).deliveryZone?.toString(),
+                userId: order.user.toString(),
+            });
+        } catch (emitErr: any) {
+            console.error("[Socket] order_cancelled emit error:", emitErr.message);
+        }
 
         res.status(200).json({
             success: true,

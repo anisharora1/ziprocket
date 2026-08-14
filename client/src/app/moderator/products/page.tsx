@@ -4,6 +4,17 @@ import React, { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
 import { useSearchParams } from "next/navigation";
+import {
+  MdAddBox,
+  MdSearch,
+  MdInventory2,
+  MdImage,
+  MdCheck,
+  MdClose,
+  MdEdit,
+  MdDelete,
+  MdPhotoCamera,
+} from "react-icons/md";
 
 interface Product {
   _id: string;
@@ -263,20 +274,20 @@ export default function ModeratorProducts() {
     <div className="flex-1 flex flex-col bg-slate-50">
       <ModeratorHeader title="Grocery Product Catalog" />
 
-      <div className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
         {/* Top Control Bar */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">Catalog Desk</h2>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-800 tracking-tight leading-none">Catalog Desk</h2>
             <p className="text-xs font-semibold text-slate-400 mt-2 uppercase tracking-widest">
               Live Blinkit / Zepto Hyperlocal Inventory Manager
             </p>
           </div>
           <button 
             onClick={openAddModal}
-            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[13px] rounded-2xl shadow-lg shadow-emerald-600/10 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[13px] rounded-2xl shadow-lg shadow-emerald-600/10 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0 self-start sm:self-auto"
           >
-            <span className="material-symbols-outlined text-[20px]">add_box</span>
+            <MdAddBox className="text-[20px]" />
             Add Product
           </button>
         </div>
@@ -286,13 +297,13 @@ export default function ModeratorProducts() {
           <form onSubmit={handleSearchSubmit} className="flex flex-col lg:flex-row gap-4">
             {/* Search Input */}
             <div className="flex-1 flex bg-slate-50 border-2 border-slate-200/60 rounded-2xl overflow-hidden focus-within:border-emerald-500 transition-colors">
-              <span className="material-symbols-outlined text-slate-400 text-[20px] flex items-center pl-4 pr-2">search</span>
+              <MdSearch className="text-slate-400 text-[20px] ml-4 my-auto shrink-0" />
               <input 
                 type="text" 
                 placeholder="Search products by name or brand..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full py-3 bg-transparent text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                className="w-full py-3 px-3 bg-transparent text-sm font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none"
               />
             </div>
 
@@ -325,34 +336,34 @@ export default function ModeratorProducts() {
                 }}
                 className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
               >
-                <option value="all">All Inventory</option>
-                <option value="low">Low Stock Alert (&lt;10)</option>
-                <option value="out">Out of Stock Only</option>
+                <option value="all">All Stock Statuses</option>
+                <option value="low">Low Stock (Under 10)</option>
+                <option value="out">Out of Stock (0)</option>
               </select>
             </div>
 
             {/* Search Submit */}
             <button 
               type="submit"
-              className="py-3 px-6 bg-slate-800 hover:bg-slate-900 text-white font-extrabold text-[13px] rounded-2xl transition-colors"
+              className="px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-2xl active:scale-95 transition-all"
             >
-              Apply Filter
+              Filter Records
             </button>
           </form>
         </div>
 
-        {/* Data Table */}
-        <div className="bg-white border border-slate-100 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+        {/* Products Table */}
+        <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Product</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Category & Sub</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Pricing</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Stock & Unit</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Actions</th>
+                <tr className="bg-slate-50/50 border-b border-slate-100">
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Product Details</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Hierarchy</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Pricing</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Stock Level</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Manage</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -366,7 +377,7 @@ export default function ModeratorProducts() {
                 ) : products.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-400 text-sm font-semibold">
-                      <span className="material-symbols-outlined text-[48px] text-slate-200 block mb-2">inventory</span>
+                      <MdInventory2 className="text-[48px] text-slate-200 block mb-2 mx-auto" />
                       No products found matching these filters.
                     </td>
                   </tr>
@@ -380,7 +391,7 @@ export default function ModeratorProducts() {
                             {product.images && product.images[0] ? (
                               <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                             ) : (
-                              <span className="material-symbols-outlined text-slate-400 text-[20px]">image</span>
+                              <MdImage className="text-slate-400 text-[20px]" />
                             )}
                           </div>
                           <div>
@@ -434,13 +445,13 @@ export default function ModeratorProducts() {
                               onClick={() => handleQuickStockUpdate(product._id)}
                               className="p-1 bg-emerald-600 text-white rounded hover:bg-emerald-700 flex items-center justify-center"
                             >
-                              <span className="material-symbols-outlined text-[14px]">check</span>
+                              <MdCheck className="text-[14px]" />
                             </button>
                             <button 
                               onClick={() => setUpdatingStockId(null)}
                               className="p-1 bg-slate-100 text-slate-500 rounded hover:bg-slate-200 flex items-center justify-center"
                             >
-                              <span className="material-symbols-outlined text-[14px]">close</span>
+                              <MdClose className="text-[14px]" />
                             </button>
                           </div>
                         ) : (
@@ -456,7 +467,7 @@ export default function ModeratorProducts() {
                               className="opacity-0 group-hover/stock:opacity-100 p-1 hover:bg-slate-100 text-slate-400 hover:text-slate-600 rounded transition-all"
                               title="Quick Restock"
                             >
-                              <span className="material-symbols-outlined text-[16px]">edit</span>
+                              <MdEdit className="text-[16px]" />
                             </button>
                           </div>
                         )}
@@ -478,14 +489,14 @@ export default function ModeratorProducts() {
                             className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 hover:border-emerald-100 transition-colors"
                             title="Edit Product"
                           >
-                            <span className="material-symbols-outlined text-[16px]">edit</span>
+                            <MdEdit className="text-[16px]" />
                           </button>
                           <button 
                             onClick={() => handleDelete(product._id)}
                             className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 hover:border-red-100 transition-colors"
                             title="Delete Product"
                           >
-                            <span className="material-symbols-outlined text-[16px]">delete</span>
+                            <MdDelete className="text-[16px]" />
                           </button>
                         </div>
                       </td>
@@ -525,29 +536,29 @@ export default function ModeratorProducts() {
 
       {/* Add / Edit Product Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4">
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative bg-white rounded-[32px] w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="relative bg-white rounded-3xl sm:rounded-[32px] w-full max-w-2xl max-h-[92vh] overflow-y-auto shadow-2xl flex flex-col animate-in fade-in zoom-in-95 duration-200">
             {/* Modal Header */}
-            <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
+            <div className="px-5 sm:px-8 py-4 sm:py-5 border-b border-slate-100 flex items-center justify-between sticky top-0 bg-white z-10">
               <div>
-                <h3 className="text-lg font-black text-slate-900">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 leading-tight">
                   {editingProduct ? "Edit Product Details" : "Catalog New Grocery Item"}
                 </h3>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
+                <p className="text-[11px] sm:text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
                   All items are synced instantly to client storefront
                 </p>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all shrink-0 ml-2"
               >
-                <span className="material-symbols-outlined text-[18px]">close</span>
+                <MdClose className="text-[18px]" />
               </button>
             </div>
 
             {/* Modal Body / Form */}
-            <form onSubmit={handleSubmit} className="p-8 space-y-6 flex-1">
+            <form onSubmit={handleSubmit} className="p-5 sm:p-8 space-y-4 sm:space-y-6 flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Product Name */}
                 <div className="space-y-1.5">
@@ -741,7 +752,7 @@ export default function ModeratorProducts() {
                     onClick={() => fileInputRef.current?.click()}
                     className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-dashed border-slate-300 flex items-center gap-2"
                   >
-                    <span className="material-symbols-outlined text-[18px]">photo_camera</span>
+                    <MdPhotoCamera className="text-[18px]" />
                     Select Files
                   </button>
                   <input 
@@ -770,7 +781,7 @@ export default function ModeratorProducts() {
                             }}
                             className="w-7 h-7 bg-red-600 text-white rounded-full flex items-center justify-center"
                           >
-                            <span className="material-symbols-outlined text-[14px]">delete</span>
+                            <MdDelete className="text-[14px]" />
                           </button>
                         </div>
                       </div>

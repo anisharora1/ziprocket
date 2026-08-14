@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
+import {
+  MdSearch,
+  MdGroups,
+  MdCalendarToday,
+  MdCall,
+  MdLocationOn,
+} from "react-icons/md";
 
 interface UserAddress {
   fullAddress: string;
@@ -55,17 +62,17 @@ export default function ModeratorUsersPage() {
     <div className="flex-1 flex flex-col bg-slate-50">
       <ModeratorHeader title="Zone Customers Hub" />
 
-      <main className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
         {/* Controls Panel */}
-        <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h3 className="font-extrabold text-sm text-slate-800">Zone Customers</h3>
             <p className="text-[11px] font-semibold text-slate-400">Audience pool residing or ordering within your assigned zones</p>
           </div>
 
           {/* Search Box */}
-          <div className="relative flex-1 max-w-md">
-            <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]">search</span>
+          <div className="relative flex-1 max-w-full sm:max-w-md">
+            <MdSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 text-[20px]" />
             <input
               type="text"
               placeholder="Search customers by name or phone..."
@@ -78,16 +85,16 @@ export default function ModeratorUsersPage() {
 
         {/* Loading Skeletons */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {[1, 2, 3].map((i) => (
               <div key={i} className="bg-white rounded-3xl border border-slate-100 p-6 space-y-4 shadow-sm animate-pulse h-48" />
             ))}
           </div>
         ) : filteredCustomers.length === 0 ? (
           /* Empty State */
-          <div className="bg-white border border-slate-100 rounded-3xl p-16 flex flex-col items-center justify-center text-center max-w-lg mx-auto shadow-sm">
+          <div className="bg-white border border-slate-100 rounded-3xl p-10 sm:p-16 flex flex-col items-center justify-center text-center max-w-lg mx-auto shadow-sm">
             <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-5 border border-emerald-100">
-              <span className="material-symbols-outlined text-[36px] text-emerald-600">groups</span>
+              <MdGroups className="text-[36px] text-emerald-600" />
             </div>
             <h3 className="text-lg font-black text-slate-800 leading-none">No Customers Found</h3>
             <p className="text-slate-400 text-xs font-semibold leading-relaxed mt-2.5 max-w-xs">
@@ -96,7 +103,7 @@ export default function ModeratorUsersPage() {
           </div>
         ) : (
           /* Customers Grid */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {filteredCustomers.map((customer) => (
               <div 
                 key={customer._id} 
@@ -111,7 +118,7 @@ export default function ModeratorUsersPage() {
                     <div>
                       <h4 className="text-sm font-extrabold text-slate-800 leading-none">{customer.name || "Customer"}</h4>
                       <p className="text-[10px] font-semibold text-slate-400 mt-1 flex items-center gap-0.5">
-                        <span className="material-symbols-outlined text-[12px]">calendar_today</span>
+                        <MdCalendarToday className="text-[12px]" />
                         Joined {new Date(customer.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })}
                       </p>
                     </div>
@@ -122,7 +129,7 @@ export default function ModeratorUsersPage() {
                   {/* Customer Contact */}
                   <div className="space-y-2.5">
                     <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                      <span className="material-symbols-outlined text-[16px] text-slate-400">call</span>
+                      <MdCall className="text-[16px] text-slate-400" />
                       <span className="text-slate-750">+91 {customer.phone}</span>
                     </div>
 
@@ -133,7 +140,7 @@ export default function ModeratorUsersPage() {
                         <div className="max-h-24 overflow-y-auto space-y-1.5 pr-1">
                           {customer.addresses.map((addr, idx) => (
                             <div key={idx} className="flex gap-1.5 items-start text-[11px] leading-relaxed text-slate-650 bg-slate-50/50 p-2 rounded-xl border border-slate-100/60 font-semibold">
-                              <span className="material-symbols-outlined text-[13px] text-slate-400 shrink-0 mt-0.5">location_on</span>
+                              <MdLocationOn className="text-[13px] text-slate-400 shrink-0 mt-0.5" />
                               <span className="line-clamp-2">{addr.fullAddress}</span>
                             </div>
                           ))}

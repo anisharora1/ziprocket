@@ -4,6 +4,25 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
 import Link from "next/link";
+import {
+  MdAddCircle,
+  MdExplore,
+  MdLocationOn,
+  MdInventory2,
+  MdWarning,
+  MdProductionQuantityLimits,
+  MdPayments,
+  MdLocalShipping,
+  MdGroups,
+  MdNotificationsActive,
+  MdChevronRight,
+  MdTaskAlt,
+  MdImage,
+  MdEditNote,
+  MdTipsAndUpdates,
+  MdCampaign,
+  MdStorefront,
+} from "react-icons/md";
 
 interface InventoryStats {
   totalProducts: number;
@@ -114,9 +133,9 @@ export default function ModeratorDashboard() {
     <div className="flex-1 flex flex-col bg-slate-50">
       <ModeratorHeader title="Inventory Console" />
       
-      <div className="flex-1 p-6 md:p-8 space-y-6 overflow-y-auto">
+      <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 overflow-y-auto">
         {/* Welcome and action banner */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-3xl p-6 md:p-8 shadow-xl shadow-emerald-950/10 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-3xl p-5 sm:p-6 md:p-8 shadow-xl shadow-emerald-950/10 relative overflow-hidden">
           <div className="absolute inset-0 bg-grid-white opacity-10 pointer-events-none"></div>
           <div className="relative z-10 space-y-1">
             <span className="inline-block px-3 py-1 bg-white/20 text-white font-bold text-[11px] rounded-full uppercase tracking-wider mb-2">
@@ -132,7 +151,7 @@ export default function ModeratorDashboard() {
               href="/moderator/products" 
               className="px-5 py-3 bg-white hover:bg-emerald-50 text-emerald-800 font-extrabold text-[13px] rounded-2xl shadow-md active:scale-95 transition-all flex items-center gap-2"
             >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              <MdAddCircle className="text-[18px]" />
               Manage Catalog
             </Link>
           </div>
@@ -143,7 +162,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <span className="material-symbols-outlined text-[20px]">explore</span>
+                <MdExplore className="text-[20px]" />
               </div>
               <div>
                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">Your Assigned Delivery Zones</h3>
@@ -153,7 +172,7 @@ export default function ModeratorDashboard() {
                       key={zone._id} 
                       className="inline-flex items-center gap-0.5 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-100 font-extrabold text-[9px] rounded-lg uppercase tracking-wider"
                     >
-                      <span className="material-symbols-outlined text-[9px]">location_on</span>
+                      <MdLocationOn className="text-[11px]" />
                       {zone.name} ({zone.radiusKm}km)
                     </span>
                   ))}
@@ -168,12 +187,12 @@ export default function ModeratorDashboard() {
         )}
 
         {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
           {/* Total Products */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center transition-transform group-hover:scale-110">
-                <span className="material-symbols-outlined text-[24px]">inventory_2</span>
+                <MdInventory2 className="text-[24px]" />
               </div>
               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Catalog Size
@@ -189,7 +208,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-50 text-slate-400'}`}>
-                <span className="material-symbols-outlined text-[24px]">warning</span>
+                <MdWarning className="text-[24px]" />
               </div>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
                 Stock Alert
@@ -207,7 +226,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
-                <span className="material-symbols-outlined text-[24px]">production_quantity_limits</span>
+                <MdProductionQuantityLimits className="text-[24px]" />
               </div>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
                 Needs Restock
@@ -225,7 +244,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center transition-transform group-hover:scale-110">
-                <span className="material-symbols-outlined text-[24px]">payments</span>
+                <MdPayments className="text-[24px]" />
               </div>
               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Asset Value
@@ -243,7 +262,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-650 flex items-center justify-center transition-transform group-hover:scale-110">
-                <span className="material-symbols-outlined text-[24px]">local_shipping</span>
+                <MdLocalShipping className="text-[24px]" />
               </div>
               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Operations
@@ -259,7 +278,7 @@ export default function ModeratorDashboard() {
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
             <div className="flex justify-between items-start mb-4">
               <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-655 flex items-center justify-center transition-transform group-hover:scale-110">
-                <span className="material-symbols-outlined text-[24px]">groups</span>
+                <MdGroups className="text-[24px]" />
               </div>
               <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
                 Audience
@@ -279,7 +298,7 @@ export default function ModeratorDashboard() {
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <div>
                 <h3 className="font-bold text-[16px] text-slate-800 flex items-center gap-2">
-                  <span className="material-symbols-outlined text-amber-500">notifications_active</span>
+                  <MdNotificationsActive className="text-amber-500 text-[20px]" />
                   Urgent Restocking Desk
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">Top low-stock items needing attention</p>
@@ -289,7 +308,7 @@ export default function ModeratorDashboard() {
                 className="text-emerald-600 hover:text-emerald-700 font-bold text-[13px] flex items-center gap-1 transition-colors"
               >
                 View Full Catalog
-                <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                <MdChevronRight className="text-[16px]" />
               </Link>
             </div>
             
@@ -307,7 +326,7 @@ export default function ModeratorDashboard() {
                   {lowStockProductsList.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-12 text-center text-slate-400 font-semibold text-sm">
-                        <span className="material-symbols-outlined text-[48px] text-slate-200 block mb-2">task_alt</span>
+                        <MdTaskAlt className="text-[48px] text-slate-200 block mb-2 mx-auto" />
                         All products are well stocked!
                       </td>
                     </tr>
@@ -320,7 +339,7 @@ export default function ModeratorDashboard() {
                               {product.images && product.images[0] ? (
                                 <img src={product.images[0]} alt={product.name} className="w-full h-full object-cover" />
                               ) : (
-                                <span className="material-symbols-outlined text-slate-400 text-[20px]">image</span>
+                                <MdImage className="text-slate-400 text-[20px]" />
                               )}
                             </div>
                             <div>
@@ -370,7 +389,7 @@ export default function ModeratorDashboard() {
                                 }}
                                 className="px-3.5 py-1.5 bg-slate-50 border border-slate-200/60 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 font-bold text-[12px] rounded-xl transition-all flex items-center gap-1"
                               >
-                                <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                                <MdEditNote className="text-[16px]" />
                                 Restock
                               </button>
                             </div>
@@ -388,13 +407,13 @@ export default function ModeratorDashboard() {
           <div className="flex flex-col gap-6">
             <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm flex flex-col gap-4">
               <h3 className="font-bold text-[15px] text-slate-800 flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-600">tips_and_updates</span>
+                <MdTipsAndUpdates className="text-emerald-600 text-[20px]" />
                 Moderation Insights
               </h3>
               
               <div className="space-y-4">
                 <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100/50 flex gap-3">
-                  <span className="material-symbols-outlined text-emerald-600 mt-0.5">local_shipping</span>
+                  <MdLocalShipping className="text-emerald-600 mt-0.5 text-[20px] shrink-0" />
                   <div>
                     <h4 className="text-[12px] font-bold text-emerald-800">Hyperlocal Auto-Routing</h4>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
@@ -404,7 +423,7 @@ export default function ModeratorDashboard() {
                 </div>
 
                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3">
-                  <span className="material-symbols-outlined text-slate-500 mt-0.5">campaign</span>
+                  <MdCampaign className="text-slate-500 mt-0.5 text-[20px] shrink-0" />
                   <div>
                     <h4 className="text-[12px] font-bold text-slate-700">Add Promo Banners</h4>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-semibold">
@@ -419,7 +438,7 @@ export default function ModeratorDashboard() {
             <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden">
               <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-emerald-500 rounded-full blur-[40px] opacity-20"></div>
               <h3 className="font-bold text-[15px] mb-2 flex items-center gap-2">
-                <span className="material-symbols-outlined text-emerald-400">shelves</span>
+                <MdStorefront className="text-emerald-400 text-[20px]" />
                 Add New Inventory
               </h3>
               <p className="text-slate-300 text-xs font-semibold leading-relaxed mb-6">

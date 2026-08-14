@@ -4,6 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
+import {
+  MdDownload,
+  MdAccountBalance,
+  MdAccountBalanceWallet,
+  MdAllInclusive,
+  MdShoppingBag,
+  MdAnalytics,
+  MdReceiptLong,
+} from "react-icons/md";
 
 export default function SellerFinancePage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -66,7 +75,7 @@ export default function SellerFinancePage() {
         </div>
         <div className="flex items-center gap-3">
           <button className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-slate-200 rounded-lg text-[13px] font-bold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors">
-            <span className="material-symbols-outlined text-[18px]">download</span>
+            <MdDownload className="text-[18px]" />
             Download Report
           </button>
         </div>
@@ -77,16 +86,16 @@ export default function SellerFinancePage() {
         
         {/* Total Earnings */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 shadow-lg shadow-emerald-500/20 text-white relative overflow-hidden">
-          <span className="material-symbols-outlined absolute right-[-10px] bottom-[-20px] text-[120px] opacity-20 pointer-events-none transform -rotate-12">account_balance</span>
+          <MdAccountBalance className="absolute right-[-10px] bottom-[-20px] text-[120px] opacity-20 pointer-events-none transform -rotate-12" />
           <div className="flex justify-between items-start relative z-10 mb-6">
             <p className="text-[11px] font-bold tracking-widest uppercase opacity-80">Overall Income</p>
             <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
-              <span className="material-symbols-outlined text-[18px]">account_balance_wallet</span>
+              <MdAccountBalanceWallet className="text-[18px]" />
             </div>
           </div>
           <h2 className="text-[40px] font-black tracking-tight leading-none mb-3 relative z-10">₹{totalRevenue.toLocaleString()}</h2>
           <p className="text-[12px] font-medium flex items-center gap-1 relative z-10 opacity-90">
-            <span className="material-symbols-outlined text-[14px]">all_inclusive</span>
+            <MdAllInclusive className="text-[14px]" />
             Lifetime earnings
           </p>
         </div>
@@ -96,7 +105,7 @@ export default function SellerFinancePage() {
           <div className="flex justify-between items-start mb-6">
             <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">Total Orders</p>
             <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">shopping_bag</span>
+              <MdShoppingBag className="text-[18px]" />
             </div>
           </div>
           <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">{orders.length}</h2>
@@ -111,7 +120,7 @@ export default function SellerFinancePage() {
           <div className="flex justify-between items-start mb-6">
             <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">Avg. Order Value</p>
             <div className="w-8 h-8 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[18px]">analytics</span>
+              <MdAnalytics className="text-[18px]" />
             </div>
           </div>
           <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">₹{averageOrderValue}</h2>
@@ -133,7 +142,7 @@ export default function SellerFinancePage() {
         
         {orders.length === 0 ? (
            <div className="p-12 text-center text-slate-500">
-              <span className="material-symbols-outlined text-[48px] text-slate-300 mb-4">receipt_long</span>
+              <MdReceiptLong className="text-[48px] text-slate-300 mb-4 mx-auto" />
               <p>No transactions found.</p>
            </div>
         ) : (

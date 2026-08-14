@@ -567,10 +567,10 @@ export default function CheckoutPage() {
         setCouponError(null);
     };
 
-    const activeDeliveryFee = billDetails ? billDetails.deliveryFee : deliveryFeeFallback;
-    const activeGST = billDetails ? billDetails.gst : taxesFallback;
-    const activeGrandTotal = billDetails ? billDetails.grandTotal : grandTotalFallback;
-    const activeDistance = billDetails?.distanceKm !== undefined ? billDetails.distanceKm : distanceFallback;
+    const activeDeliveryFee = Number(billDetails?.deliveryFee ?? deliveryFeeFallback) || 0;
+    const activeGST = Number(billDetails?.gst ?? taxesFallback) || 0;
+    const activeGrandTotal = Number(billDetails?.grandTotal ?? grandTotalFallback) || 0;
+    const activeDistance = Number(billDetails?.distanceKm ?? distanceFallback) || 0;
 
     // Auto-redirect after notification card with a delay
     useEffect(() => {
@@ -1283,64 +1283,64 @@ export default function CheckoutPage() {
                         <div className="space-y-2.5 text-[13px]">
                             <div className="flex justify-between text-slate-600">
                                 <span>Item Total</span>
-                                <span className="text-slate-900 font-medium">₹{(billDetails?.itemTotal ?? itemTotal).toFixed(2)}</span>
+                                <span className="text-slate-900 font-medium">₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
                             </div>
 
                             <div className="flex justify-between text-slate-600">
                                 <span>Delivery Fee</span>
-                                <span className="text-slate-900 font-medium">₹{activeDeliveryFee.toFixed(2)}</span>
+                                <span className="text-slate-900 font-medium">₹{(Number(activeDeliveryFee) || 0).toFixed(2)}</span>
                             </div>
 
-                            {billDetails && billDetails.smallOrderFee > 0 && (
+                            {billDetails && Number(billDetails.smallOrderFee) > 0 && (
                                 <div className="flex justify-between text-[#FF5C00]">
                                     <span>Small Order Handling Fee</span>
-                                    <span className="font-medium">₹{billDetails.smallOrderFee.toFixed(2)}</span>
+                                    <span className="font-medium">₹{(Number(billDetails.smallOrderFee) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
-                            {billDetails && billDetails.platformFee > 0 && (
+                            {billDetails && Number(billDetails.platformFee) > 0 && (
                                 <div className="flex justify-between text-slate-600">
                                     <span>Platform Fee</span>
-                                    <span className="text-slate-900 font-medium">₹{billDetails.platformFee.toFixed(2)}</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.platformFee) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
-                            {billDetails && billDetails.packagingCharge > 0 && (
+                            {billDetails && Number(billDetails.packagingCharge) > 0 && (
                                 <div className="flex justify-between text-slate-600">
                                     <span>Packaging Charge</span>
-                                    <span className="text-slate-900 font-medium">₹{billDetails.packagingCharge.toFixed(2)}</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.packagingCharge) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
-                            {billDetails && billDetails.convenienceFee > 0 && (
+                            {billDetails && Number(billDetails.convenienceFee) > 0 && (
                                 <div className="flex justify-between text-slate-600">
                                     <span>Convenience Fee</span>
-                                    <span className="text-slate-900 font-medium">₹{billDetails.convenienceFee.toFixed(2)}</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.convenienceFee) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
-                            {billDetails && billDetails.surgeCharge > 0 && (
+                            {billDetails && Number(billDetails.surgeCharge) > 0 && (
                                 <div className="flex justify-between text-[#c2410c] font-semibold animate-pulse">
                                     <span className="flex items-center gap-1">
                                         <MdThunderstorm className="text-[15px]" />
                                         Surge Surcharge Active
                                     </span>
-                                    <span>₹{billDetails.surgeCharge.toFixed(2)}</span>
+                                    <span>₹{(Number(billDetails.surgeCharge) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
                             <div className="flex justify-between text-slate-600">
                                 <span>Taxes (GST/Service)</span>
-                                <span className="text-slate-900 font-medium">₹{activeGST.toFixed(2)}</span>
+                                <span className="text-slate-900 font-medium">₹{(Number(activeGST) || 0).toFixed(2)}</span>
                             </div>
 
-                            {billDetails && billDetails.discountAmount !== undefined && billDetails.discountAmount > 0 && (
+                            {billDetails && billDetails.discountAmount !== undefined && Number(billDetails.discountAmount) > 0 && (
                                 <div className="flex justify-between text-emerald-600 font-extrabold animate-pulse bg-emerald-50/50 p-2.5 rounded-xl border border-dashed border-emerald-200">
                                     <span className="flex items-center gap-1.5">
                                         <MdSell className="text-[16px]" />
                                         Coupon Discount ({appliedCouponCode})
                                     </span>
-                                    <span>-₹{billDetails.discountAmount.toFixed(2)}</span>
+                                    <span>-₹{(Number(billDetails.discountAmount) || 0).toFixed(2)}</span>
                                 </div>
                             )}
 
@@ -1353,7 +1353,7 @@ export default function CheckoutPage() {
                                         </span>
                                     )}
                                 </div>
-                                <span className="font-medium text-[16px] text-[#FF5C00]">₹{activeGrandTotal.toFixed(2)}</span>
+                                <span className="font-medium text-[16px] text-[#FF5C00]">₹{(Number(activeGrandTotal) || 0).toFixed(2)}</span>
                             </div>
                         </div>
                     )}

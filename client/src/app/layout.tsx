@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { SocketProvider } from "@/context/SocketContext";
 import { CartProvider } from "@/context/CartContext";
 import { LocationProvider } from "@/context/LocationContext";
 import { PlatformProvider } from "@/context/PlatformContext";
@@ -140,11 +141,13 @@ export default function RootLayout({
             <LocationProvider>
               <PlatformProvider>
                 <AuthProvider>
-                  <CartProvider>
-                    {children}
-                    <LocationPromptModal />
-                    <PwaManager />
-                  </CartProvider>
+                  <SocketProvider>
+                    <CartProvider>
+                      {children}
+                      <LocationPromptModal />
+                      <PwaManager />
+                    </CartProvider>
+                  </SocketProvider>
                 </AuthProvider>
               </PlatformProvider>
             </LocationProvider>

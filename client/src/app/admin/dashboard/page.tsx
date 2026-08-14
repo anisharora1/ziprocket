@@ -101,17 +101,17 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="flex-1 p-4 md:p-8 space-y-6 md:space-y-8 bg-[#fafafa] min-h-screen">
+    <div className="flex-1 p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 md:space-y-8 bg-[#fafafa] min-h-screen">
       
       {/* Dashboard Header */}
-      <div className="flex justify-between items-end mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-4">
         <div>
-          <p className="text-[10px] font-bold tracking-widest text-[#FF5C00] uppercase mb-2">Real-time Monitoring</p>
-          <h2 className="text-[28px] font-bold text-slate-900 tracking-tight leading-none font-sans">Logistics Dashboard</h2>
+          <p className="text-[10px] font-bold tracking-widest text-[#FF5C00] uppercase mb-1 sm:mb-2">Real-time Monitoring</p>
+          <h2 className="text-2xl sm:text-[28px] font-bold text-slate-900 tracking-tight leading-none font-sans">Logistics Dashboard</h2>
         </div>
         <button 
           onClick={fetchDashboardData}
-          className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-lg text-[13px] font-semibold text-slate-700 shadow-sm hover:border-[#FF5C00] hover:text-[#FF5C00] transition-colors"
+          className="flex items-center justify-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl text-[13px] font-semibold text-slate-700 shadow-sm hover:border-[#FF5C00] hover:text-[#FF5C00] transition-colors self-start sm:self-auto"
         >
           <MdRefresh className="text-[16px]" />
           Refresh Stats
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
         {/* Total Orders */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
