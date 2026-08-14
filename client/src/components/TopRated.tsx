@@ -182,7 +182,7 @@ export default function TopRated() {
               <div className="flex items-center justify-between text-slate-450 text-[11px] font-semibold mt-1">
                 <div className="flex items-center gap-0.5 text-amber-500">
                   <MdStar className="text-[13px]" />
-                  <span>{restaurant.rating > 0 ? restaurant.rating.toFixed(1) : "New"}</span>
+                  <span>{(Number(restaurant?.rating) || 0) > 0 ? Number(restaurant.rating).toFixed(1) : "New"}</span>
                 </div>
                 <span className="text-[10px] text-slate-455 truncate max-w-[90px]">
                   {restaurant.cuisines ? restaurant.cuisines.split(",")[0] : "Fast Food"}

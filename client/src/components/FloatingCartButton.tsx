@@ -8,8 +8,8 @@ export default function FloatingCartButton() {
 
   if (cart.items.length === 0) return null;
 
-  const totalItems = cart.items.reduce((sum, item) => sum + item.quantity, 0);
-  const totalPrice = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  const totalItems = cart.items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+  const totalPrice = cart.items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
 
   return (
     <div className="fixed bottom-[90px] left-4 right-4 md:left-auto md:right-4 md:w-96 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300">
@@ -25,7 +25,7 @@ export default function FloatingCartButton() {
             </span>
           </div>
           <div>
-            <p className="text-[14px] font-black">₹{totalPrice.toFixed(2)}</p>
+            <p className="text-[14px] font-black">₹{(Number(totalPrice) || 0).toFixed(2)}</p>
             <p className="text-[11px] text-[#FF5C00]-100 font-medium opacity-80">Plus taxes & delivery</p>
           </div>
         </div>

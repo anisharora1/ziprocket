@@ -118,7 +118,7 @@ export default function CartPage() {
         });
     };
 
-    const itemTotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemTotal = items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-32 min-h-screen w-full font-sans">
@@ -315,7 +315,7 @@ export default function CartPage() {
                         <div>
                             <p className="text-[9px] font-black text-slate-450 uppercase tracking-widest leading-none">Basket Subtotal</p>
                             <p className="text-lg font-black text-slate-900 mt-1 leading-none">
-                                ₹{itemTotal.toFixed(2)}
+                                ₹{(Number(itemTotal) || 0).toFixed(2)}
                                 <span className="text-[10px] text-slate-400 font-extrabold ml-1.5 uppercase tracking-wide">
                                     ({cart.items.reduce((sum, item) => sum + item.quantity, 0)} {cart.items.length === 1 ? 'item' : 'items'})
                                 </span>

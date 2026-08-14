@@ -352,7 +352,7 @@ function SearchResultsContent() {
                             <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50 text-[10px] font-bold text-slate-400">
                               <span className="flex items-center gap-0.5 text-amber-500">
                                 <MdStar className="text-[12px]" />
-                                <span>{rest.rating > 0 ? rest.rating.toFixed(1) : "New"}</span>
+                                <span>{(Number(rest?.rating) || 0) > 0 ? Number(rest.rating).toFixed(1) : "New"}</span>
                               </span>
                               <span>{rest.location?.address?.split(",")?.[0] || "Local area"}</span>
                             </div>

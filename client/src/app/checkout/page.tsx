@@ -444,7 +444,7 @@ export default function CheckoutPage() {
     };
 
     // Default calculations fallback
-    const itemTotal = cart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const itemTotal = cart.items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
     const distanceFallback = 2.5;
     const deliveryFeeFallback = itemTotal > 0 ? (cart.orderType === 'grocery' ? (itemTotal >= 200 ? 0 : Math.round(15 * distanceFallback)) : 40) : 0;
     const taxesFallback = Math.round(itemTotal * 0.05);
@@ -1143,7 +1143,7 @@ export default function CheckoutPage() {
                                         <p className="text-[12px] text-slate-500 mt-0.5">Qty: {item.quantity}</p>
                                     </div>
                                 </div>
-                                <span className="font-medium text-[14px] text-slate-900">₹{item.price * item.quantity}</span>
+                                <span className="font-medium text-[14px] text-slate-900">₹{(Number(item?.price) || 0) * (Number(item?.quantity) || 1)}</span>
                             </div>
                         ))}
                     </div>

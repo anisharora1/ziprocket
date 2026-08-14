@@ -127,7 +127,7 @@ export default function DeliveryAdminPage() {
 
   // Real ratings from Mongoose backend DB records
   const getRating = (p: DeliveryProfile) => {
-    return (p.rating !== undefined ? p.rating : 5.0).toFixed(1);
+    return (Number(p?.rating ?? 5.0) || 5.0).toFixed(1);
   };
 
   // Real workloads calculated dynamically by counting in-progress Delivery documents for each rider

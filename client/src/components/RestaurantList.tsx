@@ -212,7 +212,7 @@ export default function RestaurantList() {
                     {restaurant.name}
                   </h3>
                   <div className="flex items-center gap-0.5 bg-[#FFF1E6] text-[#FF5C00] px-2 py-0.5 rounded-lg text-[10px] font-extrabold shrink-0 border border-[#FFE2CC]/40">
-                    <span>{restaurant.rating > 0 ? restaurant.rating.toFixed(1) : "New"}</span>
+                    <span>{(Number(restaurant?.rating) || 0) > 0 ? Number(restaurant.rating).toFixed(1) : "New"}</span>
                     <MdStar className="text-[12px]" />
                   </div>
                 </div>
