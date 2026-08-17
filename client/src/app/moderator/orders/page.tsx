@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useState } from "react";
 import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
+import { useGroceryOrders } from "@/hooks/useOrders";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   MdSearch,
   MdReceiptLong,
@@ -41,7 +43,7 @@ interface Order {
   deliveryCharge: number;
   paymentMethod: "COD" | "ONLINE";
   paymentStatus: "pending" | "paid" | "failed";
-  orderStatus: "placed" | "accepted" | "preparing" | "on_the_way" | "delivered" | "cancelled";
+  orderStatus: "placed" | "accepted" | "preparing" | "accepted_by_delivery" | "on_the_way" | "delivered" | "cancelled";
   address: {
     fullAddress: string;
   };
@@ -53,62 +55,74 @@ interface Order {
 }
 
 export default function ModeratorOrdersPage() {
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("active");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const fetchOrders = useCallback(async () => {
-    try {
-      const res = await apiClient.get("/orders/grocery");
-      if (res.data.success) {
-        setOrders(res.data.orders || []);
-      }
-    } catch (err) {
-      console.error("Failed to load grocery orders:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // TanStack Query — single source of truth for grocery orders
+  const { data: orders = [], isLoading: loading } = useGroceryOrders();
 
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+  // Convenience helper
+  const invalidateOrders = () =>
+    queryClient.invalidateQueries({ queryKey: ['orders', 'grocery'] });
 
   // Real-time socket event updates
   useOrderSocket({
     onNewOrder: (data) => {
       if (data?.order && data?.orderType === "grocery") {
-        setOrders((prev) => {
-          const exists = prev.some((o) => o._id === data.order._id);
-          if (exists) return prev;
+        // Prepend new order optimistically, deduplicate
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) => {
+          if (prev.some(o => o._id === data.order._id)) return prev;
           return [data.order, ...prev];
         });
       } else {
-        fetchOrders();
+        invalidateOrders();
       }
     },
     onOrderStatusUpdated: (data) => {
       if (data?.orderId && data?.orderStatus) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o._id === data.orderId ? { ...o, orderStatus: data.orderStatus as any } : o
-          )
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.orderStatus as any } : o)
         );
+        // Background sync to confirm
+        invalidateOrders();
       }
     },
     onOrderCancelled: (data) => {
       if (data?.orderId) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
-          )
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'cancelled' as any } : o)
         );
+        invalidateOrders();
+      }
+    },
+    onDeliveryAccepted: (data) => {
+      if (data?.orderId) {
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'accepted_by_delivery' as any } : o)
+        );
+        invalidateOrders();
+      }
+    },
+    onDeliveryStatusUpdated: (data) => {
+      if (data?.orderId && data?.status) {
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status as any } : o)
+        );
+        invalidateOrders();
+      }
+    },
+    onOrderDelivered: (data) => {
+      if (data?.orderId) {
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'delivered' as any } : o)
+        );
+        invalidateOrders();
       }
     },
     onReconnect: () => {
-      fetchOrders();
+      invalidateOrders();
     },
   });
 
@@ -119,8 +133,12 @@ export default function ModeratorOrdersPage() {
         orderStatus: nextStatus
       });
       if (res.data.success) {
-        // Refresh orders list
-        await fetchOrders();
+        // Immediate optimistic update
+        queryClient.setQueryData(['orders', 'grocery'], (prev: Order[] = []) =>
+          prev.map(o => o._id === orderId ? { ...o, orderStatus: nextStatus as any } : o)
+        );
+        // Background sync
+        invalidateOrders();
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
@@ -133,7 +151,8 @@ export default function ModeratorOrdersPage() {
   // Filter orders based on active tab and search query
   const filteredOrders = orders.filter((order) => {
     // 1. Tab Filter
-    const isActive = ["placed", "accepted", "preparing", "on_the_way"].includes(order.orderStatus);
+    // 'accepted_by_delivery' = delivery boy has claimed the order — still active for moderator
+    const isActive = ["placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(order.orderStatus);
     const isCompleted = ["delivered", "cancelled"].includes(order.orderStatus);
 
     if (activeTab === "active" && !isActive) return false;
@@ -158,6 +177,7 @@ export default function ModeratorOrdersPage() {
       case "accepted":
       case "preparing":
         return "bg-amber-50 text-amber-700 border-amber-100";
+      case "accepted_by_delivery":
       case "on_the_way":
         return "bg-indigo-50 text-indigo-700 border-indigo-100";
       case "delivered":
@@ -174,6 +194,7 @@ export default function ModeratorOrdersPage() {
       case "placed": return "New Order";
       case "accepted": return "Accepted";
       case "preparing": return "Preparing";
+      case "accepted_by_delivery": return "Picked Up";
       case "on_the_way": return "On The Way";
       case "delivered": return "Delivered";
       case "cancelled": return "Cancelled";
@@ -198,7 +219,7 @@ export default function ModeratorOrdersPage() {
                   : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              Active Orders ({orders.filter(o => ["placed", "accepted", "preparing", "on_the_way"].includes(o.orderStatus)).length})
+              Active Orders ({orders.filter(o => ["placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus)).length})
             </button>
             <button
               onClick={() => setActiveTab("completed")}
@@ -271,8 +292,8 @@ export default function ModeratorOrdersPage() {
             {filteredOrders.map((order) => {
               const isUnpaidOnline = order.paymentMethod === "ONLINE" && order.paymentStatus !== "paid";
               return (
-                <div 
-                  key={order._id} 
+                <div
+                  key={order._id}
                   className={`bg-white rounded-3xl border border-slate-100 p-5 sm:p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between relative overflow-hidden ${
                     isUnpaidOnline ? 'ring-1 ring-rose-500/20 bg-rose-50/5' : ''
                   }`}
@@ -321,7 +342,7 @@ export default function ModeratorOrdersPage() {
                     <div className="bg-slate-50/50 border border-slate-100 rounded-2xl p-4 mb-5">
                       <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-2">Grocery Basket</p>
                       <div className="space-y-3.5 max-h-48 overflow-y-auto pr-1">
-                        {order.items.map((item) => (
+                        {order.items.map((item: OrderItem) => (
                           <div key={item._id} className="flex justify-between items-center text-xs font-semibold">
                             <div className="flex items-center gap-2">
                               <div className="w-7 h-7 bg-white rounded-lg border border-slate-200/50 overflow-hidden flex items-center justify-center shrink-0">
@@ -332,7 +353,7 @@ export default function ModeratorOrdersPage() {
                                 )}
                               </div>
                               <span className="text-slate-800 line-clamp-1">
-                                {item.groceryItem?.name || "Grocery Product"} 
+                                {item.groceryItem?.name || "Grocery Product"}
                                 {item.groceryItem?.brand && <span className="text-[10px] text-slate-400 font-medium ml-1">({item.groceryItem.brand})</span>}
                               </span>
                             </div>
@@ -401,16 +422,7 @@ export default function ModeratorOrdersPage() {
                             </button>
                           )}
 
-                          {/* Out For Delivery Action */}
-                          {order.orderStatus === "on_the_way" && (
-                            <button
-                              onClick={() => handleUpdateStatus(order._id, "delivered")}
-                              disabled={updatingId === order._id}
-                              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-xl shadow-sm hover:shadow active:scale-95 transition-all flex items-center justify-center gap-1.5"
-                            >
-                              {updatingId === order._id ? "..." : "Mark as Delivered"}
-                            </button>
-                          )}
+                          {/* Out For Delivery — delivery boy marks this delivered, not moderator */}
 
                           {/* Cancellation Action */}
                           {["placed", "accepted", "preparing"].includes(order.orderStatus) && (

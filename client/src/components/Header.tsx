@@ -19,6 +19,7 @@ import {
   MdBolt,
   MdLogout,
 } from "react-icons/md";
+import { FaWhatsapp } from "react-icons/fa";
 
 export default function Header() {
   const { address, isLoading } = useLocation();
@@ -105,6 +106,15 @@ export default function Header() {
                       <MdHomeWork className="text-[18px] text-slate-400" />
                       Saved Addresses
                     </Link>
+                    <a
+                      href="https://wa.me/919117662441?text=Hi%20ZipRocket%2C%20I%20need%20help%20and%20support"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 px-4 py-2 hover:bg-emerald-50 text-sm font-semibold text-slate-700 hover:text-emerald-600 transition-colors"
+                    >
+                      <FaWhatsapp className="text-[18px] text-emerald-500" />
+                      Help & Support
+                    </a>
 
                     {user.role === 'customer' && (
                       <>

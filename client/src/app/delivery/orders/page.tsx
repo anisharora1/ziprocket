@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { apiClient } from "../../../services/api";
 import { useOrderSocket } from "../../../hooks/useOrderSocket";
 import { useSocket } from "../../../context/SocketContext";
+import { useDeliveryData } from "../../../hooks/useOrders";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   MdSync,
   MdTask,
@@ -64,40 +66,20 @@ interface DeliveryRecord {
 }
 
 export default function DeliveryOrdersPage() {
-  const [activeTasks, setActiveTasks] = useState<DeliveryRecord[]>([]);
-  const [pendingQueue, setPendingQueue] = useState<Order[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
   const { joinDeliveryZone } = useSocket();
+  const queryClient = useQueryClient();
 
-  const handleCopyAddress = (text: string) => {
-    navigator.clipboard.writeText(text);
-    alert("Address copied to clipboard! / पता कॉपी हो गया!");
-  };
+  // TanStack Query — parallel fetch of active tasks + pending queue
+  const { data, isLoading: loading } = useDeliveryData();
+  const activeTasks: DeliveryRecord[] = data?.activeTasks ?? [];
+  const pendingQueue: Order[] = data?.pendingQueue ?? [];
 
-  const fetchOrdersData = useCallback(async () => {
-    try {
-      const [tasksRes, queueRes] = await Promise.all([
-        apiClient.get("/delivery/my-deliveries"),
-        apiClient.get("/delivery/pending")
-      ]);
-
-      if (tasksRes.data.success) {
-        setActiveTasks(tasksRes.data.deliveries || []);
-      }
-      if (queueRes.data.success) {
-        setPendingQueue(queueRes.data.orders || []);
-      }
-    } catch (err) {
-      console.error("Failed to load delivery orders page data:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // Convenience helper to invalidate delivery data (triggers fresh fetch of both endpoints)
+  const invalidateDelivery = () =>
+    queryClient.invalidateQueries({ queryKey: ['orders', 'delivery'] });
 
   useEffect(() => {
-    fetchOrdersData();
-
     // Auto-join delivery zone for targeted zone broadcasts
     apiClient.get("/delivery/profile/my-profile").then((res) => {
       if (res.data?.success && res.data?.profile?.deliveryZone) {
@@ -105,47 +87,89 @@ export default function DeliveryOrdersPage() {
         joinDeliveryZone(zoneId.toString());
       }
     }).catch(() => {});
-  }, [fetchOrdersData, joinDeliveryZone]);
+  }, [joinDeliveryZone]);
 
   // Real-time socket event integration
   useOrderSocket({
     onNewOrder: () => {
-      fetchOrdersData();
+      // New unclaimed order appeared — refresh pending queue
+      invalidateDelivery();
     },
     onDeliveryAssigned: () => {
-      fetchOrdersData();
+      // Admin assigned an order to this delivery boy — refresh tasks
+      invalidateDelivery();
     },
     onDeliveryAccepted: (data) => {
       if (data?.orderId) {
-        setPendingQueue((prev) => prev.filter((o) => o._id !== data.orderId));
-      } else {
-        fetchOrdersData();
+        // Another delivery boy claimed this order — remove from pending queue immediately.
+        // Do NOT call invalidateDelivery here — handleAccept already schedules one
+        // after a delay. Calling it here too creates a race condition against the DB write.
+        queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pendingQueue: prev.pendingQueue.filter((o: Order) => o._id !== data.orderId),
+          };
+        });
       }
     },
     onDeliveryStatusUpdated: () => {
-      fetchOrdersData();
+      invalidateDelivery();
     },
     onOrderCancelled: (data) => {
       if (data?.orderId) {
-        setPendingQueue((prev) => prev.filter((o) => o._id !== data.orderId));
+        // Remove from pending queue immediately
+        queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pendingQueue: prev.pendingQueue.filter((o: Order) => o._id !== data.orderId),
+          };
+        });
       }
-      fetchOrdersData();
+      // Sync active tasks too (cancellation may affect an active task)
+      invalidateDelivery();
     },
     onOrderDelivered: () => {
-      fetchOrdersData();
+      invalidateDelivery();
     },
     onReconnect: () => {
-      fetchOrdersData();
+      invalidateDelivery();
     },
   });
 
+  const handleCopyAddress = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Address copied to clipboard! / पता कॉपी हो गया!");
+  };
+
   const handleAccept = async (orderId: string) => {
     setActioningId(orderId);
+    // Find the accepted order in the pending queue before the API call
+    const acceptedOrder = pendingQueue.find((o) => o._id === orderId);
     try {
       const res = await apiClient.post("/delivery/accept", { orderId });
       if (res.data.success) {
-        alert("Delivery task claimed successfully!");
-        fetchOrdersData();
+        // Immediately move the order from pendingQueue → activeTasks (optimistic)
+        // This avoids the ghost/disappear issue caused by racing the MongoDB write.
+        queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
+          if (!prev) return prev;
+          const newTask = acceptedOrder
+            ? {
+                _id: `temp-${orderId}`,
+                order: acceptedOrder,
+                status: 'assigned',
+                earnings: 45,
+                createdAt: new Date().toISOString(),
+              }
+            : null;
+          return {
+            activeTasks: newTask ? [...prev.activeTasks, newTask] : prev.activeTasks,
+            pendingQueue: prev.pendingQueue.filter((o: Order) => o._id !== orderId),
+          };
+        });
+        // Delay the server sync by 600ms to let MongoDB finish writing before we refetch
+        setTimeout(() => invalidateDelivery(), 600);
       }
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to accept order");
@@ -160,8 +184,14 @@ export default function DeliveryOrdersPage() {
     try {
       const res = await apiClient.post("/delivery/reject", { orderId });
       if (res.data.success) {
-        alert("Order rejected.");
-        fetchOrdersData();
+        // Remove from local pending queue immediately (no refetch needed — reject doesn't change activeTasks)
+        queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            pendingQueue: prev.pendingQueue.filter((o: Order) => o._id !== orderId),
+          };
+        });
       }
     } catch (err: any) {
       alert(err.response?.data?.message || "Failed to reject order");
@@ -170,16 +200,27 @@ export default function DeliveryOrdersPage() {
     }
   };
 
+  // Delivery proof upload is not required — route accepts plain JSON.
   const handleDeliver = async (orderId: string) => {
     setActioningId(orderId);
     try {
-      const res = await apiClient.post("/delivery/deliver", { orderId });
+      const res = await apiClient.post('/delivery/deliver', { orderId });
       if (res.data.success) {
-        alert("Delivery completed! Payout of ₹45 credited.");
-        fetchOrdersData();
+        alert('Delivery completed! Payout of ₹45 credited.');
+        // Immediately mark the active task as delivered in the cache
+        queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
+          if (!prev) return prev;
+          return {
+            activeTasks: prev.activeTasks.map((t: any) =>
+              t.order?._id === orderId ? { ...t, status: 'delivered' } : t
+            ),
+            pendingQueue: prev.pendingQueue,
+          };
+        });
+        setTimeout(() => invalidateDelivery(), 600);
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || "Failed to deliver order");
+      alert(err.response?.data?.message || 'Failed to deliver order');
     } finally {
       setActioningId(null);
     }

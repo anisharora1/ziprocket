@@ -15,7 +15,6 @@ import {
     getMyRejectedOrders
 } from "../controllers/deliveryController";
 import { protect, authorize } from "../middlewares/authMiddleware";
-import { uploadSingle } from "../middlewares/uploadMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
 
 const router = express.Router();
@@ -28,7 +27,7 @@ router.put("/profile/availability", protect, authorize("delivery", "admin"), upd
 router.get("/pending", protect, authorize("delivery", "admin"), getPendingDeliveries);
 router.post("/accept", protect, authorize("delivery", "admin"), acceptDeliveryOrder);
 router.post("/reject", protect, authorize("delivery", "admin"), rejectDeliveryOrder);
-router.post("/deliver", protect, authorize("delivery", "admin"), uploadSingle("proof"), deliverOrder);
+router.post("/deliver", protect, authorize("delivery", "admin"), deliverOrder);
 router.get("/my-deliveries", protect, authorize("delivery", "admin"), getMyDeliveries);
 router.get("/rejected", protect, authorize("delivery", "admin"), getMyRejectedOrders);
 

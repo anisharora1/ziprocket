@@ -11,6 +11,7 @@ import { PwaProvider } from "@/context/PwaContext";
 import PwaManager from "@/components/PwaManager";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
+import QueryProvider from "@/components/QueryProvider";
 
 // ... existing font setup ...
 
@@ -137,21 +138,23 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface">
         <ErrorBoundary>
-          <PwaProvider>
-            <LocationProvider>
-              <PlatformProvider>
-                <AuthProvider>
-                  <SocketProvider>
-                    <CartProvider>
-                      {children}
-                      <LocationPromptModal />
-                      <PwaManager />
-                    </CartProvider>
-                  </SocketProvider>
-                </AuthProvider>
-              </PlatformProvider>
-            </LocationProvider>
-          </PwaProvider>
+          <QueryProvider>
+            <PwaProvider>
+              <LocationProvider>
+                <PlatformProvider>
+                  <AuthProvider>
+                    <SocketProvider>
+                      <CartProvider>
+                        {children}
+                        <LocationPromptModal />
+                        <PwaManager />
+                      </CartProvider>
+                    </SocketProvider>
+                  </AuthProvider>
+                </PlatformProvider>
+              </LocationProvider>
+            </PwaProvider>
+          </QueryProvider>
         </ErrorBoundary>
         <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || "G-SXXC7PQQKH"} />
       </body>

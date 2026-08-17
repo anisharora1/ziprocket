@@ -2,10 +2,12 @@
 
 import Header from "@/components/Header";
 import BottomNavBar from "@/components/BottomNavBar";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/services/api";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
+import { useCustomerOrders } from "@/hooks/useOrders";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import {
     MdReceiptLong,
@@ -24,8 +26,7 @@ import {
 
 export default function OrdersPage() {
     const { user, isLoading: authLoading } = useAuth();
-    const [orders, setOrders] = useState<any[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
+    const queryClient = useQueryClient();
     const [retryingOrderId, setRetryingOrderId] = useState<string | null>(null);
 
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -33,6 +34,15 @@ export default function OrdersPage() {
     const [cancelReason, setCancelReason] = useState("Ordered by mistake");
     const [otherReasonText, setOtherReasonText] = useState("");
     const [cancellingLoader, setCancellingLoader] = useState(false);
+
+    // TanStack Query — single source of truth for order data
+    const { data: orders = [], isLoading: ordersLoading } = useCustomerOrders(user?._id);
+    const loading = authLoading || ordersLoading;
+
+    // Convenience: invalidate customer orders cache (triggers background refetch)
+    const invalidateOrders = useCallback(() => {
+        queryClient.invalidateQueries({ queryKey: ['orders', 'customer', user?._id] });
+    }, [queryClient, user?._id]);
 
     const handleOpenCancelModal = (orderId: string) => {
         setCancellingOrderId(orderId);
@@ -53,7 +63,11 @@ export default function OrdersPage() {
                 alert("Order cancelled successfully!");
                 setIsCancelModalOpen(false);
                 setCancellingOrderId(null);
-                fetchOrders();
+                // Optimistic local update + background refresh
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === cancellingOrderId ? { ...o, orderStatus: 'cancelled' } : o)
+                );
+                invalidateOrders();
             }
         } catch (err: any) {
             console.error("Cancellation failed:", err);
@@ -63,95 +77,76 @@ export default function OrdersPage() {
         }
     };
 
-    const fetchOrders = useCallback(async () => {
-        if (!user) return;
-        try {
-            const res = await apiClient.get(`/orders/user/${user._id}`);
-            if (res.data.success) {
-                setOrders(res.data.orders || []);
-            }
-        } catch (err) {
-            console.error("Failed to fetch user orders:", err);
-        } finally {
-            setLoading(false);
-        }
-    }, [user]);
-
-    useEffect(() => {
-        if (!authLoading && user) {
-            fetchOrders();
-        } else if (!authLoading && !user) {
-            setLoading(false);
-        }
-    }, [user, authLoading, fetchOrders]);
-
     // Live real-time socket tracking for customer orders
     useOrderSocket({
+        // New order placed by this customer — invalidate immediately so it appears in the list
+        onNewOrder: () => {
+            invalidateOrders();
+        },
         onOrderStatusUpdated: (data) => {
             if (data?.orderId && data?.orderStatus) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o
-                    )
+                // Immediate optimistic update
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o)
                 );
+                // Background sync to confirm server state
+                invalidateOrders();
             }
         },
         onDeliveryStatusUpdated: (data) => {
             if (data?.orderId && data?.status) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, orderStatus: data.status } : o
-                    )
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status } : o)
                 );
+                invalidateOrders();
             }
         },
         onDeliveryAccepted: (data) => {
             if (data?.orderId) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, orderStatus: "accepted_by_delivery" } : o
-                    )
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'accepted_by_delivery' } : o)
                 );
+                invalidateOrders();
             }
         },
         onOrderDelivered: (data) => {
             if (data?.orderId) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, orderStatus: "delivered" } : o
-                    )
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'delivered' } : o)
                 );
+                invalidateOrders();
             }
         },
         onOrderCancelled: (data) => {
             if (data?.orderId) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
-                    )
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'cancelled' } : o)
                 );
+                invalidateOrders();
             }
         },
         onPaymentStatusUpdated: (data) => {
             if (data?.orderId && data?.paymentStatus) {
-                setOrders((prev) =>
-                    prev.map((o) =>
-                        o._id === data.orderId ? { ...o, paymentStatus: data.paymentStatus } : o
-                    )
+                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                    prev.map(o => o._id === data.orderId ? { ...o, paymentStatus: data.paymentStatus } : o)
                 );
+                invalidateOrders();
             }
         },
         onReconnect: () => {
-            fetchOrders();
+            // Force fresh fetch after reconnect (cache may have missed events while offline)
+            invalidateOrders();
         },
     });
 
     // Parse status to stepper step
+    // 'accepted_by_delivery' = delivery boy claimed it = Out for Delivery (step 2)
     const getStatusStep = (status: string) => {
         switch (status) {
             case "placed": return 0;
             case "accepted":
             case "preparing": return 1;
+            case "accepted_by_delivery":
             case "on_the_way": return 2;
             case "delivered": return 3;
             default: return 0;
@@ -228,7 +223,7 @@ export default function OrdersPage() {
 
                         if (verifyRes.data.success) {
                             alert("Payment Successful! Your order has been placed.");
-                            fetchOrders(); // Refresh order details
+                            invalidateOrders();
                         } else {
                             alert("Payment verification failed! Please contact support.");
                         }
@@ -259,7 +254,7 @@ export default function OrdersPage() {
                         }
                         alert("Payment cancelled.");
                         setRetryingOrderId(null);
-                        fetchOrders();
+                        invalidateOrders();
                     }
                 }
             };
@@ -280,7 +275,7 @@ export default function OrdersPage() {
                 }
                 alert(`Payment Failed: ${response.error.description}`);
                 setRetryingOrderId(null);
-                fetchOrders();
+                invalidateOrders();
             });
 
             paymentObject.open();
@@ -292,23 +287,13 @@ export default function OrdersPage() {
     };
 
     // Separate active and past orders
+    // 'accepted_by_delivery' is an active state — delivery boy has claimed it but not yet delivered
     const activeOrders = orders.filter(o =>
-        ["placed", "accepted", "preparing", "on_the_way"].includes(o.orderStatus || o.status)
+        ["placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus || o.status)
     );
     const pastOrders = orders.filter(o =>
         ["delivered", "cancelled"].includes(o.orderStatus || o.status)
     );
-
-    // Active order polling every 5 seconds if tab is active
-    useEffect(() => {
-        if (activeOrders.length === 0) return;
-        const interval = setInterval(() => {
-            if (typeof document !== "undefined" && !document.hidden) {
-                fetchOrders();
-            }
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [activeOrders.length]);
 
     const trackingSteps = [
         { id: 0, title: "Order Placed", description: "We have received your order", iconComp: MdReceiptLong },
@@ -317,7 +302,7 @@ export default function OrdersPage() {
         { id: 3, title: "Delivered", description: "Enjoy your items!", iconComp: MdCheckCircle },
     ];
 
-    if (authLoading || loading) {
+    if (loading) {
         return (
             <div className="bg-surface text-on-surface pb-28 min-h-screen w-full font-sans">
                 <Header />

@@ -5,6 +5,7 @@ import Restaurant from "../models/Restaurant";
 import User from "../models/User";
 import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
+import DeliveryModel from "../models/Delivery";
 import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
 import * as redisService from "../services/redisService";
@@ -336,7 +337,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             // Clear user's cached cart and recent orders list from Redis
             if (user) {
                 await cartCacheService.deleteCachedCart(user.toString());
-                await redisService.del(`order:user_recent:${user.toString()}`);
+                // Delete ALL paginated variants of the user's orders cache.
+                // Previously used del('order:user_recent:userId') which never matched
+                // the actual keys stored as 'order:user_recent:userId:p1:l20' etc.
+                await redisService.deletePattern(`order:user_recent:${user.toString()}*`);
             }
 
             // Increment total orders count for the restaurant (Food only)
@@ -367,6 +371,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     rooms.push(`seller:${restaurant}`);
                 } else if (orderType === "grocery" && deliveryZone) {
                     rooms.push(`grocery:${deliveryZone.toString()}`);
+                }
+                // Also notify the customer so their orders list refreshes via socket
+                if (user) {
+                    rooms.push(`user:${user.toString()}`);
                 }
                 emitToRooms(rooms, "new_order", {
                     order: newOrder,
@@ -613,7 +621,8 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
 
         // Invalidate Redis caches for this order and user orders list
         await redisService.del(`order:detail:${orderId}`);
-        await redisService.del(`order:user_recent:${order.user.toString()}`);
+        // Use pattern delete to clear ALL paginated variants (e.g. :p1:l20, :p2:l20, etc.)
+        await redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`);
 
         // Handle cancellations and increment the respective cancellation count
         if (orderStatus === "cancelled") {
@@ -634,6 +643,11 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                 rooms.push(`seller:${order.restaurant.toString()}`);
             } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
                 rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+            }
+            // Notify the assigned delivery boy if one has claimed this order
+            const activeDelivery = await DeliveryModel.findOne({ order: orderId }).select("deliveryBoy").lean();
+            if (activeDelivery?.deliveryBoy) {
+                rooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
             }
             emitToRooms(rooms, "order_status_updated", {
                 orderId: order._id.toString(),
@@ -682,7 +696,7 @@ export const updatePaymentStatus = async (req: Request, res: Response): Promise<
 
         // Invalidate Redis caches
         await redisService.del(`order:detail:${orderId}`);
-        await redisService.del(`order:user_recent:${order.user.toString()}`);
+        await redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`);
 
         // --- Socket.IO: Notify customer of payment status change ---
         try {
@@ -872,7 +886,7 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
 
         // Invalidate Redis caches
         await redisService.del(`order:detail:${id}`);
-        await redisService.del(`order:user_recent:${order.user.toString()}`);
+        await redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`);
 
         // --- Socket.IO: Notify seller/grocery moderator + delivery boys of cancellation ---
         try {

@@ -18,6 +18,7 @@ import {
   MdBolt,
   MdLogout,
 } from 'react-icons/md';
+import { FaWhatsapp } from 'react-icons/fa';
 
 export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home" | "search" | "orders" | "profile" | "menu" }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -117,6 +118,22 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                     </div>
                     <span className="text-[14px] font-bold">Saved Addresses</span>
                   </Link>
+
+                  <a
+                    href="https://wa.me/919117662441?text=Hi%20ZipRocket%2C%20I%20need%20help%20and%20support"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setIsProfileOpen(false)}
+                    className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-emerald-50 transition-colors text-slate-700 hover:text-emerald-600 group active:scale-[0.98]"
+                  >
+                    <div className="bg-emerald-50 group-hover:bg-emerald-100 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+                      <FaWhatsapp className="text-[20px] text-emerald-600 transition-colors" />
+                    </div>
+                    <div className="flex flex-col text-left">
+                      <span className="text-[14px] font-bold text-slate-800 group-hover:text-emerald-700">Help & Support</span>
+                      <span className="text-[11px] text-emerald-600 font-semibold">Chat on WhatsApp</span>
+                    </div>
+                  </a>
 
                   {user.role === 'customer' && (
                     <>

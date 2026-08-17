@@ -73,6 +73,9 @@ interface BillDetails {
 export default function CheckoutPage() {
     const router = useRouter();
     const [placingOrder, setPlacingOrder] = useState(false);
+    // Prevents the empty-cart early return from firing after clearCart() is called on success.
+    // Without this, React re-renders → cart.items.length===0 → empty-cart screen replaces the success overlay.
+    const [orderPlaced, setOrderPlaced] = useState(false);
     const { cart, clearCart } = useCart();
     const {
         isPlatformCurrentlyOpen,
@@ -632,7 +635,14 @@ export default function CheckoutPage() {
             return;
         }
 
-        const targetDeliveryAddress = customDeliveryAddress || (selectedAddressId ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress : userDeliveryAddress) || undefined;
+        // When ziprocket_location exists in localStorage, LocationContext skips fetching
+        // savedAddresses on init (validStoredLocation=true). savedAddresses=[] so find() returns
+        // undefined. Always fall back to userDeliveryAddress (hydrated from localStorage via
+        // context) to prevent the "Add Address Details" modal firing on every order.
+        const savedDeliveryAddr = selectedAddressId
+            ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress
+            : null;
+        const targetDeliveryAddress = customDeliveryAddress || savedDeliveryAddr || userDeliveryAddress || undefined;
 
         if (!targetDeliveryAddress || !targetDeliveryAddress.houseNumber || !targetDeliveryAddress.landmark) {
             showCard({
@@ -679,6 +689,7 @@ export default function CheckoutPage() {
 
             // Handle COD Path directly
             if (paymentMethod === "COD") {
+                setOrderPlaced(true);
                 clearCart();
                 showCard({ type: 'success', title: '🎉 ऑर्डर हो गया! / Order Placed!', message: 'Your order has been placed successfully via Cash on Delivery. You can track it in Orders.', onAction: () => router.push('/orders'), actionLabel: 'Track Order', redirectTo: '/orders', redirectDelay: 2500 });
                 return;
@@ -725,6 +736,7 @@ export default function CheckoutPage() {
                         });
 
                         if (verifyRes.data.success) {
+                            setOrderPlaced(true);
                             clearCart();
                             showCard({ type: 'success', title: '✅ Payment Successful!', message: 'Your payment was verified and your order is being prepared. You can track your delivery live.', onAction: () => router.push('/orders'), actionLabel: 'Track Order', redirectTo: '/orders', redirectDelay: 3000 });
                         } else {
@@ -813,7 +825,10 @@ export default function CheckoutPage() {
         }
     };
 
-    if (cart.items.length === 0) {
+    // Only show empty-cart screen when the cart is genuinely empty and no order is in flight.
+    // 'orderPlaced' prevents this from firing after clearCart() is called on success.
+    // 'placingOrder' prevents it flashing during the async order API call.
+    if (cart.items.length === 0 && !orderPlaced && !placingOrder) {
         return (
             <div className="bg-[#fcfcfc] min-h-screen flex flex-col items-center justify-center p-4">
                 <MdRemoveShoppingCart className="text-[64px] text-slate-300 mb-4" />

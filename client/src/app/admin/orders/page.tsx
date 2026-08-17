@@ -76,6 +76,33 @@ export default function OrdersAdminPage() {
         );
       }
     },
+    onDeliveryAccepted: (data) => {
+      if (data?.orderId) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: "accepted_by_delivery" } : o
+          )
+        );
+      }
+    },
+    onDeliveryStatusUpdated: (data) => {
+      if (data?.orderId && data?.status) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: data.status } : o
+          )
+        );
+      }
+    },
+    onOrderDelivered: (data) => {
+      if (data?.orderId) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o._id === data.orderId ? { ...o, orderStatus: "delivered" } : o
+          )
+        );
+      }
+    },
     onPaymentStatusUpdated: (data) => {
       if (data?.orderId && data?.paymentStatus) {
         setOrders((prev) =>

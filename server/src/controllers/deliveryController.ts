@@ -5,6 +5,7 @@ import DeliveryProfile from "../models/DeliveryProfile";
 import { uploadToCloudinary } from "../services/cloudinaryService";
 import { DELIVERY_CONSTANTS } from "../constants";
 import { emitToRooms } from "../services/socketService";
+import * as redisService from "../services/redisService";
 
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
@@ -82,22 +83,32 @@ export const updateDeliveryStatus = async (req: Request, res: Response): Promise
             await Order.findByIdAndUpdate(delivery.order, orderUpdate);
         }
 
-        // --- Socket.IO: Notify customer and admin of delivery status change ---
+        // Invalidate Redis caches and notify via Socket.IO
         try {
-            const orderDoc = await Order.findById(delivery.order).select("user deliveryZone orderType restaurant").lean();
+            const orderDoc = await Order.findById(delivery.order).select("user deliveryZone orderType restaurant paymentStatus paymentMethod").lean();
             if (orderDoc) {
+                await redisService.del(`order:detail:${delivery.order.toString()}`);
+                await redisService.deletePattern(`order:user_recent:${orderDoc.user.toString()}*`);
+
                 const rooms: string[] = [`user:${orderDoc.user.toString()}`, "admin"];
                 if (orderDoc.orderType === "food" && orderDoc.restaurant) {
                     rooms.push(`seller:${orderDoc.restaurant.toString()}`);
                 } else if (orderDoc.orderType === "grocery" && (orderDoc as any).deliveryZone) {
                     rooms.push(`grocery:${(orderDoc as any).deliveryZone.toString()}`);
                 }
-                emitToRooms(rooms, "delivery_status_updated", {
+                const payload = {
                     orderId: delivery.order.toString(),
                     deliveryId: delivery._id.toString(),
                     status,
+                    orderStatus: status,
+                    orderType: orderDoc.orderType,
+                    restaurantId: orderDoc.restaurant?.toString(),
+                    zoneId: (orderDoc as any).deliveryZone?.toString(),
                     userId: orderDoc.user.toString(),
-                });
+                    paymentStatus: orderDoc.paymentStatus,
+                };
+                emitToRooms(rooms, "delivery_status_updated", payload);
+                emitToRooms(rooms, "order_status_updated", payload);
             }
         } catch (emitErr: any) {
             console.error("[Socket] delivery_status_updated emit error:", emitErr.message);
@@ -331,18 +342,34 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
         order.orderStatus = "accepted_by_delivery";
         await order.save();
 
-        // --- Socket.IO: Notify customer and admin that a delivery boy accepted ---
+        // Invalidate Redis caches
+        await redisService.del(`order:detail:${orderId}`);
+        await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
+
+        // --- Socket.IO: Notify customer, admin, seller/moderator that a delivery boy accepted ---
         try {
             const rooms: string[] = [`user:${order.user.toString()}`, "admin"];
-            // Also emit to zone room so other delivery boys' UIs can remove this from queue
+            // Notify zone room so other delivery boys' UIs remove this from their queue
             if ((order as any).deliveryZone) {
                 rooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
             }
-            emitToRooms(rooms, "delivery_accepted", {
+            // Notify seller / grocery moderator so their dashboards update immediately
+            if (order.orderType === "food" && order.restaurant) {
+                rooms.push(`seller:${order.restaurant.toString()}`);
+            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+            }
+            const payload = {
                 orderId: orderId.toString(),
+                orderStatus: "accepted_by_delivery",
                 deliveryBoyId: deliveryBoyId?.toString(),
                 userId: order.user.toString(),
-            });
+                orderType: order.orderType,
+                restaurantId: order.restaurant?.toString(),
+                zoneId: (order as any).deliveryZone?.toString(),
+            };
+            emitToRooms(rooms, "delivery_accepted", payload);
+            emitToRooms(rooms, "order_status_updated", payload);
         } catch (emitErr: any) {
             console.error("[Socket] delivery_accepted emit error:", emitErr.message);
         }
@@ -431,18 +458,33 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
             }
             await order.save();
 
-            // --- Socket.IO: Notify customer and admin that order is delivered ---
+            // Invalidate Redis caches so fresh data is returned on refetch
+            await redisService.del(`order:detail:${orderId}`);
+            await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
+
+            // --- Socket.IO: Notify customer, seller, grocery moderator, admin, and delivery boy ---
             try {
-                const rooms: string[] = [`user:${order.user.toString()}`, "admin"];
+                const rooms: string[] = [
+                    `user:${order.user.toString()}`,
+                    "admin",
+                    `delivery:${deliveryBoyId?.toString()}`,
+                ];
                 if (order.orderType === "food" && order.restaurant) {
                     rooms.push(`seller:${order.restaurant.toString()}`);
                 } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
                     rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
                 }
-                emitToRooms(rooms, "order_delivered", {
+                const payload = {
                     orderId: orderId.toString(),
+                    orderStatus: "delivered",
+                    orderType: order.orderType,
+                    restaurantId: order.restaurant?.toString(),
+                    zoneId: (order as any).deliveryZone?.toString(),
                     userId: order.user.toString(),
-                });
+                    paymentStatus: order.paymentStatus,
+                };
+                emitToRooms(rooms, "order_delivered", payload);
+                emitToRooms(rooms, "order_status_updated", payload);
             } catch (emitErr: any) {
                 console.error("[Socket] order_delivered emit error:", emitErr.message);
             }

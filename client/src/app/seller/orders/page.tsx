@@ -1,76 +1,84 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
 import { useOrderSocket } from "../../../hooks/useOrderSocket";
+import { useSellerOrders } from "../../../hooks/useOrders";
+import { useQueryClient } from "@tanstack/react-query";
 import { MdClose, MdCheck } from "react-icons/md";
 
 export default function SellerOrdersPage() {
-  const [orders, setOrders] = useState<any[]>([]);
-  const [isDataLoading, setIsDataLoading] = useState(true);
-
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
-  const fetchOrders = useCallback(async () => {
-    try {
-      const res = await apiClient.get('/orders/my-orders');
-      if (res.data.success) {
-        setOrders(res.data.orders);
-      }
-    } catch (err) {
-      console.error("Failed to fetch seller orders", err);
-    } finally {
-      setIsDataLoading(false);
-    }
-  }, []);
+  // TanStack Query — single source of truth for seller orders
+  const { data: orders = [], isLoading: ordersLoading } = useSellerOrders();
+  const isDataLoading = authLoading || ordersLoading;
 
   useEffect(() => {
     if (authLoading) return;
-
     if (!user || user.role !== 'seller') {
       router.push('/auth/login');
-      return;
     }
-
-    fetchOrders();
-  }, [user, authLoading, router, fetchOrders]);
+  }, [user, authLoading, router]);
 
   // Real-time socket events
   useOrderSocket({
     onNewOrder: (data) => {
       if (data?.order) {
-        setOrders((prev) => {
-          const exists = prev.some((o) => o._id === data.order._id);
-          if (exists) return prev;
+        // Prepend the new order optimistically, deduplicate
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) => {
+          if (prev.some(o => o._id === data.order._id)) return prev;
           return [data.order, ...prev];
         });
-      } else {
-        fetchOrders();
       }
+      queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
     },
     onOrderStatusUpdated: (data) => {
       if (data?.orderId && data?.orderStatus) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o
-          )
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o)
         );
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
       }
     },
     onOrderCancelled: (data) => {
       if (data?.orderId) {
-        setOrders((prev) =>
-          prev.map((o) =>
-            o._id === data.orderId ? { ...o, orderStatus: "cancelled" } : o
-          )
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'cancelled' } : o)
         );
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
+      }
+    },
+    onDeliveryAccepted: (data) => {
+      if (data?.orderId) {
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'accepted_by_delivery' } : o)
+        );
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
+      }
+    },
+    onDeliveryStatusUpdated: (data) => {
+      if (data?.orderId && data?.status) {
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status } : o)
+        );
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
+      }
+    },
+    onOrderDelivered: (data) => {
+      if (data?.orderId) {
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'delivered' } : o)
+        );
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
       }
     },
     onReconnect: () => {
-      fetchOrders();
+      queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
     },
   });
 
@@ -78,7 +86,12 @@ export default function SellerOrdersPage() {
     try {
       const res = await apiClient.patch(`/orders/${orderId}/status`, { orderStatus: status });
       if (res.data.success) {
-        setOrders(prev => prev.map(o => o._id === orderId ? { ...o, orderStatus: status } : o));
+        // Immediate optimistic update
+        queryClient.setQueryData(['orders', 'seller'], (prev: any[] = []) =>
+          prev.map(o => o._id === orderId ? { ...o, orderStatus: status } : o)
+        );
+        // Background sync
+        queryClient.invalidateQueries({ queryKey: ['orders', 'seller'] });
       }
     } catch (err) {
       console.error("Failed to update order status", err);
@@ -86,9 +99,12 @@ export default function SellerOrdersPage() {
   };
 
   const incomingOrders = orders.filter(o => o.orderStatus === "placed");
-  const activeOrders = orders.filter(o => ["accepted", "preparing"].includes(o.orderStatus));
+  // Show food orders through their full lifecycle so seller can track dispatch
+  const activeOrders = orders.filter(o =>
+    ["accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus)
+  );
 
-  if (authLoading || isDataLoading) {
+  if (isDataLoading) {
     return <div className="p-8 text-center text-slate-500">Loading Orders...</div>;
   }
 
@@ -201,25 +217,36 @@ export default function SellerOrdersPage() {
                           </p>
                         </td>
                         <td className="py-5 px-6 text-right">
-                          <span className={`px-2 py-1 text-[11px] font-bold rounded-md ${order.orderStatus === 'preparing' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {order.orderStatus.toUpperCase()}
+                          <span className={`px-2 py-1 text-[11px] font-bold rounded-md ${
+                            order.orderStatus === 'preparing'    ? 'bg-amber-100 text-amber-700' :
+                            order.orderStatus === 'accepted'     ? 'bg-blue-100 text-blue-700'  :
+                            order.orderStatus === 'accepted_by_delivery' ? 'bg-indigo-100 text-indigo-700' :
+                            order.orderStatus === 'on_the_way'  ? 'bg-indigo-100 text-indigo-700' :
+                            'bg-slate-100 text-slate-600'
+                          }`}>
+                            {order.orderStatus === 'accepted_by_delivery' ? 'PICKED UP' : order.orderStatus.toUpperCase()}
                           </span>
                         </td>
                         <td className="py-5 px-6 text-right">
-                          {order.orderStatus === 'accepted' ? (
+                          {order.orderStatus === 'accepted' && (
                             <button
                               onClick={() => updateOrderStatus(order._id, 'preparing')}
                               className="px-3 py-1 bg-amber-600 text-white text-[12px] font-bold rounded hover:bg-amber-700"
                             >
                               Start Cooking
                             </button>
-                          ) : (
+                          )}
+                          {order.orderStatus === 'preparing' && (
                             <button
                               onClick={() => updateOrderStatus(order._id, 'on_the_way')}
                               className="px-3 py-1 bg-emerald-600 text-white text-[12px] font-bold rounded hover:bg-emerald-700"
                             >
                               Ready for Delivery
                             </button>
+                          )}
+                          {/* accepted_by_delivery / on_the_way: delivery boy owns it — no seller action */}
+                          {['accepted_by_delivery', 'on_the_way'].includes(order.orderStatus) && (
+                            <span className="text-[11px] text-slate-400 font-semibold">En route ⭐</span>
                           )}
                         </td>
                       </tr>
