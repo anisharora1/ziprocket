@@ -173,40 +173,38 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     let handleControllerChange: (() => void) | null = null;
 
     if ('serviceWorker' in navigator) {
-      if (process.env.NODE_ENV === 'production') {
-        navigator.serviceWorker.register('/sw.js').then((reg) => {
-          setRegistration(reg);
+      navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((reg) => {
+        setRegistration(reg);
 
-          if (reg.waiting) {
-            setShowUpdateToast(true);
+        if (reg.waiting) {
+          setShowUpdateToast(true);
+        }
+
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                setShowUpdateToast(true);
+              }
+            });
           }
-
-          reg.addEventListener('updatefound', () => {
-            const newWorker = reg.installing;
-            if (newWorker) {
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  setShowUpdateToast(true);
-                }
-              });
-            }
-          });
-        }).catch((err) => {
-          console.error('Service Worker registration failed:', err);
         });
+      }).catch((err) => {
+        console.log('Service Worker registration info:', err);
+      });
 
-        // Handle page refreshing when new worker activates
-        let refreshing = false;
-        const hasControllerOnLoad = !!navigator.serviceWorker.controller;
-        handleControllerChange = () => {
-          // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
-          if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
-            refreshing = true;
-            window.location.reload();
-          }
-        };
-        navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
-      }
+      // Handle page refreshing when new worker activates
+      let refreshing = false;
+      const hasControllerOnLoad = !!navigator.serviceWorker.controller;
+      handleControllerChange = () => {
+        // Only reload if the page was already controlled by a service worker (i.e. on SW updates)
+        if (hasControllerOnLoad && navigator.serviceWorker.controller && !refreshing) {
+          refreshing = true;
+          window.location.reload();
+        }
+      };
+      navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
     }
 
     return () => {

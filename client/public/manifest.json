@@ -1,14 +1,17 @@
 {
   "name": "ZipRocket",
   "short_name": "ZipRocket",
-  "description": "ZipRocket - Fast food and groceries delivery at lightning speed",
+  "description": "ZipRocket - Fast food and grocery delivery platform at lightning speed",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f9f9fc",
+  "display_override": ["standalone", "minimal-ui", "window-controls-overlay"],
+  "background_color": "#ffffff",
   "theme_color": "#FF5C00",
   "orientation": "portrait",
+  "categories": ["food", "shopping", "lifestyle"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192x192.png",
