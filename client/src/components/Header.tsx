@@ -24,7 +24,7 @@ import { FaWhatsapp } from "react-icons/fa";
 export default function Header() {
   const { address, isLoading } = useLocation();
   const { user, token, logout } = useAuth();
-  const { isInstalled, installApp, mounted } = usePwa();
+  const { isInstalled, isInstalling, installApp, mounted } = usePwa();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -158,13 +158,21 @@ export default function Header() {
                         </div>
                       </div>
                       <button
-                        onClick={() => {
+                        onClick={async () => {
+                          await installApp();
                           setIsDropdownOpen(false);
-                          installApp();
                         }}
-                        className="w-full py-2 bg-[#FF5C00] hover:bg-[#e05200] text-white text-[11px] font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10"
+                        disabled={isInstalling}
+                        className="w-full py-2 bg-[#FF5C00] hover:bg-[#e05200] text-white text-[11px] font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                       >
-                        Install App
+                        {isInstalling ? (
+                          <>
+                            <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                            <span>Installing...</span>
+                          </>
+                        ) : (
+                          <span>Install App</span>
+                        )}
                       </button>
                     </div>
                   )}

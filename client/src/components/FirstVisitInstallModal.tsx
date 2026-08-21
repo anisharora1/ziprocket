@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { MdSpeed, MdAddToHomeScreen, MdSignalWifiBad, MdDownload } from 'react-icons/md';
 
 export default function FirstVisitInstallModal() {
-  const { mounted, showFirstVisitModal, isInstalled, installApp, dismissFirstVisitModal } = usePwa();
+  const { mounted, showFirstVisitModal, isInstalled, isInstalling, installApp, dismissFirstVisitModal } = usePwa();
 
   // Guard against hydration mismatches and show only when required
   if (!mounted || !showFirstVisitModal || isInstalled) return null;
@@ -77,15 +77,26 @@ export default function FirstVisitInstallModal() {
         <div className="flex flex-col gap-2.5 w-full">
           <button
             onClick={installApp}
-            className="w-full py-4 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-extrabold rounded-2xl transition-all active:scale-[0.97] shadow-lg shadow-[#FF5C00]/20 flex items-center justify-center gap-2"
+            disabled={isInstalling}
+            className="w-full py-4 bg-[#FF5C00] hover:bg-[#e05200] text-white text-sm font-extrabold rounded-2xl transition-all active:scale-[0.97] shadow-lg shadow-[#FF5C00]/20 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <MdDownload className="font-bold text-[18px]" />
-            Install App (ऐप इनस्टॉल करें)
+            {isInstalling ? (
+              <>
+                <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                <span>Installing... (इनस्टॉल हो रहा है...)</span>
+              </>
+            ) : (
+              <>
+                <MdDownload className="font-bold text-[18px]" />
+                <span>Install App (ऐप इनस्टॉल करें)</span>
+              </>
+            )}
           </button>
           
           <button
             onClick={dismissFirstVisitModal}
-            className="w-full py-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-350 text-xs font-bold transition-colors active:scale-[0.98]"
+            disabled={isInstalling}
+            className="w-full py-3 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-350 text-xs font-bold transition-colors active:scale-[0.98] disabled:opacity-50"
           >
             Skip for Now / अभी नहीं
           </button>

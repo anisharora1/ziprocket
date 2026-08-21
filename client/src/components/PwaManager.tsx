@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { usePwa } from '@/context/PwaContext';
 import { MdAutorenew, MdCloudOff, MdCloudQueue } from 'react-icons/md';
 
@@ -13,10 +13,6 @@ export default function PwaManager() {
     triggerServiceWorkerUpdate,
     setShowUpdateToast,
   } = usePwa();
-
-  useEffect(() => {
-    // Dynamic loading of stylesheet/font is removed as it's now handled directly in layout.tsx
-  }, []);
 
   // Guard against hydration mismatches
   if (!mounted) return null;

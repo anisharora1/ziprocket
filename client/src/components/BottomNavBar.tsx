@@ -24,7 +24,7 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { user, token, logout } = useAuth();
-  const { isInstalled, installApp, mounted } = usePwa();
+  const { isInstalled, isInstalling, installApp, mounted } = usePwa();
 
   const isMenu = activeTab === "menu";
   const homeTabName = isMenu ? "Menu" : "Home";
@@ -180,13 +180,21 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                       </div>
                     </div>
                     <button
-                      onClick={() => {
+                      onClick={async () => {
+                        await installApp();
                         setIsProfileOpen(false);
-                        installApp();
                       }}
-                      className="w-full py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10"
+                      disabled={isInstalling}
+                      className="w-full py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-extrabold rounded-xl transition-all active:scale-[0.97] shadow-sm shadow-[#FF5C00]/10 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
                     >
-                      Install App (इनस्टॉल करें)
+                      {isInstalling ? (
+                        <>
+                          <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Installing...</span>
+                        </>
+                      ) : (
+                        <span>Install App (इनस्टॉल करें)</span>
+                      )}
                     </button>
                   </div>
                 )}
