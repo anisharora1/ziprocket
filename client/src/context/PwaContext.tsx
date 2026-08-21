@@ -75,13 +75,11 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       localStorage.removeItem('pwa-first-visit-dismissed');
     }
 
-    // If not installed, show the install modal on this visit
-    if (!installed) {
-      setShowFirstVisitModal(true);
-    }
-
     if (globalDeferredPrompt) {
       setDeferredPrompt(globalDeferredPrompt);
+      if (!installed) {
+        setShowFirstVisitModal(true);
+      }
     }
 
     // Track the platform mode (PWA standalone vs Browser) in Google Analytics
@@ -226,6 +224,12 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
   const installApp = async () => {
     if (isInstalled) {
       return;
+    }
+
+    if ('serviceWorker' in navigator) {
+      try {
+        await navigator.serviceWorker.ready;
+      } catch {}
     }
 
     const promptToUse = deferredPrompt || globalDeferredPrompt;
