@@ -163,14 +163,14 @@ export const deleteDeliveryZone = async (req: Request, res: Response): Promise<v
 // Endpoint to check if user is within radius and calculate dynamic delivery fee
 export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { userLat, userLng, pincode, addressText } = req.body;
+        const { userLat, userLng, pincode, addressText, orderType = "food" } = req.body;
 
         if (!userLat || !userLng) {
             res.status(400).json({ success: false, message: "Please provide user latitude and longitude" });
             return;
         }
 
-        const feasibilityKey = `zone:feasibility:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
+        const feasibilityKey = `zone:feasibility:${orderType}:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
         const cachedFeasibility = await redisService.getJson<any>(feasibilityKey);
         if (cachedFeasibility) {
             console.log(`[Feasibility Cache] Hit for key: ${feasibilityKey}`);
@@ -217,11 +217,13 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
         let deliveryFee = Math.min(applicableZone.maxDeliveryFee, Math.max(applicableZone.minDeliveryFee, totalDeliveryFee));
         deliveryFee = Math.ceil(deliveryFee);
 
+        const prepBuffer = orderType === 'grocery' ? 5 : 10;
+
         const responsePayload = {
             success: true,
             isDeliverable: true,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
-            durationMinutes: durationMinutes + 10, // Fulfillment Buffer
+            durationMinutes: durationMinutes + prepBuffer, // Fulfillment Buffer (5 mins for grocery, 10 mins for food)
             deliveryFee,
             zoneName: applicableZone.name,
             zoneId: applicableZone._id
@@ -364,6 +366,8 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         // Compute Grand Total
         const grandTotal = Math.max(0, itemTotal - discountAmount + deliveryFee + smallOrderFee + platformFee + packagingCharge + convenienceFee + gst);
 
+        const prepBuffer = orderType === 'grocery' ? 5 : 15;
+
         res.status(200).json({
             success: true,
             zoneId: activeZone._id,
@@ -381,7 +385,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             couponError,
             grandTotal,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
-            durationMinutes: durationMinutes + 15 // Culinary preparation + transit buffer
+            durationMinutes: durationMinutes + prepBuffer // Culinary preparation / grocery packing + transit buffer
         });
 
     } catch (error: any) {
