@@ -5,11 +5,25 @@ const withPWA = withPWAInit({
   dest: "public",
   disable: process.env.NODE_ENV === "development",
   register: false, // Handle registration manually in PwaManager.tsx for fine-grained update control
+  // Exclude large/problematic files from precaching to prevent SW install failure
+  publicExcludes: [
+    '!logo.png',      // 5MB — causes timeout during SW install on slow connections
+    '!next.svg',
+    '!vercel.svg',
+    '!file.svg',
+    '!globe.svg',
+    '!window.svg',
+    '!favicon.ico',   // Redirects to /icon-192x192.png (301) — kills cache.addAll()
+  ],
   fallbacks: {
     document: "/offline", // Serve our custom offline page when route is not cached and user is offline
   },
   workboxOptions: {
     skipWaiting: true,
+    // Exclude files that would cause SW install to fail:
+    // - favicon.ico: served via 301 redirect in production, which fails cache.addAll()
+    // - logo.png: 5MB file causes install timeout on slow mobile connections
+    exclude: [/favicon\.ico/, /logo\.png/, /next\.svg/, /vercel\.svg/, /file\.svg/, /globe\.svg/, /window\.svg/],
     runtimeCaching: [
       // 1. Google Fonts stylesheets
       {
@@ -182,13 +196,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    return [
-      {
-        source: "/favicon.ico",
-        destination: "/icon-192x192.png",
-        permanent: true,
-      },
-    ];
+    return [];
   },
 };
 

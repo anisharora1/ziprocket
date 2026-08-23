@@ -5,10 +5,10 @@ import Image from 'next/image';
 import { MdSpeed, MdAddToHomeScreen, MdSignalWifiBad, MdDownload } from 'react-icons/md';
 
 export default function FirstVisitInstallModal() {
-  const { mounted, showFirstVisitModal, isInstalled, isInstalling, installApp, dismissFirstVisitModal } = usePwa();
+  const { mounted, showFirstVisitModal, isInstalled, isInstallable, isInstalling, installApp, dismissFirstVisitModal } = usePwa();
 
-  // Guard against hydration mismatches and show only when required
-  if (!mounted || !showFirstVisitModal || isInstalled) return null;
+  // Guard: only show when mounted, modal is requested, app isn't installed, AND browser has a live install prompt
+  if (!mounted || !showFirstVisitModal || isInstalled || !isInstallable) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-950/65 z-[99999] flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">

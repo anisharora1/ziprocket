@@ -23,8 +23,8 @@ import { FaWhatsapp } from 'react-icons/fa';
 export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home" | "search" | "orders" | "profile" | "menu" }) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { user, token, logout } = useAuth();
-  const { isInstalled, isInstalling, installApp, mounted } = usePwa();
+  const { user, token, logout, mounted: authMounted } = useAuth();
+  const { isInstalled, isInstallable, isInstalling, installApp, mounted: pwaMounted } = usePwa();
 
   const isMenu = activeTab === "menu";
   const homeTabName = isMenu ? "Menu" : "Home";
@@ -74,7 +74,13 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
       </Link>
 
       {/* Profile */}
-      {token && user ? (
+      {!authMounted ? (
+        // Stable placeholder during SSR and first hydration — prevents token/user mismatch
+        <div className="flex flex-col items-center justify-center rounded-xl px-3 py-1">
+          <MdPerson className="text-xl text-slate-300" />
+          <span className="font-sans text-[12px] font-semibold text-slate-300">Profile</span>
+        </div>
+      ) : token && user ? (
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -167,8 +173,8 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                   )}
                 </div>
 
-                {/* PWA Install Card */}
-                {!isInstalled && mounted && (
+                {/* PWA Install Card — only shown when browser has a live install prompt */}
+                {isInstallable && pwaMounted && (
                   <div className="mx-4 my-2 p-4 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-3">
                     <div className="flex gap-3 items-center">
                       <div className="bg-[#FF5C00]/15 text-[#FF5C00] p-2 rounded-xl flex items-center justify-center shrink-0">

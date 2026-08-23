@@ -23,8 +23,8 @@ import { FaWhatsapp } from "react-icons/fa";
 
 export default function Header() {
   const { address, isLoading } = useLocation();
-  const { user, token, logout } = useAuth();
-  const { isInstalled, isInstalling, installApp, mounted } = usePwa();
+  const { user, token, logout, mounted: authMounted } = useAuth();
+  const { isInstalled, isInstallable, isInstalling, installApp, mounted: pwaMounted } = usePwa();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -77,7 +77,10 @@ export default function Header() {
 
         {/* Right Side: Profile / Login */}
         <div className="relative" ref={dropdownRef}>
-          {token && user ? (
+          {!authMounted ? (
+            // Render a stable placeholder during SSR and first hydration to avoid mismatch
+            <div className="w-10 h-10 rounded-full bg-slate-100 border-2 border-slate-200" />
+          ) : token && user ? (
             <>
               <div
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -145,8 +148,8 @@ export default function Header() {
                     )}
                   </div>
 
-                  {/* PWA Install Card */}
-                  {!isInstalled && mounted && (
+                  {/* PWA Install Card — only shown when browser has a live install prompt */}
+                  {isInstallable && pwaMounted && (
                     <div className="mx-3 my-2 p-3.5 bg-[#FF5C00]/5 border border-[#FF5C00]/10 rounded-2xl flex flex-col gap-2">
                       <div className="flex gap-2.5 items-center">
                         <div className="bg-[#FF5C00]/15 text-[#FF5C00] p-1.5 rounded-lg flex items-center justify-center shrink-0">

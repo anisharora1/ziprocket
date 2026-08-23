@@ -15,6 +15,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  mounted: boolean;
   login: (token: string, user: User) => void;
   logout: () => void;
 }
@@ -52,10 +53,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
+    setMounted(true);
     const checkAuth = async () => {
       const storedToken = localStorage.getItem('token');
       const storedUser = localStorage.getItem('user');
@@ -145,8 +148,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, [router]);
 
   const contextValue = useMemo(() => ({
-    user, token, isLoading, login, logout
-  }), [user, token, isLoading, login, logout]);
+    user, token, isLoading, mounted, login, logout
+  }), [user, token, isLoading, mounted, login, logout]);
 
   return (
     <AuthContext.Provider value={contextValue}>
