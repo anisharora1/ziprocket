@@ -9,6 +9,7 @@ import { PlatformProvider } from "@/context/PlatformContext";
 import LocationPromptModal from "@/components/LocationPromptModal";
 import { PwaProvider } from "@/context/PwaContext";
 import PwaManager from "@/components/PwaManager";
+import InstalledSuccessToast from "@/components/InstalledSuccessToast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import QueryProvider from "@/components/QueryProvider";
@@ -156,6 +157,7 @@ export default function RootLayout({
                         {children}
                         <LocationPromptModal />
                         <PwaManager />
+                        <InstalledSuccessToast />
                       </CartProvider>
                     </SocketProvider>
                   </AuthProvider>

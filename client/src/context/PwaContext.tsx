@@ -21,11 +21,13 @@ interface PwaContextType {
   showOnlineToast: boolean;
   showUpdateToast: boolean;
   showFirstVisitModal: boolean;
+  showInstalledToast: boolean;
   installApp: () => Promise<void>;
   dismissFirstVisitModal: () => void;
   triggerServiceWorkerUpdate: () => void;
   setShowOnlineToast: (val: boolean) => void;
   setShowUpdateToast: (val: boolean) => void;
+  setShowInstalledToast: (val: boolean) => void;
 }
 
 // Module-level capture so beforeinstallprompt is never missed if fired before React hydrates
@@ -49,6 +51,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
   const [showOnlineToast, setShowOnlineToast] = useState(false);
   const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [showFirstVisitModal, setShowFirstVisitModal] = useState(false);
+  const [showInstalledToast, setShowInstalledToast] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
   // Helper to check if app is running in standalone PWA mode or marked installed
@@ -121,6 +124,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       setIsInstalled(true);
       setIsInstalling(false);
       setShowFirstVisitModal(false);
+      setShowInstalledToast(true);
       globalDeferredPrompt = null;
       setDeferredPrompt(null);
       localStorage.setItem('pwa-installed', 'true');
@@ -221,6 +225,16 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [checkIsInstalled]);
 
+  // Auto-hide the installation success toast after ~4 seconds
+  useEffect(() => {
+    if (showInstalledToast) {
+      const timer = setTimeout(() => {
+        setShowInstalledToast(false);
+      }, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [showInstalledToast]);
+
   const installApp = async () => {
     if (isInstalled) {
       return;
@@ -245,6 +259,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       if (choiceResult && choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
         setShowFirstVisitModal(false);
+        setShowInstalledToast(true);
         localStorage.setItem('pwa-installed', 'true');
         sendGAEvent({ event: 'pwa_prompt_accepted' });
       } else {
@@ -279,11 +294,13 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
         showOnlineToast,
         showUpdateToast,
         showFirstVisitModal,
+        showInstalledToast,
         installApp,
         dismissFirstVisitModal,
         triggerServiceWorkerUpdate,
         setShowOnlineToast,
         setShowUpdateToast,
+        setShowInstalledToast,
       }}
     >
       {children}
