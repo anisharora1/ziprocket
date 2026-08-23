@@ -56,6 +56,7 @@ export interface IOrder extends BaseDocument {
     moderator?: Types.ObjectId;
     couponCode?: string;
     discountAmount?: number;
+    razorpayOrderId?: string;
 }
 
 const orderSchema = new Schema<IOrder>({
@@ -132,7 +133,8 @@ const orderSchema = new Schema<IOrder>({
     deliveryZone: { type: Schema.Types.ObjectId, ref: "DeliveryZone" },
     moderator: { type: Schema.Types.ObjectId, ref: "User", required: false },
     couponCode: { type: String, default: null },
-    discountAmount: { type: Number, default: 0 }
+    discountAmount: { type: Number, default: 0 },
+    razorpayOrderId: { type: String, default: null }
 
 }, { timestamps: true });
 

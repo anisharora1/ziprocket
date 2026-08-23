@@ -727,6 +727,32 @@ export default function CheckoutPage() {
                 description: cart.orderType === 'food' ? "Food Delivery Order" : "Grocery Basket Order",
                 image: "https://cdn-icons-png.flaticon.com/512/857/857681.png", // Premium meal container icon
                 order_id: rzpOrder.id,
+                config: {
+                    display: {
+                        blocks: {
+                            upi: {
+                                name: "Pay via UPI",
+                                instruments: [
+                                    {
+                                        method: "upi",
+                                        flows: ["collect", "intent", "qr"]
+                                    }
+                                ]
+                            }
+                        },
+                        hide: [
+                            { method: "card" },
+                            { method: "netbanking" },
+                            { method: "wallet" },
+                            { method: "paylater" },
+                            { method: "emi" }
+                        ],
+                        sequence: ["block.upi"],
+                        preferences: {
+                            show_default_blocks: false
+                        }
+                    }
+                },
                 handler: async function (response: any) {
                     try {
                         setPlacingOrder(true);
