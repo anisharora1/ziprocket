@@ -225,12 +225,12 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [checkIsInstalled]);
 
-  // Auto-hide the installation success toast after ~4 seconds
+  // Auto-hide the installation success toast after 10 seconds
   useEffect(() => {
     if (showInstalledToast) {
       const timer = setTimeout(() => {
         setShowInstalledToast(false);
-      }, 6000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
   }, [showInstalledToast]);
