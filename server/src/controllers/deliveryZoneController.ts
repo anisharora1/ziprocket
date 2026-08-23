@@ -374,6 +374,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             zoneName: activeZone.name,
             itemTotal,
             deliveryFee,
+            freeDeliveryThreshold: activeZone.freeDeliveryThreshold,
             smallOrderFee,
             platformFee,
             packagingCharge,

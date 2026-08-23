@@ -56,6 +56,7 @@ interface BillDetails {
     zoneName?: string;
     itemTotal: number;
     deliveryFee: number;
+    freeDeliveryThreshold?: number;
     smallOrderFee: number;
     platformFee: number;
     packagingCharge: number;
@@ -574,6 +575,9 @@ export default function CheckoutPage() {
     const activeGST = Number(billDetails?.gst ?? taxesFallback) || 0;
     const activeGrandTotal = Number(billDetails?.grandTotal ?? grandTotalFallback) || 0;
     const activeDistance = Number(billDetails?.distanceKm ?? distanceFallback) || 0;
+    const activeFreeDeliveryThreshold = Number(billDetails?.freeDeliveryThreshold) || 0;
+    const amountNeededForFreeDelivery = activeFreeDeliveryThreshold - itemTotal;
+    const isEligibleForFreeDeliveryNudge = activeDeliveryFee > 0 && amountNeededForFreeDelivery > 0 && activeFreeDeliveryThreshold > 0;
 
     // Auto-redirect after notification card with a delay
     useEffect(() => {
@@ -1295,7 +1299,20 @@ export default function CheckoutPage() {
                             Fares unavailable because selected location lies outside service area limits.
                         </div>
                     ) : (
-                        <div className="space-y-2.5 text-[13px]">
+                        <>
+                            {isEligibleForFreeDeliveryNudge && (
+                                <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 mb-3">
+                                    <MdLocalShipping className="text-emerald-600 text-xl shrink-0" />
+                                    <p className="text-[12px] font-bold text-emerald-800">
+                                        ₹{amountNeededForFreeDelivery.toFixed(0)} aur add karo, FREE delivery pao! 🚚
+                                        <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">
+                                            Add ₹{amountNeededForFreeDelivery.toFixed(0)} more for FREE delivery
+                                        </span>
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="space-y-2.5 text-[13px]">
                             <div className="flex justify-between text-slate-600">
                                 <span>Item Total</span>
                                 <span className="text-slate-900 font-medium">₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
@@ -1370,7 +1387,8 @@ export default function CheckoutPage() {
                                 </div>
                                 <span className="font-medium text-[16px] text-[#FF5C00]">₹{(Number(activeGrandTotal) || 0).toFixed(2)}</span>
                             </div>
-                        </div>
+                            </div>
+                        </>
                     )}
                 </section>
             </main>
