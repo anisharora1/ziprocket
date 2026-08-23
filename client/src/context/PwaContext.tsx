@@ -96,7 +96,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
           setShowFirstVisitModal(false);
           localStorage.setItem('pwa-installed', 'true');
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     // 1. Listen for beforeinstallprompt event
@@ -226,12 +226,6 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       return;
     }
 
-    if ('serviceWorker' in navigator) {
-      try {
-        await navigator.serviceWorker.ready;
-      } catch {}
-    }
-
     const promptToUse = deferredPrompt || globalDeferredPrompt;
     if (!promptToUse) {
       return;
@@ -239,11 +233,15 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
 
     try {
       setIsInstalling(true);
+      // Call prompt() immediately — no awaits before this line.
+      // Any async wait here (like navigator.serviceWorker.ready) can burn
+      // through Chrome's user-activation window and cause it to silently
+      // fall back to the "Add to home screen" shortcut instead of a real install.
       await promptToUse.prompt();
       sendGAEvent({ event: 'pwa_prompt_shown' });
 
       const choiceResult = await promptToUse.userChoice;
-      
+
       if (choiceResult && choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
         setShowFirstVisitModal(false);
