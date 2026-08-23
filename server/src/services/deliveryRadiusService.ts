@@ -24,7 +24,6 @@ export const findApplicableZone = async (
 
     console.log(`[Zone Cache] Miss for key: ${cacheKey}. Resolving zone from DB.`);
     const activeZones = await DeliveryZone.find({ isActive: true })
-        .select('name center radiusKm pincodes isActive')  // Only fields needed for matching
         .lean();
     
     const inputDesc = `Lat=${lat}, Lng=${lng}, Pincode=${pincode || "N/A"}, AddressText="${addressText || "N/A"}"`;
