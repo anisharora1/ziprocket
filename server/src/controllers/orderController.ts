@@ -848,22 +848,36 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        // Verify permission: orderStatus must be "placed" (Pending / Waiting for acceptance)
-        if (order.orderStatus !== "placed") {
-            res.status(400).json({
-                success: false,
-                message: "Order cannot be cancelled. The restaurant has already accepted or started preparing it."
-            });
+        const isOwner = order.user.toString() === req.user?._id?.toString();
+        const isAdmin = req.user?.role === "admin";
+        if (!isOwner && !isAdmin) {
+            res.status(403).json({ success: false, message: "Not authorized to cancel this order" });
             return;
         }
 
-        // Verify payment method: online paid orders cannot be cancelled
-        if (order.paymentMethod === "ONLINE") {
-            res.status(400).json({
-                success: false,
-                message: "Paid online orders cannot be cancelled."
-            });
-            return;
+        if (!isAdmin) {
+            if (order.orderStatus !== "placed") {
+                res.status(400).json({
+                    success: false,
+                    message: "Order cannot be cancelled. The restaurant has already accepted or started preparing it."
+                });
+                return;
+            }
+            if (order.paymentMethod === "ONLINE") {
+                res.status(400).json({
+                    success: false,
+                    message: "Paid online orders cannot be cancelled."
+                });
+                return;
+            }
+        } else {
+            if (["delivered", "cancelled"].includes(order.orderStatus)) {
+                res.status(400).json({
+                    success: false,
+                    message: "This order is already delivered or cancelled."
+                });
+                return;
+            }
         }
 
         // Restore grocery stock if this is a grocery order
