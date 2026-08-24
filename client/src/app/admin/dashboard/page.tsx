@@ -340,9 +340,9 @@ export default function AdminDashboard() {
               View All Orders
             </Link>
           </div>
-          <div className="p-0 overflow-x-auto">
+          <div className="p-0 overflow-y-auto overflow-x-auto max-h-[400px]">
             <table className="w-full text-left border-collapse">
-              <thead>
+              <thead className="sticky top-0 bg-white z-10 shadow-sm">
                 <tr className="bg-slate-50/50">
                   <th className="py-3 px-6 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">Order ID</th>
                   <th className="py-3 px-6 text-[11px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-100">Restaurant</th>

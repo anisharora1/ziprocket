@@ -289,6 +289,13 @@ export default function OrdersAdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState<{ total: number; page: number; pages: number; limit: number }>({
+    total: 0,
+    page: 1,
+    pages: 1,
+    limit: 20
+  });
 
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -296,16 +303,26 @@ export default function OrdersAdminPage() {
 
   const fetchOrders = useCallback(async () => {
     try {
-      const res = await apiClient.get("/orders");
+      setLoading(true);
+      const res = await apiClient.get("/orders", {
+        params: {
+          page,
+          limit: 20,
+          ...(statusFilter !== "all" ? { orderStatus: statusFilter } : {})
+        }
+      });
       if (res.data.success) {
         setOrders(res.data.orders || []);
+        if (res.data.meta) {
+          setMeta(res.data.meta);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch admin orders:", err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, statusFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -446,17 +463,14 @@ export default function OrdersAdminPage() {
     return status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
   };
 
-  // Filtered orders
+  // Within-page search filter
   const filteredOrders = orders.filter((o) => {
     const matchesSearch = 
       o._id.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.user?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       (o.restaurant?.name || "").toLowerCase().includes(searchQuery.toLowerCase());
       
-    if (!matchesSearch) return false;
-    
-    if (statusFilter === "all") return true;
-    return o.orderStatus === statusFilter;
+    return matchesSearch;
   });
 
   return (
@@ -477,9 +491,12 @@ export default function OrdersAdminPage() {
             <MdSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px]" />
             <input
               type="text"
-              placeholder="Search ID, Customer, Store..."
+              placeholder="Search in this page..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-sm"
             />
           </div>
@@ -531,14 +548,17 @@ export default function OrdersAdminPage() {
       {/* Filter and Table Options */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <span className="text-xs font-semibold text-slate-500">
-          Showing <span className="font-bold text-slate-800">{filteredOrders.length}</span> {filteredOrders.length === 1 ? 'order' : 'orders'}
+          Showing <span className="font-bold text-slate-800">{filteredOrders.length}</span> {filteredOrders.length === 1 ? 'order' : 'orders'} (Page {meta.page} of {meta.pages})
         </span>
         <div className="flex items-center gap-2">
           <MdFilterList className="text-slate-400 text-base shrink-0" />
           <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0">Filter:</label>
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
             className="w-full sm:w-auto px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm transition-colors cursor-pointer"
           >
             <option value="all">All Orders</option>
@@ -554,10 +574,10 @@ export default function OrdersAdminPage() {
       </div>
 
       {/* Main Content Area */}
-      <div className="mb-12">
+      <div className="mb-6">
 
         {/* 1. Mobile Cards View (Hidden on Tablet/Desktop md:) */}
-        <div className="md:hidden space-y-3">
+        <div className="md:hidden space-y-3 max-h-[600px] overflow-y-auto pr-1">
           {loading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 font-semibold text-xs shadow-sm">
               Loading orders...
@@ -621,10 +641,10 @@ export default function OrdersAdminPage() {
         </div>
 
         {/* 2. Desktop/Tablet Table View (Hidden on Mobile < md:) */}
-        <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[850px]">
-              <thead>
+        <div className="hidden md:block bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+          <div className="overflow-y-auto overflow-x-auto max-h-[600px]">
+            <table className="w-full text-left border-collapse min-w-[1000px]">
+              <thead className="sticky top-0 bg-white z-10 shadow-sm">
                 <tr className="border-b border-slate-100 bg-slate-50/50">
                   <th className="py-4 lg:py-5 px-4 lg:px-6 text-[11px] lg:text-[12px] font-bold text-slate-500 uppercase tracking-wider">Order ID</th>
                   <th className="py-4 lg:py-5 px-4 lg:px-6 text-[11px] lg:text-[12px] font-bold text-slate-500 uppercase tracking-wider">Customer</th>
@@ -702,6 +722,31 @@ export default function OrdersAdminPage() {
         </div>
 
       </div>
+
+      {/* Pagination Controls */}
+      {!loading && meta.pages > 1 && (
+        <div className="flex items-center justify-between px-2 mb-12">
+          <span className="text-[12px] font-semibold text-slate-500">
+            Page {meta.page} of {meta.pages} · {meta.total} total orders
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage((p) => Math.min(meta.pages, p + 1))}
+              disabled={page >= meta.pages}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Order Detail Modal */}
       {selectedOrder && (
