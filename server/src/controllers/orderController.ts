@@ -833,6 +833,13 @@ export const getGroceryOrders = async (req: Request, res: Response): Promise<voi
             query.deliveryZone = { $in: zones };
         }
 
+        const tab = req.query.tab as string;
+        if (tab === "active") {
+            query.orderStatus = { $in: ["placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"] };
+        } else if (tab === "completed") {
+            query.orderStatus = { $in: ["delivered", "cancelled"] };
+        }
+
         const [orders, total] = await Promise.all([
             Order.find(query)
                 .populate("user", "name phone email")

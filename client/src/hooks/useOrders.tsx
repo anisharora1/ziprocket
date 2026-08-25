@@ -51,12 +51,12 @@ export function useSellerOrders() {
 // ---------------------------------------------------------------------------
 // Grocery Moderator: /orders/grocery
 // ---------------------------------------------------------------------------
-export function useGroceryOrders() {
+export function useGroceryOrders(tab: string = "all", page: number = 1) {
   return useQuery({
-    queryKey: ['orders', 'grocery'],
+    queryKey: ['orders', 'grocery', tab, page],
     queryFn: async () => {
-      const res = await apiClient.get('/orders/grocery');
-      return (res.data.orders ?? []) as any[];
+      const res = await apiClient.get('/orders/grocery', { params: { tab, page, limit: 10 } });
+      return { orders: (res.data.orders ?? []) as any[], meta: res.data.meta };
     },
     staleTime: 0,
   });
