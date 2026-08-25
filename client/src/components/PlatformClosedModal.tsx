@@ -1,6 +1,7 @@
 "use client";
 import { usePathname } from "next/navigation";
 import { usePlatform } from "@/context/PlatformContext";
+import { useAuth } from "@/context/AuthContext";
 import { MdEngineering, MdBlock, MdSchedule } from "react-icons/md";
 
 const EXCLUDED_PREFIXES = [
@@ -25,9 +26,11 @@ const formatToAMPM = (timeStr: string): string => {
 export default function PlatformClosedModal() {
   const pathname = usePathname();
   const { settings, isPlatformCurrentlyOpen } = usePlatform();
+  const { user } = useAuth();
 
   const isExcludedRoute = EXCLUDED_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
   if (isExcludedRoute) return null;
+  if (!user) return null;
 
   if (!settings) return null;
 
