@@ -129,8 +129,11 @@ export default function ModeratorProducts() {
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
-    fetchProducts();
+    if (page === 1) {
+      fetchProducts();
+    } else {
+      setPage(1);
+    }
   };
 
   const openAddModal = () => {
@@ -256,6 +259,10 @@ export default function ModeratorProducts() {
   };
 
   const handleQuickStockUpdate = async (productId: string) => {
+    if (quickStockVal < 0) {
+      alert("Stock quantity cannot be negative.");
+      return;
+    }
     try {
       const res = await apiClient.put(`/grocery/${productId}`, {
         stockQuantity: quickStockVal
@@ -436,9 +443,10 @@ export default function ModeratorProducts() {
                           <div className="flex items-center gap-1.5">
                             <input 
                               type="number" 
+                              min={0}
                               className="w-16 px-2 py-1 text-xs font-bold border-2 border-emerald-500 rounded-lg text-center"
                               defaultValue={product.stockQuantity}
-                              onChange={(e) => setQuickStockVal(Number(e.target.value))}
+                              onChange={(e) => setQuickStockVal(Math.max(0, Number(e.target.value)))}
                               autoFocus
                             />
                             <button 
@@ -473,12 +481,40 @@ export default function ModeratorProducts() {
                         )}
                       </td>
 
-                      {/* Status */}
+                      {/* Status Toggle */}
                       <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${product.isAvailable && product.stockQuantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${product.isAvailable && product.stockQuantity > 0 ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
-                          {product.isAvailable && product.stockQuantity > 0 ? "In Stock" : "Unavailable"}
-                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (product.stockQuantity > 0) {
+                              // Turning OFF — instantly zero the stock
+                              if (!confirm(`Mark "${product.name}" as Out of Stock?`)) return;
+                              try {
+                                const res = await apiClient.put(`/grocery/${product._id}`, { stockQuantity: 0 });
+                                if (res.data.success) {
+                                  setProducts(products.map(p => p._id === product._id ? { ...p, stockQuantity: 0 } : p));
+                                }
+                              } catch (error) {
+                                alert("Failed to update stock status.");
+                              }
+                            } else {
+                              // Turning back ON — open the quick-restock input so a real quantity is entered, not guessed
+                              setUpdatingStockId(product._id);
+                              setQuickStockVal(1);
+                            }
+                          }}
+                          className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${
+                            product.isAvailable && product.stockQuantity > 0 ? 'bg-emerald-500' : 'bg-red-300'
+                          }`}
+                          title={product.stockQuantity > 0 ? "Click to mark Out of Stock" : "Click to restock"}
+                        >
+                          <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${
+                            product.isAvailable && product.stockQuantity > 0 ? 'translate-x-6' : 'translate-x-1'
+                          }`} />
+                        </button>
+                        <p className={`text-[10px] font-black mt-1.5 ${product.isAvailable && product.stockQuantity > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                          {product.isAvailable && product.stockQuantity > 0 ? "In Stock" : "Out of Stock"}
+                        </p>
                       </td>
 
                       {/* Actions */}
