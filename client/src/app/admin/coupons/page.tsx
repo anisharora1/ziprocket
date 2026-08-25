@@ -380,6 +380,7 @@ export default function AdminCouponsPage() {
                 <label className="block text-xs font-bold text-slate-500">Value *</label>
                 <input 
                   type="number" 
+                  min="0"
                   required
                   placeholder={discountType === 'flat' ? "50" : "20"}
                   value={discountValue}
@@ -392,6 +393,7 @@ export default function AdminCouponsPage() {
                 <label className="block text-xs font-bold text-slate-500">Max Cap ₹</label>
                 <input 
                   type="number" 
+                  min="0"
                   placeholder="Optional max discount"
                   value={maxDiscountAmount}
                   onChange={(e) => setMaxDiscountAmount(e.target.value)}
@@ -403,6 +405,7 @@ export default function AdminCouponsPage() {
                 <label className="block text-xs font-bold text-slate-500">Min Cart Subtotal</label>
                 <input 
                   type="number" 
+                  min="0"
                   placeholder="e.g. 199"
                   value={minOrderAmount}
                   onChange={(e) => setMinOrderAmount(e.target.value)}
@@ -425,6 +428,7 @@ export default function AdminCouponsPage() {
                 <label className="block text-xs font-bold text-slate-500">Total Limit</label>
                 <input 
                   type="number" 
+                  min="1"
                   value={totalUsageLimit}
                   onChange={(e) => setTotalUsageLimit(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-[#FF5C00] focus:bg-white rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"
@@ -435,6 +439,7 @@ export default function AdminCouponsPage() {
                 <label className="block text-xs font-bold text-slate-500">Per-user Limit</label>
                 <input 
                   type="number" 
+                  min="1"
                   value={perUserUsageLimit}
                   onChange={(e) => setPerUserUsageLimit(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-[#FF5C00] focus:bg-white rounded-xl text-xs font-semibold text-slate-800 focus:outline-none"

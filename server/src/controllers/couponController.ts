@@ -31,6 +31,15 @@ export const createCoupon = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
+        if (discountType === "percentage" && Number(discountValue) > 100) {
+            res.status(400).json({ success: false, message: "Percentage discount cannot exceed 100%." });
+            return;
+        }
+        if (discountType === "percentage" && !maxDiscountAmount) {
+            res.status(400).json({ success: false, message: "A maximum discount cap is required for percentage-based coupons, to prevent unlimited discount amounts." });
+            return;
+        }
+
         const uppercaseCode = code.toUpperCase().trim();
         
         // Check duplicate code
@@ -67,6 +76,10 @@ export const createCoupon = async (req: Request, res: Response): Promise<void> =
             coupon: newCoupon
         });
     } catch (error: any) {
+        if (error.name === "ValidationError") {
+            res.status(400).json({ success: false, message: error.message });
+            return;
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -95,6 +108,12 @@ export const updateCoupon = async (req: Request, res: Response): Promise<void> =
         const { id } = req.params;
         const updateFields = { ...req.body };
 
+        const existingCoupon = await Coupon.findById(id);
+        if (!existingCoupon) {
+            res.status(404).json({ success: false, message: "Coupon not found" });
+            return;
+        }
+
         if (updateFields.code) {
             updateFields.code = updateFields.code.toUpperCase().trim();
             const existing = await Coupon.findOne({ code: updateFields.code, _id: { $ne: id } });
@@ -102,6 +121,21 @@ export const updateCoupon = async (req: Request, res: Response): Promise<void> =
                 res.status(400).json({ success: false, message: `Another coupon with code '${updateFields.code}' already exists` });
                 return;
             }
+        }
+
+        const effectiveDiscountType = updateFields.discountType || existingCoupon.discountType;
+        const effectiveDiscountValue = updateFields.discountValue !== undefined ? Number(updateFields.discountValue) : existingCoupon.discountValue;
+        const effectiveMaxDiscount = updateFields.maxDiscountAmount !== undefined 
+            ? (updateFields.maxDiscountAmount === "" ? null : Number(updateFields.maxDiscountAmount))
+            : existingCoupon.maxDiscountAmount;
+
+        if (effectiveDiscountType === "percentage" && Number(effectiveDiscountValue) > 100) {
+            res.status(400).json({ success: false, message: "Percentage discount cannot exceed 100%." });
+            return;
+        }
+        if (effectiveDiscountType === "percentage" && !effectiveMaxDiscount) {
+            res.status(400).json({ success: false, message: "A maximum discount cap is required for percentage-based coupons, to prevent unlimited discount amounts." });
+            return;
         }
 
         if (updateFields.discountValue !== undefined) updateFields.discountValue = Number(updateFields.discountValue);
@@ -130,6 +164,10 @@ export const updateCoupon = async (req: Request, res: Response): Promise<void> =
             coupon
         });
     } catch (error: any) {
+        if (error.name === "ValidationError") {
+            res.status(400).json({ success: false, message: error.message });
+            return;
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };

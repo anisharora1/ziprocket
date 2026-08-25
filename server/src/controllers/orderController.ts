@@ -350,18 +350,37 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
             // Record coupon usage if successfully placed
             if (couponDoc) {
-                const CouponUsageModel = mongoose.model("CouponUsage");
-                const newUsage = new CouponUsageModel({
-                    user,
-                    coupon: couponDoc._id,
-                    order: newOrder._id,
-                    discountApplied: calculatedDiscount
-                });
-                await newUsage.save();
-
-                // Increment coupon usedCount
                 const CouponModel = mongoose.model("Coupon");
-                await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: 1 } });
+                const CouponUsageModel = mongoose.model("CouponUsage");
+
+                // Atomically increment usedCount ONLY if still under the limit — this is the actual enforcement point, not the earlier validateCoupon check.
+                const updatedCoupon = await CouponModel.findOneAndUpdate(
+                    { _id: couponDoc._id, usedCount: { $lt: couponDoc.totalUsageLimit } },
+                    { $inc: { usedCount: 1 } },
+                    { new: true }
+                );
+
+                if (!updatedCoupon) {
+                    // Limit was hit by a concurrent request between validation and this point — roll back the discount, don't fail the whole order.
+                    newOrder.discountAmount = 0;
+                    newOrder.totalAmount = totalAmount; // original amount, no discount
+                    newOrder.couponCode = undefined;
+                    await newOrder.save();
+                } else {
+                    // Re-check per-user limit atomically too, in case of a concurrent double-submit from the same user.
+                    const userUsageCount = await CouponUsageModel.countDocuments({ user, coupon: couponDoc._id });
+                    if (userUsageCount >= couponDoc.perUserUsageLimit) {
+                        // Roll back both the order discount AND the usedCount increment we just made.
+                        await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: -1 } });
+                        newOrder.discountAmount = 0;
+                        newOrder.totalAmount = totalAmount;
+                        newOrder.couponCode = undefined;
+                        await newOrder.save();
+                    } else {
+                        const newUsage = new CouponUsageModel({ user, coupon: couponDoc._id, order: newOrder._id, discountApplied: calculatedDiscount });
+                        await newUsage.save();
+                    }
+                }
             }
 
             // --- Socket.IO: Notify seller/grocery moderator of new order ---
