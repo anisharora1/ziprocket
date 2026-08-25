@@ -186,107 +186,130 @@ export default function ModeratorDashboard() {
           </div>
         )}
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 sm:gap-6">
-          {/* Total Products */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center transition-transform group-hover:scale-110">
-                <MdInventory2 className="text-[24px]" />
+        {/* Platform Catalog Overview */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">
+              Platform Catalog Overview
+            </h3>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+              Platform-Wide
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* Total Products */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center transition-transform group-hover:scale-110">
+                  <MdInventory2 className="text-[24px]" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Platform-Wide
+                </span>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Catalog Size
-              </span>
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Total Products</p>
+                <h3 className="text-2xl font-black text-slate-900">{stats.totalProducts} items</h3>
+              </div>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Total Products</p>
-              <h3 className="text-2xl font-black text-slate-900">{stats.totalProducts} items</h3>
+
+            {/* Out of Stock */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-50 text-slate-400'}`}>
+                  <MdWarning className="text-[24px]" />
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
+                  Platform Alert
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Out of Stock</p>
+                <h3 className={`text-2xl font-black ${stats.outOfStockProducts > 0 ? 'text-red-600' : 'text-slate-900'}`}>
+                  {stats.outOfStockProducts} items
+                </h3>
+              </div>
+            </div>
+
+            {/* Low Stock Alerts */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
+                  <MdProductionQuantityLimits className="text-[24px]" />
+                </div>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
+                  Platform Restock
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Low Stock (&lt;10)</p>
+                <h3 className={`text-2xl font-black ${stats.lowStockProducts > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
+                  {stats.lowStockProducts} items
+                </h3>
+              </div>
+            </div>
+
+            {/* Total Valuation */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center transition-transform group-hover:scale-110">
+                  <MdPayments className="text-[24px]" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Platform Asset
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Valuation</p>
+                <h3 className="text-2xl font-black text-slate-900">
+                  ₹{stats.totalValuation?.toLocaleString()}
+                </h3>
+              </div>
             </div>
           </div>
+        </div>
 
-          {/* Out of Stock */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600 animate-pulse' : 'bg-slate-50 text-slate-400'}`}>
-                <MdWarning className="text-[24px]" />
-              </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.outOfStockProducts > 0 ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
-                Stock Alert
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Out of Stock</p>
-              <h3 className={`text-2xl font-black ${stats.outOfStockProducts > 0 ? 'text-red-600' : 'text-slate-900'}`}>
-                {stats.outOfStockProducts} items
-              </h3>
-            </div>
+        {/* Your Zone Activity */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none">
+              Your Zone Activity
+            </h3>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+              Assigned Zones Only
+            </span>
           </div>
-
-          {/* Low Stock Alerts */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-transform group-hover:scale-110 ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-50 text-slate-400'}`}>
-                <MdProductionQuantityLimits className="text-[24px]" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+            {/* Zone Orders */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-650 flex items-center justify-center transition-transform group-hover:scale-110">
+                  <MdLocalShipping className="text-[24px]" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Operations
+                </span>
               </div>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider ${stats.lowStockProducts > 0 ? 'bg-amber-50 text-amber-600' : 'bg-slate-100 text-slate-400'}`}>
-                Needs Restock
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Low Stock (&lt;10)</p>
-              <h3 className={`text-2xl font-black ${stats.lowStockProducts > 0 ? 'text-amber-600' : 'text-slate-900'}`}>
-                {stats.lowStockProducts} items
-              </h3>
-            </div>
-          </div>
-
-          {/* Total Valuation */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center transition-transform group-hover:scale-110">
-                <MdPayments className="text-[24px]" />
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Zone Orders</p>
+                <h3 className="text-2xl font-black text-slate-900">{ordersCount} orders</h3>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Asset Value
-              </span>
             </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Valuation</p>
-              <h3 className="text-2xl font-black text-slate-900">
-                ₹{stats.totalValuation?.toLocaleString()}
-              </h3>
-            </div>
-          </div>
 
-          {/* Zone Orders */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-650 flex items-center justify-center transition-transform group-hover:scale-110">
-                <MdLocalShipping className="text-[24px]" />
+            {/* Zone Customers */}
+            <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
+              <div className="flex justify-between items-start mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-655 flex items-center justify-center transition-transform group-hover:scale-110">
+                  <MdGroups className="text-[24px]" />
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Audience
+                </span>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Operations
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Zone Orders</p>
-              <h3 className="text-2xl font-black text-slate-900">{ordersCount} orders</h3>
-            </div>
-          </div>
-
-          {/* Zone Customers */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex justify-between items-start mb-4">
-              <div className="w-12 h-12 rounded-2xl bg-sky-50 text-sky-655 flex items-center justify-center transition-transform group-hover:scale-110">
-                <MdGroups className="text-[24px]" />
+              <div>
+                <p className="text-sm font-bold text-slate-400 mb-1">Zone Users</p>
+                <h3 className="text-2xl font-black text-slate-900">{usersCount} users</h3>
               </div>
-              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
-                Audience
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-slate-400 mb-1">Zone Users</p>
-              <h3 className="text-2xl font-black text-slate-900">{usersCount} users</h3>
             </div>
           </div>
         </div>
