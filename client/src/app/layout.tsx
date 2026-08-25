@@ -13,6 +13,7 @@ import InstalledSuccessToast from "@/components/InstalledSuccessToast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import QueryProvider from "@/components/QueryProvider";
+import PlatformClosedModal from "@/components/PlatformClosedModal";
 
 // ... existing font setup ...
 
@@ -155,6 +156,7 @@ export default function RootLayout({
                     <SocketProvider>
                       <CartProvider>
                         {children}
+                        <PlatformClosedModal />
                         <LocationPromptModal />
                         <PwaManager />
                         <InstalledSuccessToast />

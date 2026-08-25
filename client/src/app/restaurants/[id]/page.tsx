@@ -8,7 +8,6 @@ import { apiClient } from "@/services/api";
 import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
-import PlatformBanner from "@/components/PlatformBanner";
 import {
   MdArrowBack,
   MdFavoriteBorder,
@@ -130,7 +129,6 @@ export default function RestaurantMenuPage() {
 
   return (
     <div className="bg-[#f8f9fa] text-on-surface pb-32 min-h-screen w-full font-sans">
-      <PlatformBanner />
       {/* Top AppBar */}
       <header className="bg-[#fef9f4] sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between">
         <Link href="/" className="w-10 h-10 flex items-center justify-center transition-transform active:scale-95 bg-white rounded-full shadow-sm">

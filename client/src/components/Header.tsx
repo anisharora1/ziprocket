@@ -5,7 +5,6 @@ import { useLocation } from "@/context/LocationContext";
 import { useAuth } from "@/context/AuthContext";
 import { usePwa } from "@/context/PwaContext";
 import LocationSelectorModal from "@/components/LocationSelectorModal";
-import PlatformBanner from "@/components/PlatformBanner";
 import {
   MdLocationOn,
   MdHourglassEmpty,
@@ -41,7 +40,6 @@ export default function Header() {
 
   return (
     <header className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 shadow-sm fixed top-0 left-0 right-0 z-50 flex flex-col">
-      <PlatformBanner />
       <div className="max-w-7xl mx-auto flex justify-between items-center w-full px-4 sm:px-6 lg:px-8 h-16">
 
         {/* Left Side: Logo/Location */}

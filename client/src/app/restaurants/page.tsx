@@ -7,7 +7,6 @@ import { getAllRestaurants } from "@/services/restaurantService";
 import OptimizedImage from "@/components/OptimizedImage";
 
 import { apiClient } from "@/services/api";
-import PlatformBanner from "@/components/PlatformBanner";
 import { MdSearch, MdStar, MdStore } from "react-icons/md";
 
 // Helper: Resolve a relevant Unsplash image based on name/cuisines
@@ -95,7 +94,6 @@ export default function RestaurantsPage() {
 
   return (
     <div className="bg-[#fcfcfc] text-on-surface pb-28 min-h-screen w-full font-sans">
-      <PlatformBanner />
       <div className="max-w-7xl mx-auto w-full">
         {/* Top Search Bar */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center justify-between gap-4">

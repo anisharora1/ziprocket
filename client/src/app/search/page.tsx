@@ -10,7 +10,6 @@ import { usePlatform } from "@/context/PlatformContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import ProductCard from "@/components/ProductCard";
 import BottomNavBar from "@/components/BottomNavBar";
-import PlatformBanner from "@/components/PlatformBanner";
 import { MdArrowBack, MdSearch, MdClose, MdSearchOff, MdStar } from "react-icons/md";
 
 interface SearchResults {
@@ -104,7 +103,6 @@ function SearchResultsContent() {
 
   return (
     <div className="bg-[#fcfcfc] text-slate-900 pb-28 min-h-screen w-full font-sans">
-      <PlatformBanner />
       <div className="max-w-7xl mx-auto w-full">
         {/* Search Header */}
         <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center gap-3">

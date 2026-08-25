@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
-import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
 import {
   MdArrowBack,
@@ -122,7 +121,6 @@ export default function CartPage() {
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-32 min-h-screen w-full font-sans">
-            <PlatformBanner />
             {/* Header */}
             <header className="bg-white sticky top-0 z-40 pt-4 pb-3 px-4 flex items-center justify-between border-b border-slate-100">
                 <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center transition-transform active:scale-95">

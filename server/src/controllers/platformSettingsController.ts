@@ -55,7 +55,12 @@ export const streamSettings = async (req: Request, res: Response): Promise<void>
 export const updateSettings = async (req: Request, res: Response): Promise<void> => {
     try {
         const { isPlatformOpen, maintenanceMode, operatingHours, groceryStatus } = req.body;
-        
+
+        if (groceryStatus !== undefined && !["open", "closed", "disabled"].includes(groceryStatus)) {
+            res.status(400).json({ success: false, message: "Invalid groceryStatus value." });
+            return;
+        }
+
         let settings = await PlatformSettings.findOne();
         if (!settings) {
             settings = new PlatformSettings();

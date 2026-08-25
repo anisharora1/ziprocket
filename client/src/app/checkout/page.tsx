@@ -8,7 +8,6 @@ import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
 import { getHighAccuracyGPSFix } from "@/utils/geolocation";
 import { usePlatform } from "@/context/PlatformContext";
-import PlatformBanner from "@/components/PlatformBanner";
 import OptimizedImage from "@/components/OptimizedImage";
 import dynamic from "next/dynamic";
 import {
@@ -873,8 +872,6 @@ export default function CheckoutPage() {
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-36 min-h-screen w-full font-sans">
-            <PlatformBanner />
-
             {/* ── Unified Notification Card Overlay ───────────────────────────── */}
             {notifCard && (() => {
                 const cfgMap: Record<NotifType, { grad: string; iconComp: React.ComponentType<{ className?: string }>; btnGrad: string; btnShadow: string }> = {
