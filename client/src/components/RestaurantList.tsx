@@ -5,6 +5,7 @@ import { apiClient } from "@/services/api";
 import { useLocation } from "@/context/LocationContext";
 import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
+import RestaurantCardCarousel from "./RestaurantCardCarousel";
 import { usePlatform } from "@/context/PlatformContext";
 import {
   MdLocationOn,
@@ -32,6 +33,7 @@ interface Restaurant {
     lat: number;
     lng: number;
   };
+  popularItems?: { name: string; price: number; images?: any[] }[];
 }
 
 // Helper to safely extract image string URL regardless of whether backend returns string or object
@@ -57,20 +59,20 @@ function getInitialZoneId(): string | null {
 function StatusBadge({ isMaintenance, status = "open" }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled" }) {
   if (isMaintenance) {
     return (
-      <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+      <div className="absolute top-3 left-3 z-20 pointer-events-none bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
         MAINTENANCE MODE
       </div>
     );
   }
   if (status === "open") {
     return (
-      <div className="absolute top-3 left-3 bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+      <div className="absolute top-3 left-3 z-20 pointer-events-none bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
         OPEN NOW
       </div>
     );
   }
   return (
-    <div className="absolute top-3 left-3 bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
+    <div className="absolute top-3 left-3 z-20 pointer-events-none bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
       CLOSED
     </div>
   );
@@ -185,15 +187,14 @@ export default function RestaurantList() {
               className="block bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/70 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 active:scale-[0.98] group"
             >
               <div className="h-44 relative overflow-hidden bg-slate-50">
-                <OptimizedImage 
-                  className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103" 
-                  src={getImageString(restaurant.image)}
-                  alt={restaurant.name}
-                  preset="card"
+                <RestaurantCardCarousel
+                  items={restaurant.popularItems || []}
+                  fallbackImage={getImageString(restaurant.image)}
+                  restaurantName={restaurant.name}
                 />
                 
                 {/* Simulated delivery time */}
-                <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-xl shadow-sm border border-slate-100/40">
+                <div className="absolute bottom-3 right-3 bg-white/95 backdrop-blur-sm px-2.5 py-1 rounded-xl shadow-sm border border-slate-100/40 z-20 pointer-events-none">
                   <span className="font-bold text-[10px] text-slate-800">
                     25-35 mins
                   </span>

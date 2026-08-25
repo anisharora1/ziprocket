@@ -10,7 +10,10 @@ import {
   MdDescription, 
   MdAccountBalance, 
   MdPerson, 
-  MdBadge 
+  MdBadge,
+  MdMap,
+  MdOpenInNew,
+  MdLocationOn
 } from "react-icons/md";
 
 export default function ApplicationsPage() {
@@ -87,11 +90,36 @@ export default function ApplicationsPage() {
             </div>
           ) : (
             restaurants.map((app) => (
-              <div key={app._id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between">
+              <div key={app._id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-bold text-slate-900">{app.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-slate-900">{app.name}</h3>
+                    {app.location?.lat && app.location?.lng ? (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                        <MdLocationOn className="text-[12px]" />
+                        Geocoded ({app.location.lat.toFixed(4)}, {app.location.lng.toFixed(4)})
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full">
+                        No Coordinates
+                      </span>
+                    )}
+                  </div>
                   <p className="text-sm text-slate-600 mt-1">Owner: {app.owner?.name || "N/A"} | Phone: {app.phone}</p>
-                  <p className="text-sm text-slate-500 mt-1">Address: {app.location?.address}</p>
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-slate-500 mt-1">
+                    <span>Address: {app.location?.address}</span>
+                    {app.location?.lat && app.location?.lng && (
+                      <a
+                        href={`https://www.google.com/maps?q=${app.location.lat},${app.location.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-[#FF5C00] hover:underline"
+                      >
+                        <MdOpenInNew className="text-[12px]" />
+                        View on Map
+                      </a>
+                    )}
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <button 
@@ -165,7 +193,7 @@ export default function ApplicationsPage() {
           {/* Backdrop */}
           <div className="absolute inset-0" onClick={() => setSelectedApp(null)}></div>
           
-          <div className="bg-white rounded-2xl shadow-xl w-[90vw] md:w-[500px] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 relative z-10">
+          <div className="bg-white rounded-2xl shadow-xl w-[90vw] md:w-[540px] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 relative z-10">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center">
               <h3 className="text-xl font-bold text-slate-900">Application Details</h3>
               <button 
@@ -189,6 +217,48 @@ export default function ApplicationsPage() {
                       <div className="col-span-2">
                         <DetailRow label="Address" value={selectedApp.location?.address} />
                       </div>
+                      <div className="col-span-2">
+                        <DetailRow 
+                          label="Geocoded Coordinates" 
+                          value={
+                            selectedApp.location?.lat && selectedApp.location?.lng ? (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-xs font-bold text-slate-700 bg-white px-2 py-1 rounded border border-slate-200">
+                                  {selectedApp.location.lat}, {selectedApp.location.lng}
+                                </span>
+                                <a 
+                                  href={`https://www.google.com/maps?q=${selectedApp.location.lat},${selectedApp.location.lng}`}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs font-bold text-[#FF5C00] hover:underline"
+                                >
+                                  <MdOpenInNew className="text-[14px]" />
+                                  View on Google Maps
+                                </a>
+                              </div>
+                            ) : (
+                              <span className="text-amber-600 font-bold text-xs">No Coordinates Available (lat: 0, lng: 0)</span>
+                            )
+                          } 
+                        />
+                      </div>
+                      {/* Embedded Map Sanity Check Preview */}
+                      {selectedApp.location?.lat && selectedApp.location?.lng && (
+                        <div className="col-span-2 mt-2">
+                          <div className="rounded-xl overflow-hidden border border-slate-200 h-40 bg-slate-100">
+                            <iframe 
+                              title="Restaurant Location Map Preview"
+                              width="100%" 
+                              height="100%" 
+                              frameBorder="0" 
+                              scrolling="no" 
+                              marginHeight={0} 
+                              marginWidth={0} 
+                              src={`https://maps.google.com/maps?q=${selectedApp.location.lat},${selectedApp.location.lng}&z=15&output=embed`}
+                            />
+                          </div>
+                        </div>
+                      )}
                       <div className="col-span-2">
                         <DetailRow label="Cuisines" value={selectedApp.cuisines || "N/A"} />
                       </div>

@@ -13,6 +13,46 @@ import {
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const FRONTEND_REFERER = "http://localhost:3000/";
 
+// Forward Geocoding: converts an address string to lat, lng, and formattedAddress
+export const getForwardGeocode = async (address: string) => {
+    try {
+        const apiKey = GOOGLE_API_KEY || process.env.GOOGLE_MAPS_API_KEY;
+        if (apiKey) {
+            const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}&region=in`;
+            const response = await fetch(url, { headers: { "Referer": FRONTEND_REFERER } });
+            const data = await response.json() as any;
+            const result = data.results?.[0];
+            if (result && result.geometry?.location) {
+                return {
+                    lat: result.geometry.location.lat,
+                    lng: result.geometry.location.lng,
+                    formattedAddress: result.formatted_address || address
+                };
+            }
+        }
+    } catch (err) {
+        console.error("Google forward geocode failed:", err);
+    }
+
+    // Nominatim fallback for forward geocoding in case Google Maps API key is unavailable or fails
+    try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=in&limit=1`;
+        const res = await fetch(url, { headers: { "User-Agent": "ZipRocket/1.0" } });
+        const data = await res.json() as any;
+        if (data && data.length > 0) {
+            return {
+                lat: parseFloat(data[0].lat),
+                lng: parseFloat(data[0].lon),
+                formattedAddress: data[0].display_name
+            };
+        }
+    } catch (nomErr) {
+        console.error("Nominatim forward geocode fallback failed:", nomErr);
+    }
+
+    return null;
+};
+
 // 1. Google Places Autocomplete API (New v1 Endpoint)
 export const getAutocompleteSuggestions = async (input: string) => {
     try {

@@ -3,6 +3,7 @@ import Restaurant from "../models/Restaurant";
 import DeliveryProfile from "../models/DeliveryProfile";
 import { uploadToCloudinary } from "../services/cloudinaryService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
+import { getForwardGeocode } from "../utils/googleMaps";
 
 export const applyRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -21,14 +22,23 @@ export const applyRestaurant = async (req: Request, res: Response): Promise<void
             return;
         }
 
+        const geocodeResult = await getForwardGeocode(address);
+        if (!geocodeResult) {
+            res.status(400).json({
+                success: false,
+                message: "We couldn't locate this address on the map. Please provide a more specific address (nearby landmark, area, pincode) and try again."
+            });
+            return;
+        }
+
         const newRestaurant = new Restaurant({
             name: restaurantName,
             owner: userId,
             phone,
             location: {
-                address,
-                lat: 0,
-                lng: 0
+                address: geocodeResult.formattedAddress || address,
+                lat: geocodeResult.lat,
+                lng: geocodeResult.lng
             },
             ownerName,
             cuisines,

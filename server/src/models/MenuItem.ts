@@ -25,7 +25,7 @@ const menuItemSchema = new Schema<IMenuItem>({
 
     description: { type: String, required: true },
 
-    price: { type: Number, required: true },
+    price: { type: Number, required: true, min: [0, "Price cannot be negative"] },
 
     category: String,
 

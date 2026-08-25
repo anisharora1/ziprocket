@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import mongoose from "mongoose";
 import Restaurant from "../models/Restaurant";
 import MenuItem from "../models/MenuItem";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
@@ -75,16 +76,49 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
         
         if (status) filter.status = status;
         if (isActive !== undefined) filter.isActive = isActive === 'true';
-        if (deliveryZone) filter.deliveryZone = deliveryZone;
+        if (deliveryZone) {
+            if (mongoose.Types.ObjectId.isValid(deliveryZone as string)) {
+                filter.deliveryZone = new mongoose.Types.ObjectId(deliveryZone as string);
+            } else {
+                filter.deliveryZone = deliveryZone;
+            }
+        }
 
-        // Select only listing-relevant fields — excludes bankDetails, fssaiNumber, panNumber, gstNumber, gallery, owner
-        const LISTING_FIELDS = 'name phone cuisines image logo rating isActive totalOrders status availabilityStatus location deliveryZone';
-
-        const restaurants = await Restaurant.find(filter)
-            .select(LISTING_FIELDS)
-            .skip(skip)
-            .limit(limit)
-            .lean();
+        const restaurants = await Restaurant.aggregate([
+            { $match: filter },
+            { $skip: skip },
+            { $limit: limit },
+            {
+                $lookup: {
+                    from: "menuitems",
+                    let: { restId: "$_id" },
+                    pipeline: [
+                        { $match: { $expr: { $and: [{ $eq: ["$restaurant", "$$restId"] }, { $eq: ["$isAvailable", true] }] } } },
+                        { $sort: { price: -1 } },
+                        { $limit: 5 },
+                        { $project: { name: 1, price: 1, images: 1 } }
+                    ],
+                    as: "popularItems"
+                }
+            },
+            {
+                $project: {
+                    name: 1,
+                    phone: 1,
+                    cuisines: 1,
+                    image: 1,
+                    logo: 1,
+                    rating: 1,
+                    isActive: 1,
+                    totalOrders: 1,
+                    status: 1,
+                    availabilityStatus: 1,
+                    location: 1,
+                    deliveryZone: 1,
+                    popularItems: 1
+                }
+            }
+        ]);
 
         // Cache lists in Redis
         await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, restaurants);
@@ -164,7 +198,25 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
         const updateFields: any = {};
         if (name !== undefined) updateFields.name = name;
         if (phone !== undefined) updateFields.phone = phone;
-        if (location !== undefined) updateFields.location = location;
+        if (location !== undefined) {
+            if (typeof location === "string") {
+                try {
+                    updateFields.location = JSON.parse(location);
+                } catch {
+                    updateFields.location = {
+                        address: location,
+                        lat: restaurantToUpdate.location?.lat || 0,
+                        lng: restaurantToUpdate.location?.lng || 0
+                    };
+                }
+            } else {
+                updateFields.location = {
+                    address: location.address !== undefined ? location.address : (restaurantToUpdate.location?.address || ""),
+                    lat: location.lat !== undefined ? Number(location.lat) : (restaurantToUpdate.location?.lat || 0),
+                    lng: location.lng !== undefined ? Number(location.lng) : (restaurantToUpdate.location?.lng || 0)
+                };
+            }
+        }
         if (isActive !== undefined) updateFields.isActive = isActive;
         if (availabilityStatus !== undefined) updateFields.availabilityStatus = availabilityStatus;
         if (cuisines !== undefined) updateFields.cuisines = cuisines;
@@ -296,6 +348,12 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
         const { name, description, price, category, isAvailable, isVeg } = req.body;
         const restaurantId = req.params.restaurantId;
 
+        const parsedPrice = Number(price);
+        if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
+            res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
+            return;
+        }
+
         const restaurant = await Restaurant.findById(restaurantId);
         if (!restaurant) {
             res.status(404).json({ success: false, message: "Restaurant not found" });
@@ -320,7 +378,7 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
             restaurant: restaurantId,
             name,
             description,
-            price: Number(price),
+            price: parsedPrice,
             category,
             images: imageUrls,
             isAvailable: isAvailable === 'true' || isAvailable === true,
@@ -377,6 +435,12 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
     try {
         const { name, description, price, category, isAvailable, isVeg } = req.body;
 
+        const parsedPrice = Number(price);
+        if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
+            res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
+            return;
+        }
+
         const menuItemToUpdate = await MenuItem.findById(req.params.menuItemId);
         if (!menuItemToUpdate) {
             res.status(404).json({ success: false, message: "Menu item not found" });
@@ -408,7 +472,7 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             { 
                 name, 
                 description, 
-                price: price !== undefined ? Number(price) : undefined, 
+                price: price !== undefined ? parsedPrice : undefined, 
                 category, 
                 images: imageUrls, 
                 isAvailable: isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : undefined,

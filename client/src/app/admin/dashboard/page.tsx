@@ -14,7 +14,11 @@ import {
   MdLocationOn, 
   MdAdminPanelSettings, 
   MdCreditCard, 
-  MdError 
+  MdError,
+  MdSecurity,
+  MdWarning,
+  MdBlock,
+  MdOpenInNew
 } from "react-icons/md";
 
 interface Stats {
@@ -45,13 +49,15 @@ export default function AdminDashboard() {
     codRevenue: 0
   });
   const [orders, setOrders] = useState<any[]>([]);
+  const [flaggedRestaurants, setFlaggedRestaurants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, ordersRes] = await Promise.all([
+      const [statsRes, ordersRes, flaggedRes] = await Promise.all([
         apiClient.get("/admin/dashboard-stats"),
-        apiClient.get("/orders")
+        apiClient.get("/orders"),
+        apiClient.get("/admin/cancellations/restaurants", { params: { threshold: 5 } }).catch(() => ({ data: { success: false, restaurants: [] } }))
       ]);
 
       if (statsRes.data.success) {
@@ -65,10 +71,28 @@ export default function AdminDashboard() {
           .slice(0, 10);
         setOrders(sortedOrders);
       }
+
+      if (flaggedRes.data?.success) {
+        setFlaggedRestaurants(flaggedRes.data.restaurants || []);
+      }
     } catch (error) {
       console.error("Failed to fetch admin dashboard data:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSuspendRestaurant = async (id: string) => {
+    try {
+      const res = await apiClient.patch(`/restaurants/${id}/status`, {
+        isBlocked: true
+      });
+      if (res.data.success) {
+        setFlaggedRestaurants(prev => prev.map(r => r._id === id ? { ...r, isBlocked: true } : r));
+      }
+    } catch (error) {
+      console.error("Failed to suspend restaurant:", error);
+      alert("Failed to suspend restaurant.");
     }
   };
 
@@ -117,6 +141,94 @@ export default function AdminDashboard() {
           Refresh Stats
         </button>
       </div>
+
+      {/* Fraud Watch Panel (Only rendered when count > 0) */}
+      {flaggedRestaurants.length > 0 && (
+        <div className="bg-white border-2 border-rose-200 rounded-2xl p-5 mb-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-rose-100">
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-xl bg-rose-500 text-white flex items-center justify-center shadow-sm shadow-rose-500/30">
+                <MdSecurity className="text-[18px]" />
+              </span>
+              <div>
+                <h3 className="text-[16px] font-bold text-slate-900 flex items-center gap-2">
+                  Fraud Watch
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-rose-500 text-white tracking-wider">
+                    {flaggedRestaurants.length} Flagged
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Restaurants with ≥ 5 order cancellations requiring administrator review
+                </p>
+              </div>
+            </div>
+            <Link
+              href="/admin/restaurants"
+              className="text-xs font-bold text-rose-600 hover:text-rose-700 inline-flex items-center gap-1 self-start sm:self-auto"
+            >
+              All Restaurants
+              <MdOpenInNew className="text-[14px]" />
+            </Link>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {flaggedRestaurants.map((restaurant) => (
+              <div key={restaurant._id} className="py-3 first:pt-0 last:pb-0 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 font-bold text-sm shadow-sm flex-shrink-0">
+                    <MdWarning className="text-[18px]" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-bold text-slate-900">{restaurant.name}</span>
+                      {restaurant.isBlocked && (
+                        <span className="text-[10px] font-black uppercase tracking-wider bg-rose-100 text-rose-700 px-2 py-0.5 rounded">
+                          Suspended
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Owner Phone: <span className="font-semibold text-slate-700">+91 {restaurant.phone || restaurant.owner?.phone || "N/A"}</span>
+                      {restaurant.ownerName || restaurant.owner?.name ? ` • ${restaurant.ownerName || restaurant.owner?.name}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4 self-end md:self-center">
+                  <div className="text-right">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block leading-none">Cancellations</span>
+                    <span className="text-base font-black text-rose-600 leading-tight">
+                      {restaurant.cancellationCount}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleSuspendRestaurant(restaurant._id)}
+                      disabled={restaurant.isBlocked}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs inline-flex items-center gap-1 transition-colors ${
+                        restaurant.isBlocked
+                          ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                          : "bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-500/20"
+                      }`}
+                    >
+                      <MdBlock className="text-[14px]" />
+                      {restaurant.isBlocked ? "Suspended" : "Suspend"}
+                    </button>
+
+                    <Link
+                      href="/admin/restaurants"
+                      className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-xs transition-colors shadow-sm inline-flex items-center gap-1"
+                    >
+                      View Restaurant
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">

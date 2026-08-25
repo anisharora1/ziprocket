@@ -21,7 +21,10 @@ import {
   MdLock, 
   MdAssignment, 
   MdAccountBalance, 
-  MdAnalytics 
+  MdAnalytics,
+  MdLocationOn,
+  MdPinDrop,
+  MdOpenInNew
 } from "react-icons/md";
 
 interface BankDetails {
@@ -108,17 +111,43 @@ export default function RestaurantsAdminPage() {
     }
   };
 
-  const handleUpdateStatus = async (id: string, newStatus: "approved" | "rejected") => {
+  const [editingLocationRes, setEditingLocationRes] = useState<Restaurant | null>(null);
+  const [locationForm, setLocationForm] = useState({ address: "", lat: 0, lng: 0 });
+  const [savingLocation, setSavingLocation] = useState(false);
+
+  const startEditLocation = (restaurant: Restaurant) => {
+    setEditingLocationRes(restaurant);
+    setLocationForm({
+      address: restaurant.location?.address || "",
+      lat: restaurant.location?.lat || 0,
+      lng: restaurant.location?.lng || 0
+    });
+  };
+
+  const handleSaveLocation = async () => {
+    if (!editingLocationRes) return;
     try {
-      const res = await apiClient.patch(`/restaurants/${id}/status`, {
-        status: newStatus
+      setSavingLocation(true);
+      const res = await apiClient.put(`/restaurants/${editingLocationRes._id}`, {
+        location: {
+          address: locationForm.address,
+          lat: Number(locationForm.lat),
+          lng: Number(locationForm.lng)
+        }
       });
       if (res.data.success) {
-        setRestaurants(restaurants.map(r => r._id === id ? { ...r, status: newStatus } : r));
+        setRestaurants(restaurants.map(r => 
+          r._id === editingLocationRes._id 
+            ? { ...r, location: { address: locationForm.address, lat: Number(locationForm.lat), lng: Number(locationForm.lng) } }
+            : r
+        ));
+        setEditingLocationRes(null);
       }
     } catch (err) {
-      console.error("Failed to update status:", err);
-      alert("Failed to update verification status.");
+      console.error("Failed to update restaurant location:", err);
+      alert("Failed to update restaurant location coordinates.");
+    } finally {
+      setSavingLocation(false);
     }
   };
 
@@ -336,6 +365,24 @@ export default function RestaurantsAdminPage() {
                           <p className="text-[11px] font-bold text-slate-400 mt-1 leading-snug max-w-xs line-clamp-1">
                             {res.location?.address || "No Address Saved"}
                           </p>
+                          <div className="flex items-center gap-2 mt-1">
+                            {res.location?.lat && res.location?.lng ? (
+                              <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                {res.location.lat.toFixed(4)}, {res.location.lng.toFixed(4)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">
+                                No Coordinates
+                              </span>
+                            )}
+                            <button
+                              onClick={() => startEditLocation(res)}
+                              className="text-[11px] font-bold text-[#FF5C00] hover:underline inline-flex items-center gap-0.5"
+                            >
+                              <MdLocationOn className="text-[12px]" />
+                              Edit Pin
+                            </button>
+                          </div>
                         </td>
 
                         {/* Commission Edit */}
@@ -440,27 +487,15 @@ export default function RestaurantsAdminPage() {
                         {/* Actions */}
                         <td className="py-4 px-6">
                           <div className="flex justify-end gap-2">
-                            {/* Approval actions for pending/rejected */}
-                            {res.status !== "approved" && (
-                              <button
-                                onClick={() => handleUpdateStatus(res._id, "approved")}
-                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-[11px] rounded-xl transition-colors shadow-sm inline-flex items-center gap-1"
-                              >
-                                <MdDone className="text-[14px]" />
-                                Approve
-                              </button>
-                            )}
-
-                            {/* Rejection actions for pending/approved */}
-                            {res.status !== "rejected" && (
-                              <button
-                                onClick={() => handleUpdateStatus(res._id, "rejected")}
-                                className="px-3 py-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-800 hover:border-slate-300 font-extrabold text-[11px] rounded-xl transition-colors inline-flex items-center gap-1"
-                              >
-                                <MdClose className="text-[14px]" />
-                                Reject
-                              </button>
-                            )}
+                            {/* Edit Location / Coordinates Override */}
+                            <button
+                              onClick={() => startEditLocation(res)}
+                              className="px-3 py-1.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 font-extrabold text-[11px] rounded-xl transition-colors shadow-sm inline-flex items-center gap-1"
+                              title="Override Latitude / Longitude"
+                            >
+                              <MdLocationOn className="text-[14px] text-[#FF5C00]" />
+                              Edit Location
+                            </button>
 
                             {/* Suspend / Reactivate action */}
                             <button
@@ -482,9 +517,9 @@ export default function RestaurantsAdminPage() {
                       {isExpanded && (
                         <tr className="bg-slate-50/50">
                           <td colSpan={6} className="p-6 border-b border-slate-100">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-2 duration-200">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in slide-in-from-top-2 duration-200">
                               
-                              {/* Left box: FSSAI and Licenses */}
+                              {/* Box 1: FSSAI and Licenses */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                                   <MdAssignment className="text-[16px] text-amber-500" />
@@ -506,7 +541,7 @@ export default function RestaurantsAdminPage() {
                                 </div>
                               </div>
 
-                              {/* Center box: Bank Account */}
+                              {/* Box 2: Bank Account */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                                   <MdAccountBalance className="text-[16px] text-emerald-600" />
@@ -532,7 +567,48 @@ export default function RestaurantsAdminPage() {
                                 )}
                               </div>
 
-                              {/* Right box: Quick Statistics & Health */}
+                              {/* Box 3: Geocoded Location & Map Pin */}
+                              <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
+                                <div className="flex justify-between items-center mb-3">
+                                  <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+                                    <MdLocationOn className="text-[16px] text-[#FF5C00]" />
+                                    Map Pin & Location
+                                  </h5>
+                                  <button
+                                    onClick={() => startEditLocation(res)}
+                                    className="text-[10px] font-bold text-[#FF5C00] hover:underline"
+                                  >
+                                    Edit
+                                  </button>
+                                </div>
+                                <div className="space-y-2 text-[12px] font-semibold text-slate-600">
+                                  <div>
+                                    <span className="text-slate-400 block text-[10px] uppercase">Address:</span>
+                                    <span className="text-slate-800 font-bold line-clamp-2">{res.location?.address || "None"}</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Coordinates:</span>
+                                    <span className="text-slate-800 font-mono font-bold">
+                                      {res.location?.lat ? `${res.location.lat.toFixed(4)}, ${res.location.lng.toFixed(4)}` : "0, 0"}
+                                    </span>
+                                  </div>
+                                  {res.location?.lat && res.location?.lng ? (
+                                    <div className="pt-1">
+                                      <a
+                                        href={`https://www.google.com/maps?q=${res.location.lat},${res.location.lng}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#FF5C00] hover:underline"
+                                      >
+                                        <MdOpenInNew className="text-[12px]" />
+                                        Open in Maps
+                                      </a>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+
+                              {/* Box 4: Quick Statistics & Health */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
                                   <MdAnalytics className="text-[16px] text-rose-500" />
@@ -607,6 +683,103 @@ export default function RestaurantsAdminPage() {
           <a href="#" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Audit Logs</a>
         </div>
       </div>
+
+      {/* Edit Location & Coordinates Modal */}
+      {editingLocationRes && (
+        <div className="fixed inset-0 bg-slate-900/50 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0" onClick={() => setEditingLocationRes(null)}></div>
+          <div className="bg-white rounded-2xl shadow-xl w-[90vw] md:w-[480px] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 relative z-10">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Edit Location & Pin</h3>
+                <p className="text-xs text-slate-500">{editingLocationRes.name}</p>
+              </div>
+              <button 
+                onClick={() => setEditingLocationRes(null)}
+                className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 overflow-y-auto">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Address
+                </label>
+                <textarea
+                  rows={3}
+                  value={locationForm.address}
+                  onChange={(e) => setLocationForm({ ...locationForm, address: e.target.value })}
+                  className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:outline-none focus:border-slate-800"
+                  placeholder="Full address of the restaurant..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={locationForm.lat}
+                    onChange={(e) => setLocationForm({ ...locationForm, lat: e.target.value as any })}
+                    className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-slate-800"
+                    placeholder="e.g. 31.3260"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={locationForm.lng}
+                    onChange={(e) => setLocationForm({ ...locationForm, lng: e.target.value as any })}
+                    className="w-full px-3 py-2 border-2 border-slate-200 rounded-xl text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-slate-800"
+                    placeholder="e.g. 75.5762"
+                  />
+                </div>
+              </div>
+
+              {Number(locationForm.lat) !== 0 && Number(locationForm.lng) !== 0 && (
+                <div className="pt-2">
+                  <a
+                    href={`https://www.google.com/maps?q=${locationForm.lat},${locationForm.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-[#FF5C00] hover:underline"
+                  >
+                    <MdOpenInNew className="text-[14px]" />
+                    Test coordinates in Google Maps
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditingLocationRes(null)}
+                className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveLocation}
+                disabled={savingLocation}
+                className="px-5 py-2 text-sm font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-xl transition-colors shadow-sm disabled:opacity-50"
+              >
+                {savingLocation ? "Saving..." : "Save Coordinates"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

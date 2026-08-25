@@ -233,7 +233,7 @@ export default function SellerMenuPage() {
               )}
               
               <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-white/20">
-                <span className="text-[12px] font-bold text-emerald-700">${item.price}</span>
+                <span className="text-[12px] font-bold text-emerald-700">₹{item.price}</span>
               </div>
               <div className="absolute top-3 right-3 flex flex-col gap-2">
                 <button 
@@ -350,11 +350,12 @@ export default function SellerMenuPage() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Price ($)</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Price (₹)</label>
                     <input 
                       required
                       type="number" 
                       step="0.01"
+                      min="0"
                       name="price"
                       value={formData.price}
                       onChange={handleInputChange}
