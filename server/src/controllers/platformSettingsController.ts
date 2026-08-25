@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import PlatformSettings from "../models/PlatformSettings";
 import { addClient, removeClient, broadcastSettings } from "../utils/platformSse";
+import * as redisService from "../services/redisService";
 
 // Helper to get or create settings
 export const getOrCreateSettings = async () => {
@@ -75,6 +76,7 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
         if (groceryStatus !== undefined) settings.groceryStatus = groceryStatus;
 
         await settings.save();
+        await redisService.setJson("platform:settings", settings.toObject ? settings.toObject() : settings, 60);
 
         // Broadcast changes in real-time
         broadcastSettings(settings);

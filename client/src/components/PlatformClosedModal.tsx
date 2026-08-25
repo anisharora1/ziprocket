@@ -1,6 +1,17 @@
 "use client";
+import { usePathname } from "next/navigation";
 import { usePlatform } from "@/context/PlatformContext";
 import { MdEngineering, MdBlock, MdSchedule } from "react-icons/md";
+
+const EXCLUDED_PREFIXES = [
+  "/admin",
+  "/moderator",
+  "/seller",
+  "/delivery",
+  "/register-partner",
+  "/register-delivery",
+  "/auth"
+];
 
 const formatToAMPM = (timeStr: string): string => {
   if (!timeStr) return "8:00 AM";
@@ -12,7 +23,12 @@ const formatToAMPM = (timeStr: string): string => {
 };
 
 export default function PlatformClosedModal() {
+  const pathname = usePathname();
   const { settings, isPlatformCurrentlyOpen } = usePlatform();
+
+  const isExcludedRoute = EXCLUDED_PREFIXES.some((prefix) => pathname?.startsWith(prefix));
+  if (isExcludedRoute) return null;
+
   if (!settings) return null;
 
   const isMaintenance = settings.maintenanceMode;
