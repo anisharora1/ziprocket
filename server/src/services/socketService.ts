@@ -4,6 +4,7 @@ import { Server as SocketIOServer, Socket } from "socket.io";
 import { createAdapter } from "@socket.io/redis-adapter";
 import Redis from "ioredis";
 import jwt from "jsonwebtoken";
+import { getClient } from "./redisService";
 import User from "../models/User";
 import Restaurant from "../models/Restaurant";
 
@@ -92,6 +93,20 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
         const userId = user._id.toString();
         console.log(`[Socket.IO] Connected: ${user.name} (${user.role}) | socketId: ${socket.id}`);
 
+        const redis = getClient();
+        if (redis) {
+            try {
+                const connCount = await redis.hincrby("online_user_connections", userId, 1);
+                if (connCount === 1) {
+                    await redis.sadd("online_users", userId);
+                    const count = await redis.scard("online_users");
+                    emitToRooms("admin", "live_user_count", { count });
+                }
+            } catch (err: any) {
+                console.error("[Socket.IO] Error tracking user connect:", err.message);
+            }
+        }
+
         // 1. Every user joins their personal room for direct messages
         socket.join(`user:${userId}`);
 
@@ -132,8 +147,21 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
             }
         });
 
-        socket.on("disconnect", (reason) => {
+        socket.on("disconnect", async (reason) => {
             console.log(`[Socket.IO] Disconnected: ${user.name} | Reason: ${reason}`);
+            if (redis) {
+                try {
+                    const connCount = await redis.hincrby("online_user_connections", userId, -1);
+                    if (connCount <= 0) {
+                        await redis.hdel("online_user_connections", userId);
+                        await redis.srem("online_users", userId);
+                        const count = await redis.scard("online_users");
+                        emitToRooms("admin", "live_user_count", { count });
+                    }
+                } catch (err: any) {
+                    console.error("[Socket.IO] Error tracking user disconnect:", err.message);
+                }
+            }
         });
     });
 

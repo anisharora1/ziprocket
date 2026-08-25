@@ -10,6 +10,7 @@ import Payment from "../models/Payment";
 import MenuItem from "../models/MenuItem";
 import * as sessionCacheService from "../services/sessionCacheService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
+import * as redisService from "../services/redisService";
 import { broadcastSettings } from "../utils/platformSse";
 import PlatformSettings from "../models/PlatformSettings";
 
@@ -858,6 +859,17 @@ export const updateRestaurantAvailability = async (req: Request, res: Response):
             message: `Restaurant availability updated to ${availabilityStatus}`,
             restaurant
         });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Admin action: Get count of currently connected live users
+export const getLiveUserCount = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const redis = redisService.getClient();
+        const count = redis ? await redis.scard("online_users") : 0;
+        res.status(200).json({ success: true, count });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }

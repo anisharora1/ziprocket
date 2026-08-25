@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
+import { useSocket } from "@/context/SocketContext";
 import Link from "next/link";
 import { 
   MdRefresh, 
@@ -36,6 +37,8 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
+  const { socket } = useSocket();
+  const [liveUserCount, setLiveUserCount] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats>({ 
     totalUsers: 0, 
     totalRestaurants: 0, 
@@ -54,10 +57,11 @@ export default function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, ordersRes, flaggedRes] = await Promise.all([
+      const [statsRes, ordersRes, flaggedRes, liveUsersRes] = await Promise.all([
         apiClient.get("/admin/dashboard-stats"),
         apiClient.get("/orders"),
-        apiClient.get("/admin/cancellations/restaurants", { params: { threshold: 5 } }).catch(() => ({ data: { success: false, restaurants: [] } }))
+        apiClient.get("/admin/cancellations/restaurants", { params: { threshold: 5 } }).catch(() => ({ data: { success: false, restaurants: [] } })),
+        apiClient.get("/admin/live-users-count").catch(() => ({ data: { success: false, count: 0 } }))
       ]);
 
       if (statsRes.data.success) {
@@ -74,6 +78,10 @@ export default function AdminDashboard() {
 
       if (flaggedRes.data?.success) {
         setFlaggedRestaurants(flaggedRes.data.restaurants || []);
+      }
+
+      if (liveUsersRes.data?.success) {
+        setLiveUserCount(liveUsersRes.data.count);
       }
     } catch (error) {
       console.error("Failed to fetch admin dashboard data:", error);
@@ -106,6 +114,17 @@ export default function AdminDashboard() {
     }, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleLiveUserCount = (data: { count: number }) => {
+      setLiveUserCount(data.count);
+    };
+    socket.on("live_user_count", handleLiveUserCount);
+    return () => {
+      socket.off("live_user_count", handleLiveUserCount);
+    };
+  }, [socket]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -231,7 +250,7 @@ export default function AdminDashboard() {
       )}
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6">
         {/* Total Orders */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
@@ -266,7 +285,24 @@ export default function AdminDashboard() {
           </h3>
         </div>
 
-        {/* Active Users */}
+        {/* Logged-in Users Online (Live) */}
+        <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
+          <div className="flex justify-between items-start mb-4">
+            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <MdGroups className="text-[20px]" />
+            </div>
+            <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-[11px] font-bold">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              Live
+            </div>
+          </div>
+          <p className="text-[13px] text-slate-500 font-medium mb-1">Logged-in Users Online</p>
+          <h3 className="text-[28px] font-bold text-slate-900 leading-tight">
+            {liveUserCount === null ? "..." : liveUserCount}
+          </h3>
+        </div>
+
+        {/* Total Registered Users */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
             <div className="w-10 h-10 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
@@ -274,10 +310,10 @@ export default function AdminDashboard() {
             </div>
             <div className="flex items-center gap-1 text-[#FF5C00] bg-orange-50 px-2 py-1 rounded text-[11px] font-bold">
               <MdTrendingUp className="text-[14px]" />
-              Live
+              Total
             </div>
           </div>
-          <p className="text-[13px] text-slate-500 font-medium mb-1">Active Users</p>
+          <p className="text-[13px] text-slate-500 font-medium mb-1">Total Registered Users</p>
           <h3 className="text-[28px] font-bold text-slate-900 leading-tight">
             {loading ? "..." : stats.totalUsers}
           </h3>
