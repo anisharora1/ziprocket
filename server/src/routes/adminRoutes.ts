@@ -16,6 +16,7 @@ import {
     createGroceryModerator,
     updateGroceryModerator,
     getGroceryModerators,
+    removeGroceryModerator,
     getAllDeliveryProfiles,
     updateDeliveryProfileStatus,
     getAllPromotions,
@@ -38,6 +39,7 @@ router.use(adminLimiter);
 // Moderators
 router.post("/moderators", createGroceryModerator);
 router.put("/moderators/:id", validateObjectId(["id"]), updateGroceryModerator);
+router.delete("/moderators/:id", validateObjectId(["id"]), removeGroceryModerator);
 router.get("/moderators", getGroceryModerators);
 
 // Dashboard

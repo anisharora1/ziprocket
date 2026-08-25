@@ -612,6 +612,25 @@ export const getGroceryModerators = async (req: Request, res: Response): Promise
     }
 };
 
+// Admin action: Remove a grocery moderator (downgrade to regular customer)
+export const removeGroceryModerator = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const user = await User.findById(id);
+        if (!user || user.role !== "grocery_moderator") {
+            res.status(404).json({ success: false, message: "Grocery moderator not found." });
+            return;
+        }
+        user.role = "customer";
+        user.assignedZones = [];
+        await user.save();
+        await sessionCacheService.deleteSession(user._id.toString());
+        res.status(200).json({ success: true, message: "Moderator access removed." });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // Admin action: Fetch all delivery boys / couriers and populate their User accounts
 export const getAllDeliveryProfiles = async (req: Request, res: Response): Promise<void> => {
     try {

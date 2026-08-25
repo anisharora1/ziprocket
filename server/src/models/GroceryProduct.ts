@@ -33,9 +33,9 @@ const groceryProductSchema = new Schema<IGroceryProduct>({
     category: { type: String, required: true },
     subcategory: { type: String, required: true },
     brand: { type: String, required: true },
-    price: { type: Number, required: true },
-    discountedPrice: { type: Number },
-    stockQuantity: { type: Number, required: true, default: 0 },
+    price: { type: Number, required: true, min: [0, "Price cannot be negative"] },
+    discountedPrice: { type: Number, min: [0, "Discounted price cannot be negative"] },
+    stockQuantity: { type: Number, required: true, default: 0, min: [0, "Stock cannot be negative"] },
     unit: { 
         type: String, 
         enum: ["kg", "gram", "litre", "packet", "piece"], 

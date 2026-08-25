@@ -29,6 +29,11 @@ export const createGroceryProduct = async (req: Request, res: Response): Promise
             expiryDate
         } = req.body;
 
+        if ((price !== undefined && Number(price) < 0) || (discountedPrice !== undefined && Number(discountedPrice) < 0) || (stockQuantity !== undefined && Number(stockQuantity) < 0)) {
+            res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
+            return;
+        }
+
         const slug = generateSlug(name);
 
         const imageUrls: any[] = [];
@@ -157,6 +162,12 @@ export const updateGroceryProduct = async (req: Request, res: Response): Promise
         }
         if (updateData.stockQuantity !== undefined) updateData.stockQuantity = Number(updateData.stockQuantity);
         
+        const { price, discountedPrice, stockQuantity } = updateData;
+        if ((price !== undefined && price !== null && Number(price) < 0) || (discountedPrice !== undefined && discountedPrice !== null && Number(discountedPrice) < 0) || (stockQuantity !== undefined && stockQuantity !== null && Number(stockQuantity) < 0)) {
+            res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
+            return;
+        }
+
         if (updateData.isAvailable !== undefined) {
             updateData.isAvailable = updateData.isAvailable === "true" || updateData.isAvailable === true;
         }

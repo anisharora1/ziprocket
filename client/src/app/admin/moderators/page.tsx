@@ -8,7 +8,8 @@ import {
   MdSearch, 
   MdGroups, 
   MdLocationOn, 
-  MdEdit 
+  MdEdit,
+  MdDelete 
 } from "react-icons/md";
 
 interface Zone {
@@ -159,9 +160,20 @@ export default function AdminModerators() {
       if (res.data.success) {
         setModerators(moderators.map(m => m._id === moderatorId ? { ...m, isBlocked: !currentStatus } : m));
       }
-    } catch (err) {
-      console.error("Block toggle failed:", err);
-      alert("Failed to update block status.");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to update block status.");
+    }
+  };
+
+  const handleRemoveModerator = async (moderatorId: string, name: string) => {
+    if (!confirm(`Remove ${name} as a grocery moderator? They'll be downgraded to a regular customer account and lose access to the moderator dashboard.`)) return;
+    try {
+      const res = await apiClient.delete(`/admin/moderators/${moderatorId}`);
+      if (res.data.success) {
+        setModerators((prev) => prev.filter((m) => m._id !== moderatorId));
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to remove moderator.");
     }
   };
 
@@ -407,6 +419,13 @@ export default function AdminModerators() {
                           >
                             <MdEdit className="text-[13px]" />
                             Edit
+                          </button>
+                          <button
+                            onClick={() => handleRemoveModerator(mod._id, mod.name)}
+                            className="px-3 py-1.5 bg-slate-50 hover:bg-rose-50 hover:text-rose-700 border border-slate-200/60 hover:border-rose-200 rounded-xl font-bold text-[11px] text-slate-600 transition-all flex items-center gap-1"
+                          >
+                            <MdDelete className="text-[13px]" />
+                            Remove
                           </button>
                         </div>
                       </td>
