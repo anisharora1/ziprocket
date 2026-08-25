@@ -370,6 +370,8 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0.1"
+                      step="any"
                       name="radiusKm"
                       value={currentZone.radiusKm}
                       onChange={handleInputChange}
@@ -388,6 +390,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="baseDeliveryFee"
                       value={currentZone.baseDeliveryFee}
                       onChange={handleInputChange}
@@ -399,6 +402,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="baseDistanceKm"
                       value={currentZone.baseDistanceKm}
                       onChange={handleInputChange}
@@ -410,6 +414,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="extraFeePerKm"
                       value={currentZone.extraFeePerKm}
                       onChange={handleInputChange}
@@ -421,6 +426,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="freeDeliveryThreshold"
                       value={currentZone.freeDeliveryThreshold}
                       onChange={handleInputChange}
@@ -432,6 +438,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="minDeliveryFee"
                       value={currentZone.minDeliveryFee}
                       onChange={handleInputChange}
@@ -443,6 +450,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="maxDeliveryFee"
                       value={currentZone.maxDeliveryFee}
                       onChange={handleInputChange}
@@ -473,6 +481,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="smallOrderThreshold"
                       value={currentZone.smallOrderThreshold}
                       onChange={handleInputChange}
@@ -484,6 +493,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="smallOrderFee"
                       value={currentZone.smallOrderFee}
                       onChange={handleInputChange}
@@ -513,6 +523,8 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
+                      max="100"
                       name="gstPercentage"
                       value={currentZone.gstPercentage}
                       onChange={handleInputChange}
@@ -536,6 +548,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="platformFee"
                       value={currentZone.platformFee}
                       onChange={handleInputChange}
@@ -559,6 +572,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="packagingCharge"
                       value={currentZone.packagingCharge}
                       onChange={handleInputChange}
@@ -582,6 +596,7 @@ export default function AdminZonesPage() {
                     <input 
                       required
                       type="number"
+                      min="0"
                       name="convenienceFee"
                       value={currentZone.convenienceFee}
                       onChange={handleInputChange}
@@ -613,6 +628,7 @@ export default function AdminZonesPage() {
                       required
                       type="number"
                       step="0.1"
+                      min="0.1"
                       name="surgeMultiplier"
                       value={currentZone.surgeMultiplier}
                       onChange={handleInputChange}

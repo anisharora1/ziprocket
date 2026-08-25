@@ -21,6 +21,11 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
             surgeMultiplier, surgeActive
         } = req.body;
 
+        if (maxDeliveryFee !== undefined && minDeliveryFee !== undefined && Number(maxDeliveryFee) < Number(minDeliveryFee)) {
+            res.status(400).json({ success: false, message: "Maximum delivery cap cannot be lower than the minimum delivery cap." });
+            return;
+        }
+
         const newZone = new DeliveryZone({
             name, isActive, pincodes, center, radiusKm,
             baseDeliveryFee, baseDistanceKm, extraFeePerKm, minDeliveryFee, maxDeliveryFee, freeDeliveryThreshold,
@@ -41,6 +46,10 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
             zone: newZone
         });
     } catch (error: any) {
+        if (error.name === "ValidationError") {
+            res.status(400).json({ success: false, message: error.message });
+            return;
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -105,6 +114,11 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
             surgeMultiplier, surgeActive
         } = req.body;
 
+        if (maxDeliveryFee !== undefined && minDeliveryFee !== undefined && Number(maxDeliveryFee) < Number(minDeliveryFee)) {
+            res.status(400).json({ success: false, message: "Maximum delivery cap cannot be lower than the minimum delivery cap." });
+            return;
+        }
+
         const zone = await DeliveryZone.findByIdAndUpdate(
             req.params.id,
             {
@@ -132,6 +146,10 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
             zone
         });
     } catch (error: any) {
+        if (error.name === "ValidationError") {
+            res.status(400).json({ success: false, message: error.message });
+            return;
+        }
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -139,6 +157,15 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
 // Delete a Delivery Zone
 export const deleteDeliveryZone = async (req: Request, res: Response): Promise<void> => {
     try {
+        const restaurantCount = await Restaurant.countDocuments({ deliveryZone: req.params.id });
+        if (restaurantCount > 0) {
+            res.status(400).json({
+                success: false,
+                message: `Cannot delete this zone — ${restaurantCount} restaurant(s) are still assigned to it. Reassign or remove them first.`
+            });
+            return;
+        }
+
         const zone = await DeliveryZone.findByIdAndDelete(req.params.id);
 
         if (!zone) {

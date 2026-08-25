@@ -53,29 +53,29 @@ const deliveryZoneSchema = new Schema<IDeliveryZone>({
         lng: { type: Number, required: true }
     },
     
-    radiusKm: { type: Number, required: true, default: 10 },
+    radiusKm: { type: Number, required: true, default: 10, min: [0.1, "Radius must be positive"] },
     
-    baseDeliveryFee: { type: Number, required: true, default: 20 },
-    baseDistanceKm: { type: Number, required: true, default: 3 },
-    extraFeePerKm: { type: Number, required: true, default: 5 },
-    minDeliveryFee: { type: Number, required: true, default: 20 },
-    maxDeliveryFee: { type: Number, required: true, default: 150 },
-    freeDeliveryThreshold: { type: Number, required: true, default: 299 },
+    baseDeliveryFee: { type: Number, required: true, default: 20, min: [0, "Cannot be negative"] },
+    baseDistanceKm: { type: Number, required: true, default: 3, min: [0, "Cannot be negative"] },
+    extraFeePerKm: { type: Number, required: true, default: 5, min: [0, "Cannot be negative"] },
+    minDeliveryFee: { type: Number, required: true, default: 20, min: [0, "Cannot be negative"] },
+    maxDeliveryFee: { type: Number, required: true, default: 150, min: [0, "Cannot be negative"] },
+    freeDeliveryThreshold: { type: Number, required: true, default: 299, min: [0, "Cannot be negative"] },
     
-    smallOrderThreshold: { type: Number, required: true, default: 100 },
-    smallOrderFee: { type: Number, required: true, default: 10 },
+    smallOrderThreshold: { type: Number, required: true, default: 100, min: [0, "Cannot be negative"] },
+    smallOrderFee: { type: Number, required: true, default: 10, min: [0, "Cannot be negative"] },
     smallOrderFeeActive: { type: Boolean, required: true, default: false },
     
-    platformFee: { type: Number, required: true, default: 5 },
+    platformFee: { type: Number, required: true, default: 5, min: [0, "Cannot be negative"] },
     platformFeeActive: { type: Boolean, required: true, default: true },
-    gstPercentage: { type: Number, required: true, default: 5 },
+    gstPercentage: { type: Number, required: true, default: 5, min: [0, "Cannot be negative"], max: [100, "Cannot exceed 100%"] },
     gstActive: { type: Boolean, required: true, default: true },
-    packagingCharge: { type: Number, required: true, default: 10 },
+    packagingCharge: { type: Number, required: true, default: 10, min: [0, "Cannot be negative"] },
     packagingChargeActive: { type: Boolean, required: true, default: false },
-    convenienceFee: { type: Number, required: true, default: 2 },
+    convenienceFee: { type: Number, required: true, default: 2, min: [0, "Cannot be negative"] },
     convenienceFeeActive: { type: Boolean, required: true, default: false },
     
-    surgeMultiplier: { type: Number, required: true, default: 1.0 },
+    surgeMultiplier: { type: Number, required: true, default: 1.0, min: [0.1, "Must be positive"] },
     surgeActive: { type: Boolean, required: true, default: false }
     
 }, { timestamps: true });
