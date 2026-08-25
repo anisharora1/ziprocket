@@ -85,6 +85,15 @@ export const calculateWeeklyPayouts = async (req: Request, res: Response): Promi
             const platformCommission = Math.round((totalRevenue * commissionRate) / 100);
             const finalPayoutAmount = totalRevenue - platformCommission; // owed to restaurant
 
+            const existingPayout = await Payout.findOne({ recipientType: "restaurant", restaurant: rest._id, weekIdentifier });
+            if (existingPayout && existingPayout.status === "paid") {
+                // Don't touch a settled payout's figures — log a warning instead so admin can investigate if numbers would have changed.
+                if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
+                    console.warn(`[Payout Mismatch] Restaurant ${rest._id}, week ${weekIdentifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+                }
+                continue; // skip to next restaurant, don't overwrite
+            }
+
             // Upsert Payout document
             await Payout.findOneAndUpdate(
                 { recipientType: "restaurant", restaurant: rest._id, weekIdentifier },
@@ -141,6 +150,14 @@ export const calculateWeeklyPayouts = async (req: Request, res: Response): Promi
             // For riders, the payout is their total delivery earnings. Cash in hand is tracked separately.
             const finalPayoutAmount = totalRevenue;
 
+            const existingPayout = await Payout.findOne({ recipientType: "delivery", deliveryBoy: rider._id, weekIdentifier });
+            if (existingPayout && existingPayout.status === "paid") {
+                if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
+                    console.warn(`[Payout Mismatch] Delivery ${rider._id}, week ${weekIdentifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+                }
+                continue;
+            }
+
             await Payout.findOneAndUpdate(
                 { recipientType: "delivery", deliveryBoy: rider._id, weekIdentifier },
                 {
@@ -176,22 +193,31 @@ export const calculateWeeklyPayouts = async (req: Request, res: Response): Promi
 
         // Grocery margin estimated as standard 20% quick commerce margin
         const groceryProfit = Math.round(totalGrocerySales * 0.20);
+        const finalGroceryPayout = totalGrocerySales - groceryProfit;
 
-        await Payout.findOneAndUpdate(
-            { recipientType: "grocery", weekIdentifier },
-            {
-                weekStartDate: monday,
-                weekEndDate: sunday,
-                totalOrders: totalGroceryOrders,
-                totalRevenue: totalGrocerySales,
-                platformCommission: groceryProfit, // We store grocery profits under platform commission
-                codCollected: groceryCodCollected,
-                onlinePayments: groceryOnlinePayments,
-                finalPayoutAmount: totalGrocerySales - groceryProfit,
-                $setOnInsert: { status: "pending", auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }] }
-            },
-            { upsert: true, new: true }
-        );
+        const existingGroceryPayout = await Payout.findOne({ recipientType: "grocery", weekIdentifier });
+        if (existingGroceryPayout && existingGroceryPayout.status === "paid") {
+            if (existingGroceryPayout.finalPayoutAmount !== finalGroceryPayout) {
+                console.warn(`[Payout Mismatch] Grocery, week ${weekIdentifier}: recalculated amount (₹${finalGroceryPayout}) differs from already-paid amount (₹${existingGroceryPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+            }
+        } else {
+            await Payout.findOneAndUpdate(
+                { recipientType: "grocery", weekIdentifier },
+                {
+                    weekStartDate: monday,
+                    weekEndDate: sunday,
+                    totalOrders: totalGroceryOrders,
+                    totalRevenue: totalGrocerySales,
+                    platformCommission: groceryProfit, // We store grocery profits under platform commission
+                    codCollected: groceryCodCollected,
+                    onlinePayments: groceryOnlinePayments,
+                    finalPayoutAmount: finalGroceryPayout,
+                    isEstimatedMargin: true,
+                    $setOnInsert: { status: "pending", auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }] }
+                },
+                { upsert: true, new: true }
+            );
+        }
 
         res.status(200).json({
             success: true,
@@ -298,10 +324,13 @@ export const updatePayoutStatus = async (req: Request, res: Response): Promise<v
             notes: notes || payout.paymentDetails?.notes
         };
 
-        // Append audit log
+        // Append audit log with real admin identity
+        const adminUser = (req as any).user;
+        const updatedBy = adminUser?.name || adminUser?._id?.toString() || "Unknown Admin";
+
         payout.auditLogs.push({
             status,
-            updatedBy: "Admin",
+            updatedBy,
             updatedAt: new Date(),
             notes: `Status transitioned from ${oldStatus} to ${status}. ${notes || ""}`
         });

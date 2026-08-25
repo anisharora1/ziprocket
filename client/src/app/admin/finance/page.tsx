@@ -48,6 +48,7 @@ interface Payout {
   codCollected: number;
   onlinePayments: number;
   finalPayoutAmount: number;
+  isEstimatedMargin?: boolean;
   
   status: "pending" | "processing" | "paid" | "failed";
   paymentDetails?: {
@@ -416,7 +417,12 @@ export default function FinanceAdminPage() {
                       <h4 className="text-2xl font-black text-slate-800">{groceryAnalytics.itemsCount} units</h4>
                     </div>
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 shadow-inner">
-                      <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Platform Profit (20%)</p>
+                      <div className="flex items-center justify-between mb-1 gap-2">
+                        <p className="text-[11px] font-bold text-slate-400 uppercase">Platform Profit</p>
+                        <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider shrink-0">
+                          Estimated (20% margin)
+                        </span>
+                      </div>
                       <h4 className="text-2xl font-black text-[#FF5C00]">₹{groceryAnalytics.profit.toLocaleString()}</h4>
                     </div>
                   </div>

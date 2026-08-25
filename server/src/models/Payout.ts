@@ -18,6 +18,7 @@ export interface IPayout extends BaseDocument {
     codCollected: number;       // Cash collected from customers
     onlinePayments: number;     // Online transaction volume
     finalPayoutAmount: number;  // Amount payable to recipient: TotalRevenue - PlatformCommission (or earnings)
+    isEstimatedMargin?: boolean; // True for estimated grocery margins
     
     status: "pending" | "processing" | "paid" | "failed";
     
@@ -54,6 +55,7 @@ const payoutSchema = new Schema<IPayout>({
     codCollected: { type: Number, default: 0 },
     onlinePayments: { type: Number, default: 0 },
     finalPayoutAmount: { type: Number, default: 0 },
+    isEstimatedMargin: { type: Boolean, default: false },
     
     status: {
         type: String,
