@@ -735,6 +735,25 @@ export const createPromotion = async (req: Request, res: Response): Promise<void
     try {
         const { restaurant, targetType, category, image, title, description, startDate, endDate, isActive } = req.body;
 
+        if (!title || !description || !image) {
+            res.status(400).json({ success: false, message: "Title, description, and image are required." });
+            return;
+        }
+        if (targetType === "restaurant" && !restaurant) {
+            res.status(400).json({ success: false, message: "A restaurant must be selected for restaurant-type promotions." });
+            return;
+        }
+        if (startDate && endDate && new Date(endDate) <= new Date(startDate)) {
+            res.status(400).json({ success: false, message: "End date must be after start date." });
+            return;
+        }
+        try {
+            new URL(image);
+        } catch {
+            res.status(400).json({ success: false, message: "Image must be a valid URL." });
+            return;
+        }
+
         const promotion = new BannerAd({
             restaurant: restaurant || undefined,
             targetType: targetType || "restaurant",
@@ -810,7 +829,12 @@ export const deletePromotion = async (req: Request, res: Response): Promise<void
 // Public: Fetch all active banner ads / promotions (No Auth Required)
 export const getPublicPromotions = async (req: Request, res: Response): Promise<void> => {
     try {
-        const promotions = await BannerAd.find({ isActive: true })
+        const now = new Date();
+        const promotions = await BannerAd.find({
+            isActive: true,
+            startDate: { $lte: now },
+            endDate: { $gte: now }
+        })
             .populate("restaurant", "name cuisines image rating")
             .sort({ createdAt: -1 });
 

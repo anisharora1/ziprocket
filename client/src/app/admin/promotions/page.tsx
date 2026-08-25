@@ -119,9 +119,9 @@ export default function PromotionsAdminPage() {
         // Refresh list
         fetchData();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to publish banner:", err);
-      alert("Failed to publish banner.");
+      alert(err.response?.data?.message || "Failed to publish banner.");
     }
   };
 
@@ -151,9 +151,9 @@ export default function PromotionsAdminPage() {
         alert("Restaurant added to featured list successfully!");
         fetchData();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to promote restaurant:", err);
-      alert("Failed to promote restaurant.");
+      alert(err.response?.data?.message || "Failed to promote restaurant.");
     }
   };
 
@@ -189,7 +189,8 @@ export default function PromotionsAdminPage() {
     }
   };
 
-  const activeCount = promotions.filter(p => p.isActive).length;
+  const now = new Date();
+  const activeCount = promotions.filter(p => p.isActive && new Date(p.startDate) <= now && new Date(p.endDate) >= now).length;
   const scheduledCount = promotions.filter(p => !p.isActive).length;
 
   return (
@@ -500,7 +501,7 @@ export default function PromotionsAdminPage() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-3 mt-3">
+                        <div className="flex items-center gap-2 mt-3">
                           <span className={`px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase ${
                             promo.targetType === "restaurant" 
                               ? "bg-purple-50 text-purple-700 border border-purple-100" 
@@ -508,9 +509,15 @@ export default function PromotionsAdminPage() {
                           }`}>
                             {promo.targetType}
                           </span>
-                          <span className="text-[11px] font-bold text-slate-400">
-                            Live Placement
-                          </span>
+                          {new Date(promo.endDate) < new Date() ? (
+                            <span className="px-2 py-0.5 rounded text-[8px] font-black tracking-widest uppercase bg-rose-50 text-rose-600 border border-rose-200">
+                              Expired
+                            </span>
+                          ) : (
+                            <span className="text-[11px] font-bold text-slate-400">
+                              Live Placement
+                            </span>
+                          )}
                         </div>
 
                       </div>
@@ -522,30 +529,23 @@ export default function PromotionsAdminPage() {
             </div>
 
             <div className="p-4 border-t border-slate-100 text-center bg-slate-50/50 text-[12px] font-bold text-slate-500">
-              Showing {promotions.length} active platform promotions
+              Showing {promotions.length} total platform promotions
             </div>
           </div>
 
           {/* Dynamic Stats Cards */}
           <div className="grid grid-cols-2 gap-6">
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-              <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">Total Impressions</p>
-              <h3 className="text-3xl font-black text-slate-800 mb-2 leading-none">
-                {promotions.length > 0 ? `${(promotions.length * 14.5).toFixed(1)}k` : "0.0k"}
-              </h3>
-              <p className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                <MdTrendingUp className="text-[14px]" />
-                100% Real DB Backed
-              </p>
+              <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">Currently Live</p>
+              <h3 className="text-3xl font-black text-slate-800 mb-2 leading-none">{activeCount}</h3>
+              <p className="text-[11px] font-bold text-slate-400">Showing on the platform right now</p>
             </div>
             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
-              <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">Conversion Rate</p>
-              <h3 className="text-3xl font-black text-slate-800 mb-2 leading-none">
-                {promotions.length > 0 ? "5.4%" : "0.0%"}
+              <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-2">Expired, Still Marked Active</p>
+              <h3 className="text-3xl font-black text-amber-600 mb-2 leading-none">
+                {promotions.filter(p => p.isActive && new Date(p.endDate) < new Date()).length}
               </h3>
-              <p className="text-[11px] text-slate-400 flex items-center gap-1">
-                Stable platform metrics
-              </p>
+              <p className="text-[11px] font-bold text-slate-400">Past end date — won't show publicly, but worth cleaning up</p>
             </div>
           </div>
 
