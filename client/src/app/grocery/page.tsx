@@ -12,6 +12,8 @@ import { usePlatform } from "@/context/PlatformContext";
 import ProductCard from "@/components/ProductCard";
 import { MdSearch, MdError, MdShoppingBag, MdChevronRight } from "react-icons/md";
 
+import { GROCERY_CATEGORIES_MAP, GROCERY_CATEGORY_DISPLAY } from "@/lib/groceryCategories";
+
 interface Product {
   _id: string;
   name: string;
@@ -28,50 +30,10 @@ interface Product {
   offerBadge?: string;
 }
 
-const CATEGORIES = [
-  {
-    id: "Vegetables & Fruits",
-    name: "Fruits & Veggies",
-    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1786564029/copy_of_fruitsandveg.avif",
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
-  },
-  {
-    id: "Dairy & Bread",
-    name: "Dairy & Bread",
-    image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50"
-  },
-  {
-    id: "Atta, Rice & Dals",
-    name: "Atta & Flours",
-    image: "https://images.unsplash.com/photo-1574316071802-0d684efa7bf5?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
-  },
-  {
-    id: "Munchies",
-    name: "Munchies",
-    image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
-  },
-  {
-    id: "Cold Drinks & Juices",
-    name: "Drinks & Juices",
-    image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50"
-  },
-  {
-    id: "Household Essentials",
-    name: "Household",
-    image: "https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
-  },
-  {
-    id: "Personal Care",
-    name: "Personal Care",
-    image: "https://images.unsplash.com/photo-1607006342411-92346cf57b4e?auto=format&fit=crop&w=150&h=150&q=80",
-    color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
-  }
-];
+const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP).map((id) => ({
+  id,
+  ...GROCERY_CATEGORY_DISPLAY[id],
+}));
 
 export default function GroceryPage() {
   const { addToCart, cart, updateQuantity } = useCart();

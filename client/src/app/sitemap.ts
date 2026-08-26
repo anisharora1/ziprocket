@@ -1,14 +1,7 @@
 import { MetadataRoute } from 'next';
+import { GROCERY_CATEGORIES_MAP } from '@/lib/groceryCategories';
 
-const CATEGORIES = [
-  "Vegetables & Fruits",
-  "Dairy & Bread",
-  "Atta, Rice & Dals",
-  "Munchies",
-  "Cold Drinks & Juices",
-  "Household Essentials",
-  "Personal Care"
-];
+const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = 'https://ziprocket.in';

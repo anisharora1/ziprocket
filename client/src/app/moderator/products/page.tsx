@@ -16,6 +16,8 @@ import {
   MdPhotoCamera,
 } from "react-icons/md";
 
+import { GROCERY_CATEGORIES_MAP } from "@/lib/groceryCategories";
+
 interface Product {
   _id: string;
   name: string;
@@ -35,16 +37,6 @@ interface Product {
   offerBadge?: string;
   expiryDate?: string;
 }
-
-const CATEGORIES_MAP: Record<string, string[]> = {
-  "Vegetables & Fruits": ["Fresh Vegetables", "Fresh Fruits", "Herbs & Seasonings"],
-  "Dairy & Bread": ["Milk & Cream", "Butter & Cheese", "Bread & Pav", "Curd & Paneer"],
-  "Atta, Rice & Dals": ["Atta & Flours", "Rice & Basmati", "Dals & Pulses", "Ghee & Oils"],
-  "Munchies": ["Chips & Crisps", "Bhujia & Namkeen", "Biscuits & Cookies", "Popcorn"],
-  "Cold Drinks & Juices": ["Soft Drinks", "Fruit Juices", "Energy Drinks", "Soda & Mixers"],
-  "Household Essentials": ["Detergents & Cleaners", "Pooja Needs", "Tissues & Disposables", "Repellents"],
-  "Personal Care": ["Soaps & Bodywash", "Shampoos & Haircare", "Oral Care", "Deodorants"]
-};
 
 export default function ModeratorProducts() {
   const searchParams = useSearchParams();
@@ -121,7 +113,7 @@ export default function ModeratorProducts() {
 
   // Adjust subcategories when category changes
   useEffect(() => {
-    const subs = CATEGORIES_MAP[category] || [];
+    const subs = GROCERY_CATEGORIES_MAP[category] || [];
     if (subs.length > 0 && !subs.includes(subcategory)) {
       setSubcategory(subs[0]);
     }
@@ -326,7 +318,7 @@ export default function ModeratorProducts() {
                 className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
               >
                 <option value="">All Categories</option>
-                {Object.keys(CATEGORIES_MAP).map(cat => (
+                {Object.keys(GROCERY_CATEGORIES_MAP).map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
@@ -630,7 +622,7 @@ export default function ModeratorProducts() {
                     onChange={(e) => setCategory(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200/70 focus:border-emerald-500 focus:bg-white rounded-2xl text-sm font-bold text-slate-800 transition-colors focus:outline-none"
                   >
-                    {Object.keys(CATEGORIES_MAP).map(cat => (
+                    {Object.keys(GROCERY_CATEGORIES_MAP).map(cat => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -644,7 +636,7 @@ export default function ModeratorProducts() {
                     onChange={(e) => setSubcategory(e.target.value)}
                     className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200/70 focus:border-emerald-500 focus:bg-white rounded-2xl text-sm font-bold text-slate-800 transition-colors focus:outline-none"
                   >
-                    {(CATEGORIES_MAP[category] || []).map(sub => (
+                    {(GROCERY_CATEGORIES_MAP[category] || []).map(sub => (
                       <option key={sub} value={sub}>{sub}</option>
                     ))}
                   </select>

@@ -4,6 +4,8 @@ import React, { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/services/api";
 import { MdSearch, MdImage } from "react-icons/md";
 
+import { GROCERY_CATEGORIES_MAP } from "@/lib/groceryCategories";
+
 interface Product {
   _id: string;
   name: string;
@@ -133,12 +135,11 @@ export default function AdminGroceryAuditor() {
               className="w-full bg-transparent text-xs font-bold text-slate-800 focus:outline-none"
             >
               <option value="">All Categories</option>
-              <option value="Vegetables & Fruits">Vegetables & Fruits</option>
-              <option value="Dairy & Bread">Dairy & Bread</option>
-              <option value="Atta, Rice & Dals">Atta & Flours</option>
-              <option value="Munchies">Munchies</option>
-              <option value="Cold Drinks & Juices">Cold Drinks & Juices</option>
-              <option value="Household Essentials">Household Essentials</option>
+              {Object.keys(GROCERY_CATEGORIES_MAP).map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
             </select>
           </div>
 

@@ -5,6 +5,8 @@ import { apiClient } from "@/services/api";
 import ModeratorHeader from "@/components/moderator/ModeratorHeader";
 import { MdCategory, MdKeyboardArrowDown } from "react-icons/md";
 
+import { GROCERY_CATEGORIES_MAP } from "@/lib/groceryCategories";
+
 interface Product {
   _id: string;
   name: string;
@@ -14,16 +16,6 @@ interface Product {
   stockQuantity: number;
 }
 
-const CATEGORIES_MAP: Record<string, string[]> = {
-  "Vegetables & Fruits": ["Fresh Vegetables", "Fresh Fruits", "Herbs & Seasonings"],
-  "Dairy & Bread": ["Milk & Cream", "Butter & Cheese", "Bread & Pav", "Curd & Paneer"],
-  "Atta, Rice & Dals": ["Atta & Flours", "Rice & Basmati", "Dals & Pulses", "Ghee & Oils"],
-  "Munchies": ["Chips & Crisps", "Bhujia & Namkeen", "Biscuits & Cookies", "Popcorn"],
-  "Cold Drinks & Juices": ["Soft Drinks", "Fruit Juices", "Energy Drinks", "Soda & Mixers"],
-  "Household Essentials": ["Detergents & Cleaners", "Pooja Needs", "Tissues & Disposables", "Repellents"],
-  "Personal Care": ["Soaps & Bodywash", "Shampoos & Haircare", "Oral Care", "Deodorants"]
-};
-
 export default function ModeratorCategories() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,10 +24,23 @@ export default function ModeratorCategories() {
   useEffect(() => {
     const fetchAllProducts = async () => {
       try {
-        const res = await apiClient.get("/grocery?limit=100");
-        if (res.data.success) {
-          setProducts(res.data.products);
-        }
+        setLoading(true);
+        let allProducts: Product[] = [];
+        let currentPage = 1;
+        let totalPages = 1;
+
+        do {
+          const res = await apiClient.get(`/grocery?limit=100&page=${currentPage}`);
+          if (res.data.success) {
+            allProducts = allProducts.concat(res.data.products || []);
+            totalPages = res.data.pages || 1;
+            currentPage++;
+          } else {
+            break;
+          }
+        } while (currentPage <= totalPages);
+
+        setProducts(allProducts);
       } catch (error) {
         console.error("Failed to load category counts:", error);
       } finally {
@@ -54,6 +59,9 @@ export default function ModeratorCategories() {
     const stock = list.reduce((sum, p) => sum + p.stockQuantity, 0);
     return { count, stock };
   };
+
+  const knownCategories = new Set(Object.keys(GROCERY_CATEGORIES_MAP));
+  const uncategorizedProducts = products.filter(p => !knownCategories.has(p.category));
 
   if (loading) {
     return (
@@ -83,9 +91,9 @@ export default function ModeratorCategories() {
 
         {/* Category Accordion */}
         <div className="grid grid-cols-1 gap-3 sm:gap-4">
-          {Object.keys(CATEGORIES_MAP).map((catName) => {
+          {Object.keys(GROCERY_CATEGORIES_MAP).map((catName) => {
             const isExpanded = expandedCategory === catName;
-            const subcats = CATEGORIES_MAP[catName];
+            const subcats = GROCERY_CATEGORIES_MAP[catName];
             const catStats = getStats(catName);
 
             return (
@@ -157,6 +165,30 @@ export default function ModeratorCategories() {
             );
           })}
         </div>
+
+        {/* Uncategorized Products Notice */}
+        {uncategorizedProducts.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-lg shrink-0">
+                ⚠️
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-900">Uncategorized Products Detected</h4>
+                <p className="text-xs font-semibold text-amber-700 mt-0.5">
+                  {uncategorizedProducts.length} product{uncategorizedProducts.length > 1 ? "s" : ""} have categories not defined in the standard catalog mapping.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5 self-start sm:self-auto">
+              {Array.from(new Set(uncategorizedProducts.map(p => p.category || "Unassigned"))).map(cat => (
+                <span key={cat} className="px-2.5 py-1 bg-white border border-amber-200 text-amber-800 text-[10px] font-extrabold rounded-lg">
+                  {cat}: {uncategorizedProducts.filter(p => p.category === cat).length}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
