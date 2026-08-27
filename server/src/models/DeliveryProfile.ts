@@ -62,5 +62,7 @@ const deliveryProfileSchema = new Schema<IDeliveryProfile>({
 // Indexes for profile lookups and admin dashboard lists
 deliveryProfileSchema.index({ user: 1 }, { unique: true });
 deliveryProfileSchema.index({ status: 1, createdAt: -1 });
+deliveryProfileSchema.index({ aadhaarNumber: 1 });
+deliveryProfileSchema.index({ panNumber: 1 });
 
 export default mongoose.model<IDeliveryProfile>("DeliveryProfile", deliveryProfileSchema);

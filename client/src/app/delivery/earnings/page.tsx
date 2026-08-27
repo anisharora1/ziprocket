@@ -56,18 +56,35 @@ interface DailyEarningGroup {
 
 export default function DeliveryEarningsPage() {
   const [completedDeliveries, setCompletedDeliveries] = useState<DeliveryRecord[]>([]);
+  const [totalEarnings, setTotalEarnings] = useState<number>(0);
+  const [totalDeliveries, setTotalDeliveries] = useState<number>(0);
+  const [page, setPage] = useState<number>(1);
+  const [meta, setMeta] = useState<{ total: number; page: number; pages: number; limit: number }>({
+    total: 0,
+    page: 1,
+    pages: 1,
+    limit: 20,
+  });
   const [loading, setLoading] = useState<boolean>(true);
   const [profile, setProfile] = useState<any>(null);
 
-  const fetchEarningsData = async () => {
+  const fetchEarningsData = async (currentPage = page) => {
     try {
-      const [historyRes, profileRes] = await Promise.all([
-        apiClient.get("/delivery/my-deliveries?type=completed"),
+      const [statsRes, historyRes, profileRes] = await Promise.all([
+        apiClient.get("/delivery/my-earnings-stats"),
+        apiClient.get(`/delivery/my-deliveries?type=completed&page=${currentPage}&limit=20`),
         apiClient.get("/delivery/profile/my-profile")
       ]);
 
+      if (statsRes.data.success) {
+        setTotalEarnings(statsRes.data.totalEarnings || 0);
+        setTotalDeliveries(statsRes.data.totalDeliveries || 0);
+      }
       if (historyRes.data.success) {
         setCompletedDeliveries(historyRes.data.deliveries || []);
+        if (historyRes.data.meta) {
+          setMeta(historyRes.data.meta);
+        }
       }
       if (profileRes.data.success) {
         setProfile(profileRes.data.profile);
@@ -80,8 +97,8 @@ export default function DeliveryEarningsPage() {
   };
 
   useEffect(() => {
-    fetchEarningsData();
-  }, []);
+    fetchEarningsData(page);
+  }, [page]);
 
   if (loading) {
     return (
@@ -92,11 +109,7 @@ export default function DeliveryEarningsPage() {
     );
   }
 
-  // Calculate metrics
-  const netEarnings = completedDeliveries.reduce((sum, del) => sum + (del.earnings || 45), 0);
-  const totalDeliveries = completedDeliveries.length;
-
-  // Group deliveries by day
+  // Group current page deliveries by day
   const groupEarningsByDay = (): DailyEarningGroup[] => {
     const groups: { [key: string]: DeliveryRecord[] } = {};
     
@@ -111,7 +124,7 @@ export default function DeliveryEarningsPage() {
 
     return Object.keys(groups).map(dateString => {
       const deliveries = groups[dateString];
-      const earnings = deliveries.reduce((sum, d) => sum + (d.earnings || 45), 0);
+      const earnings = deliveries.reduce((sum, d) => sum + (d.earnings || 0), 0);
       return {
         dateString,
         count: deliveries.length,
@@ -122,6 +135,7 @@ export default function DeliveryEarningsPage() {
   };
 
   const dailyGroups = groupEarningsByDay();
+  const tripAverage = totalDeliveries > 0 ? Math.round(totalEarnings / totalDeliveries) : 45;
 
   return (
     <div className="p-4 max-w-2xl mx-auto flex flex-col gap-6 pt-6 relative">
@@ -150,7 +164,7 @@ export default function DeliveryEarningsPage() {
           <div className="pt-2">
             <span className="text-[11px] font-bold text-teal-100 uppercase tracking-widest block mb-1">Unsettled Balance</span>
             <div className="flex items-baseline gap-1">
-              <span className="text-[36px] font-black leading-none">₹{netEarnings.toLocaleString()}</span>
+              <span className="text-[36px] font-black leading-none">₹{totalEarnings.toLocaleString()}</span>
               <span className="text-[14px] font-bold text-teal-100">INR</span>
             </div>
           </div>
@@ -176,7 +190,7 @@ export default function DeliveryEarningsPage() {
         </div>
         <div className="bg-white rounded-[20px] p-4 border border-slate-100/80 shadow-sm text-center">
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Trip Average</span>
-          <span className="text-[18px] font-black text-emerald-600">₹45</span>
+          <span className="text-[18px] font-black text-emerald-600">₹{tripAverage}</span>
         </div>
         <div className="bg-white rounded-[20px] p-4 border border-slate-100/80 shadow-sm text-center">
           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none mb-1">Status</span>
@@ -217,6 +231,31 @@ export default function DeliveryEarningsPage() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {!loading && meta.pages > 1 && (
+          <div className="flex items-center justify-between px-2 pt-2">
+            <span className="text-[12px] font-semibold text-slate-500">
+              Page {meta.page} of {meta.pages} · {meta.total} total completed
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => setPage((p) => Math.min(meta.pages, p + 1))}
+                disabled={page >= meta.pages}
+                className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-[12px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors shadow-sm"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>

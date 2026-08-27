@@ -12,7 +12,8 @@ import {
     rejectDeliveryOrder,
     deliverOrder,
     getMyDeliveries,
-    getMyRejectedOrders
+    getMyRejectedOrders,
+    getMyEarningsStats
 } from "../controllers/deliveryController";
 import { protect, authorize } from "../middlewares/authMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
@@ -29,13 +30,14 @@ router.post("/accept", protect, authorize("delivery", "admin"), acceptDeliveryOr
 router.post("/reject", protect, authorize("delivery", "admin"), rejectDeliveryOrder);
 router.post("/deliver", protect, authorize("delivery", "admin"), deliverOrder);
 router.get("/my-deliveries", protect, authorize("delivery", "admin"), getMyDeliveries);
+router.get("/my-earnings-stats", protect, authorize("delivery", "admin"), getMyEarningsStats);
 router.get("/rejected", protect, authorize("delivery", "admin"), getMyRejectedOrders);
 
 router.post("/assign", protect, authorize("admin"), assignDelivery);
 router.get("/", protect, authorize("admin"), getAllDeliveries);
-router.get("/:id", protect, authorize("delivery", "admin"), validateObjectId(["id"]), getDeliveryById);
+router.get("/:id", protect, authorize("admin"), validateObjectId(["id"]), getDeliveryById);
 
-router.patch("/:id/status", protect, authorize("delivery", "admin"), validateObjectId(["id"]), updateDeliveryStatus);
-router.get("/delivery-boy/:deliveryBoyId", protect, authorize("delivery", "admin"), validateObjectId(["deliveryBoyId"]), getDeliveriesByDeliveryBoy);
+router.patch("/:id/status", protect, authorize("admin"), validateObjectId(["id"]), updateDeliveryStatus);
+router.get("/delivery-boy/:deliveryBoyId", protect, authorize("admin"), validateObjectId(["deliveryBoyId"]), getDeliveriesByDeliveryBoy);
 
 export default router;

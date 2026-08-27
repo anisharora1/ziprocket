@@ -64,7 +64,7 @@ export const applyRestaurant = async (req: Request, res: Response): Promise<void
 
 export const applyDelivery = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { fullName, phone, address, vehicleType, vehicleNumber, idProofString, email, city, aadhaarNumber, licenseNumber, panNumber, accountNumber, ifscCode, deliveryZone } = req.body;
+        const { fullName, phone, address, vehicleType, vehicleNumber, email, city, aadhaarNumber, licenseNumber, panNumber, accountNumber, ifscCode, deliveryZone } = req.body;
         const userId = (req as any).user?.id;
 
         if (!userId) {
@@ -78,21 +78,70 @@ export const applyDelivery = async (req: Request, res: Response): Promise<void> 
             return;
         }
 
-        let proofUrl = idProofString || "";
-        let proofPublicId = "";
+        if (!req.file) {
+            res.status(400).json({ success: false, message: "A valid KYC ID proof document image is required." });
+            return;
+        }
 
-        if (req.file) {
-            try {
-                const uploadResult = await uploadToCloudinary(req.file.buffer, "users");
-                proofUrl = uploadResult.url;
-                proofPublicId = uploadResult.publicId;
-            } catch (uploadError) {
-                console.error("Cloudinary KYC upload failed:", uploadError);
-                res.status(500).json({ success: false, message: "Failed to upload KYC document image." });
+        // Format validation
+        const AADHAAR_REGEX = /^\d{12}$/;
+        const PAN_REGEX = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+        const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+        const PHONE_REGEX = /^[6-9]\d{9}$/;
+
+        if (aadhaarNumber && !AADHAAR_REGEX.test(aadhaarNumber)) {
+            res.status(400).json({ success: false, message: "Aadhaar number must be exactly 12 digits." });
+            return;
+        }
+        if (panNumber && !PAN_REGEX.test(panNumber.toUpperCase())) {
+            res.status(400).json({ success: false, message: "Please enter a valid PAN number (e.g. ABCDE1234F)." });
+            return;
+        }
+        if (ifscCode && !IFSC_REGEX.test(ifscCode.toUpperCase())) {
+            res.status(400).json({ success: false, message: "Please enter a valid IFSC code (e.g. SBIN0001234)." });
+            return;
+        }
+        if (phone && !PHONE_REGEX.test(phone)) {
+            res.status(400).json({ success: false, message: "Please enter a valid 10-digit Indian mobile number." });
+            return;
+        }
+        if (accountNumber && !/^\d{9,18}$/.test(accountNumber)) {
+            res.status(400).json({ success: false, message: "Please enter a valid bank account number." });
+            return;
+        }
+        if (!vehicleNumber) {
+            res.status(400).json({ success: false, message: "Vehicle registration number is required." });
+            return;
+        }
+
+        const normalizedPan = panNumber ? panNumber.toUpperCase() : "";
+        const normalizedIfsc = ifscCode ? ifscCode.toUpperCase() : "";
+
+        // Duplicate-identity detection across different accounts
+        if (aadhaarNumber) {
+            const duplicateAadhaar = await DeliveryProfile.findOne({ aadhaarNumber, user: { $ne: userId } });
+            if (duplicateAadhaar) {
+                res.status(400).json({ success: false, message: "This Aadhaar number is already associated with another account." });
                 return;
             }
-        } else if (!idProofString) {
-            res.status(400).json({ success: false, message: "KYC ID proof image file is required." });
+        }
+        if (normalizedPan) {
+            const duplicatePan = await DeliveryProfile.findOne({ panNumber: normalizedPan, user: { $ne: userId } });
+            if (duplicatePan) {
+                res.status(400).json({ success: false, message: "This PAN number is already associated with another account." });
+                return;
+            }
+        }
+
+        let proofUrl = "";
+        let proofPublicId = "";
+        try {
+            const uploadResult = await uploadToCloudinary(req.file.buffer, "users");
+            proofUrl = uploadResult.url;
+            proofPublicId = uploadResult.publicId;
+        } catch (uploadError) {
+            console.error("Cloudinary KYC upload failed:", uploadError);
+            res.status(500).json({ success: false, message: "Failed to upload KYC document image." });
             return;
         }
 
@@ -100,19 +149,19 @@ export const applyDelivery = async (req: Request, res: Response): Promise<void> 
             user: userId,
             fullName,
             phone,
-            address: address || city, // Fallback if address is missing but city is provided
+            address: address || city,
             vehicleType,
-            vehicleNumber: vehicleNumber || "N/A", // vehicleNumber isn't in frontend form state yet
+            vehicleNumber,
             idProofString: proofUrl,
             idProofPublicId: proofPublicId,
             email,
             city,
             aadhaarNumber,
             licenseNumber,
-            panNumber,
+            panNumber: normalizedPan,
             bankDetails: {
                 accountNumber,
-                ifscCode
+                ifscCode: normalizedIfsc
             },
             status: "pending",
             deliveryZone: (deliveryZone && String(deliveryZone).trim() !== "") ? deliveryZone : undefined

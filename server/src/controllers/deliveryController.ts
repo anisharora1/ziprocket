@@ -11,6 +11,7 @@ import * as redisService from "../services/redisService";
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
     try {
         const { orderId, deliveryBoyId, earnings } = req.body;
+        const finalEarnings = earnings !== undefined ? earnings : DELIVERY_CONSTANTS.FLAT_EARNING_RATE;
 
         // Check if a delivery already exists for this order
         const existingDelivery = await Delivery.findOne({ order: orderId });
@@ -22,7 +23,7 @@ export const assignDelivery = async (req: Request, res: Response): Promise<void>
         const newDelivery = new Delivery({
             order: orderId,
             deliveryBoy: deliveryBoyId,
-            earnings,
+            earnings: finalEarnings,
             status: "assigned"
         });
 
@@ -128,7 +129,7 @@ export const updateDeliveryStatus = async (req: Request, res: Response): Promise
 export const getDeliveryById = async (req: Request, res: Response): Promise<void> => {
     try {
         const delivery = await Delivery.findById(req.params.id)
-            .populate("order")
+            .populate({ path: "order", select: "-deliveryOtp" })
             .populate("deliveryBoy", "name email phone");
 
         if (!delivery) {
@@ -159,7 +160,7 @@ export const getDeliveriesByDeliveryBoy = async (req: Request, res: Response): P
         }
 
         const deliveries = await Delivery.find(filter)
-            .populate("order")
+            .populate({ path: "order", select: "-deliveryOtp" })
             .sort({ createdAt: -1 })
             .lean();
 
@@ -189,7 +190,7 @@ export const getAllDeliveries = async (req: Request, res: Response): Promise<voi
 
         const [deliveries, total] = await Promise.all([
             Delivery.find(filter)
-                .populate("order")
+                .populate({ path: "order", select: "-deliveryOtp" })
                 .populate("deliveryBoy", "name phone email")
                 .sort({ createdAt: -1 })
                 .skip(skip)
@@ -580,6 +581,21 @@ export const getMyRejectedOrders = async (req: Request, res: Response): Promise<
         });
     } catch (error: any) {
         console.error("Failed to fetch courier rejected orders:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Compute total earnings and deliveries stats server-side via aggregation
+export const getMyEarningsStats = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const deliveryBoyId = req.user?._id;
+        const result = await Delivery.aggregate([
+            { $match: { deliveryBoy: deliveryBoyId, status: "delivered" } },
+            { $group: { _id: null, totalEarnings: { $sum: "$earnings" }, totalDeliveries: { $sum: 1 } } }
+        ]);
+        const stats = result[0] || { totalEarnings: 0, totalDeliveries: 0 };
+        res.status(200).json({ success: true, totalEarnings: stats.totalEarnings, totalDeliveries: stats.totalDeliveries });
+    } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
 };

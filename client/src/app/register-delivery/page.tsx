@@ -58,6 +58,7 @@ export default function DeliveryRegisterForm() {
         email: "",
         city: "",
         vehicleType: "bike",
+        vehicleNumber: "",
         deliveryZone: "",
         aadhaarNumber: "",
         licenseNumber: "",
@@ -108,6 +109,7 @@ export default function DeliveryRegisterForm() {
             form.append("email", formData.email);
             form.append("city", formData.city);
             form.append("vehicleType", formData.vehicleType);
+            form.append("vehicleNumber", formData.vehicleNumber);
             form.append("deliveryZone", formData.deliveryZone);
             form.append("aadhaarNumber", formData.aadhaarNumber);
             form.append("licenseNumber", formData.licenseNumber || "");
@@ -276,7 +278,9 @@ export default function DeliveryRegisterForm() {
                                                 name="phone"
                                                 value={formData.phone}
                                                 onChange={handleInputChange}
-                                                placeholder="98765 43210"
+                                                placeholder="9876543210"
+                                                pattern="[6-9][0-9]{9}"
+                                                maxLength={10}
                                                 className={`${inputClass} pl-12`}
                                             />
                                         </div>
@@ -294,7 +298,7 @@ export default function DeliveryRegisterForm() {
                                         />
                                     </div>
 
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                         <div>
                                             <label className={labelClass}>City</label>
                                             <input
@@ -317,8 +321,22 @@ export default function DeliveryRegisterForm() {
                                             >
                                                 <option value="bike">🏍️ Bike</option>
                                                 <option value="e-bike">⚡ E-Bike / Scooter</option>
-                                                <option value="cycle">🚲 Cycle</option>
+                                                <option value="scooter">🛵 Scooter</option>
+                                                <option value="bicycle">🚲 Bicycle</option>
+                                                <option value="other">🚗 Other</option>
                                             </select>
+                                        </div>
+                                        <div>
+                                            <label className={labelClass}>Vehicle Number</label>
+                                            <input
+                                                required
+                                                type="text"
+                                                name="vehicleNumber"
+                                                value={formData.vehicleNumber}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, vehicleNumber: e.target.value.toUpperCase() }))}
+                                                placeholder="e.g. DL01AB1234"
+                                                className={`${inputClass} uppercase`}
+                                            />
                                         </div>
                                     </div>
                                     <div>
@@ -350,14 +368,15 @@ export default function DeliveryRegisterForm() {
                                             name="aadhaarNumber"
                                             value={formData.aadhaarNumber}
                                             onChange={handleInputChange}
-                                            placeholder="0000 0000 0000"
-                                            maxLength={14}
+                                            placeholder="12-digit Aadhaar number"
+                                            pattern="[0-9]{12}"
+                                            maxLength={12}
                                             className={inputClass}
                                         />
                                         <p className="text-[10px] text-slate-400 mt-1 ml-1">12-digit Aadhaar number</p>
                                     </div>
 
-                                    {formData.vehicleType !== "cycle" && (
+                                    {formData.vehicleType !== "bicycle" && formData.vehicleType !== "cycle" && (
                                         <div>
                                             <label className={labelClass}>Driving License Number</label>
                                             <input
@@ -379,8 +398,9 @@ export default function DeliveryRegisterForm() {
                                             type="text"
                                             name="panNumber"
                                             value={formData.panNumber}
-                                            onChange={handleInputChange}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, panNumber: e.target.value.toUpperCase() }))}
                                             placeholder="ABCDE1234F"
+                                            pattern="[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}"
                                             maxLength={10}
                                             className={`${inputClass} uppercase`}
                                         />
@@ -443,7 +463,10 @@ export default function DeliveryRegisterForm() {
                                             name="accountNumber"
                                             value={formData.accountNumber}
                                             onChange={handleInputChange}
-                                            placeholder="Enter account number"
+                                            placeholder="Enter account number (9-18 digits)"
+                                            pattern="[0-9]{9,18}"
+                                            minLength={9}
+                                            maxLength={18}
                                             className={inputClass}
                                         />
                                     </div>
@@ -455,8 +478,10 @@ export default function DeliveryRegisterForm() {
                                             type="text"
                                             name="ifscCode"
                                             value={formData.ifscCode}
-                                            onChange={handleInputChange}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, ifscCode: e.target.value.toUpperCase() }))}
                                             placeholder="SBIN0001234"
+                                            pattern="[A-Za-z]{4}0[A-Za-z0-9]{6}"
+                                            maxLength={11}
                                             className={`${inputClass} uppercase`}
                                         />
                                     </div>
