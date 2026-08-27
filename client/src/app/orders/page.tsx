@@ -441,6 +441,14 @@ export default function OrdersPage() {
                                 </div>
                             )}
 
+                            {/* Delivery Confirmation OTP for Prepaid (ONLINE) Orders */}
+                            {currentActiveOrder.paymentMethod === "ONLINE" && (currentActiveOrder.orderStatus === "on_the_way" || currentActiveOrder.orderStatus === "accepted_by_delivery") && currentActiveOrder.deliveryOtp && (
+                                <div className="bg-orange-50 border-2 border-dashed border-[#FF5C00] rounded-2xl p-4 text-center mb-6">
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Share this code with your delivery partner</p>
+                                    <p className="text-3xl font-black tracking-[0.3em] text-[#FF5C00]">{currentActiveOrder.deliveryOtp}</p>
+                                </div>
+                            )}
+
                             {/* Vertical Tracking Line */}
                             <div className="relative pl-4 py-2">
                                 <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-slate-100"></div>

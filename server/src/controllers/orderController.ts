@@ -338,6 +338,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         }
 
         try {
+            const deliveryOtp = paymentMethod === "ONLINE" ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
+
             const newOrder = new Order({
                 user,
                 restaurant: orderType === "food" ? restaurant : undefined,
@@ -358,7 +360,8 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 deliveryZone,
                 moderator: assignedModerator,
                 couponCode,
-                discountAmount: calculatedDiscount
+                discountAmount: calculatedDiscount,
+                deliveryOtp
             });
 
             await newOrder.save();
@@ -525,6 +528,12 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
                     return;
                 }
             }
+        }
+
+        // Redact delivery OTP from all roles except admin and the customer who placed the order
+        const userId = req.user?._id?.toString();
+        if (req.user?.role !== "admin" && userId !== (order.user?._id || order.user)?.toString()) {
+            delete order.deliveryOtp;
         }
 
         res.status(200).json({

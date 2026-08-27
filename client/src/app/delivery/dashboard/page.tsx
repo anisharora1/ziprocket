@@ -224,11 +224,17 @@ export default function DeliveryDashboardPage() {
   };
 
   // Deliver an active delivery task — plain JSON, no proof upload required.
-  const handleDeliverOrder = async (orderId: string) => {
-    if (!confirm("Mark this order as Delivered?")) return;
+  const handleDeliverOrder = async (orderId: string, paymentMethod?: string) => {
+    let otp: string | undefined;
+    if (paymentMethod === "ONLINE") {
+      otp = window.prompt("Enter the 4-digit code from the customer:") || undefined;
+      if (!otp) return; // cancelled
+    } else {
+      if (!confirm("Mark this order as Delivered?")) return;
+    }
     setActioningId(orderId);
     try {
-      const res = await apiClient.post("/delivery/deliver", { orderId });
+      const res = await apiClient.post("/delivery/deliver", { orderId, otp });
       if (res.data.success) {
         alert("Delivery completed! Great job.");
         setActiveTab("history"); // Move to history tab
@@ -631,7 +637,7 @@ export default function DeliveryDashboardPage() {
                     Call Client
                   </a>
                   <button
-                    onClick={() => handleDeliverOrder(order._id)}
+                    onClick={() => handleDeliverOrder(order._id, order.paymentMethod)}
                     disabled={actioningId === order._id}
                     className="flex items-center justify-center gap-1.5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                   >

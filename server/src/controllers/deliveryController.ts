@@ -283,7 +283,7 @@ export const getPendingDeliveries = async (req: Request, res: Response): Promise
             }},
             { $match: { existingDelivery: { $size: 0 } } },
             { $sort: { createdAt: -1 as const } },
-            { $project: { existingDelivery: 0 } }
+            { $project: { existingDelivery: 0, deliveryOtp: 0 } }
         ]);
 
         // Populate references on aggregation results
@@ -420,7 +420,7 @@ export const rejectDeliveryOrder = async (req: Request, res: Response): Promise<
 // Deliver an order (update both delivery and order records)
 export const deliverOrder = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { orderId } = req.body;
+        const { orderId, otp } = req.body;
         const deliveryBoyId = req.user?._id;
 
         if (!orderId) {
@@ -432,6 +432,23 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
         if (!delivery) {
             res.status(404).json({ success: false, message: "Assigned delivery not found for this courier" });
             return;
+        }
+
+        const order = await Order.findById(orderId);
+        if (!order) {
+            res.status(404).json({ success: false, message: "Order not found" });
+            return;
+        }
+
+        if (order.paymentMethod === "ONLINE") {
+            if (!otp) {
+                res.status(400).json({ success: false, message: "Please ask the customer for their 4-digit delivery code." });
+                return;
+            }
+            if (otp !== order.deliveryOtp) {
+                res.status(400).json({ success: false, message: "Incorrect delivery code. Please check with the customer and try again." });
+                return;
+            }
         }
 
         // Upload delivery proof to Cloudinary if provided
@@ -450,44 +467,42 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
         await delivery.save();
 
         // Fulfill Mongoose Order
-        const order = await Order.findById(orderId);
-        if (order) {
-            order.orderStatus = "delivered";
-            if (order.paymentMethod === "COD") {
-                order.paymentStatus = "paid"; // cash collected on doorstep
-            }
-            await order.save();
+        order.orderStatus = "delivered";
+        if (order.paymentMethod === "COD") {
+            order.paymentStatus = "paid"; // cash collected on doorstep
+        }
+        order.deliveryOtp = undefined; // clear it after successful use, no reason to keep it around
+        await order.save();
 
-            // Invalidate Redis caches so fresh data is returned on refetch
-            await redisService.del(`order:detail:${orderId}`);
-            await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
+        // Invalidate Redis caches so fresh data is returned on refetch
+        await redisService.del(`order:detail:${orderId}`);
+        await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
 
-            // --- Socket.IO: Notify customer, seller, grocery moderator, admin, and delivery boy ---
-            try {
-                const rooms: string[] = [
-                    `user:${order.user.toString()}`,
-                    "admin",
-                    `delivery:${deliveryBoyId?.toString()}`,
-                ];
-                if (order.orderType === "food" && order.restaurant) {
-                    rooms.push(`seller:${order.restaurant.toString()}`);
-                } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
-                    rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
-                }
-                const payload = {
-                    orderId: orderId.toString(),
-                    orderStatus: "delivered",
-                    orderType: order.orderType,
-                    restaurantId: order.restaurant?.toString(),
-                    zoneId: (order as any).deliveryZone?.toString(),
-                    userId: order.user.toString(),
-                    paymentStatus: order.paymentStatus,
-                };
-                emitToRooms(rooms, "order_delivered", payload);
-                emitToRooms(rooms, "order_status_updated", payload);
-            } catch (emitErr: any) {
-                console.error("[Socket] order_delivered emit error:", emitErr.message);
+        // --- Socket.IO: Notify customer, seller, grocery moderator, admin, and delivery boy ---
+        try {
+            const rooms: string[] = [
+                `user:${order.user.toString()}`,
+                "admin",
+                `delivery:${deliveryBoyId?.toString()}`,
+            ];
+            if (order.orderType === "food" && order.restaurant) {
+                rooms.push(`seller:${order.restaurant.toString()}`);
+            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
             }
+            const payload = {
+                orderId: orderId.toString(),
+                orderStatus: "delivered",
+                orderType: order.orderType,
+                restaurantId: order.restaurant?.toString(),
+                zoneId: (order as any).deliveryZone?.toString(),
+                userId: order.user.toString(),
+                paymentStatus: order.paymentStatus,
+            };
+            emitToRooms(rooms, "order_delivered", payload);
+            emitToRooms(rooms, "order_status_updated", payload);
+        } catch (emitErr: any) {
+            console.error("[Socket] order_delivered emit error:", emitErr.message);
         }
 
         res.status(200).json({
@@ -521,6 +536,7 @@ export const getMyDeliveries = async (req: Request, res: Response): Promise<void
             Delivery.find(filter)
                 .populate({
                     path: "order",
+                    select: "-deliveryOtp",
                     populate: [
                         { path: "user", select: "name phone" },
                         { path: "restaurant", select: "name address location phone" },

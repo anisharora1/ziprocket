@@ -201,10 +201,15 @@ export default function DeliveryOrdersPage() {
   };
 
   // Delivery proof upload is not required — route accepts plain JSON.
-  const handleDeliver = async (orderId: string) => {
+  const handleDeliver = async (orderId: string, paymentMethod?: string) => {
+    let otp: string | undefined;
+    if (paymentMethod === "ONLINE") {
+      otp = window.prompt("Enter the 4-digit code from the customer:") || undefined;
+      if (!otp) return; // cancelled
+    }
     setActioningId(orderId);
     try {
-      const res = await apiClient.post('/delivery/deliver', { orderId });
+      const res = await apiClient.post('/delivery/deliver', { orderId, otp });
       if (res.data.success) {
         alert('Delivery completed! Payout of ₹45 credited.');
         // Immediately mark the active task as delivered in the cache
@@ -357,7 +362,7 @@ export default function DeliveryOrdersPage() {
                       Call client
                     </a>
                     <button
-                      onClick={() => handleDeliver(order._id)}
+                      onClick={() => handleDeliver(order._id, order.paymentMethod)}
                       disabled={actioningId === order._id}
                       className="flex items-center justify-center gap-1.5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
                     >
