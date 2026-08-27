@@ -43,7 +43,7 @@ interface Order {
   deliveryCharge: number;
   paymentMethod: "COD" | "ONLINE";
   paymentStatus: "pending" | "paid" | "failed";
-  orderStatus: "placed" | "accepted" | "preparing" | "accepted_by_delivery" | "on_the_way" | "delivered" | "cancelled";
+  orderStatus: "pending" | "placed" | "accepted" | "preparing" | "accepted_by_delivery" | "on_the_way" | "delivered" | "cancelled";
   address: {
     fullAddress: string;
   };
@@ -216,6 +216,8 @@ export default function ModeratorOrdersPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "pending":
+        return "bg-slate-50 text-slate-600 border-slate-200";
       case "placed":
         return "bg-blue-50 text-blue-700 border-blue-100";
       case "accepted":
@@ -235,6 +237,7 @@ export default function ModeratorOrdersPage() {
 
   const getStatusLabel = (status: string) => {
     switch (status) {
+      case "pending": return "Pending";
       case "placed": return "New Order";
       case "accepted": return "Accepted";
       case "preparing": return "Preparing";

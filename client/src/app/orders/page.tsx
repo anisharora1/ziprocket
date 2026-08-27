@@ -22,6 +22,7 @@ import {
     MdHistory,
     MdCancel,
     MdRefresh,
+    MdHourglassTop,
 } from "react-icons/md";
 
 export default function OrdersPage() {
@@ -143,12 +144,13 @@ export default function OrdersPage() {
     // 'accepted_by_delivery' = delivery boy claimed it = Out for Delivery (step 2)
     const getStatusStep = (status: string) => {
         switch (status) {
-            case "placed": return 0;
+            case "pending": return 0;
+            case "placed": return 1;
             case "accepted":
-            case "preparing": return 1;
+            case "preparing": return 2;
             case "accepted_by_delivery":
-            case "on_the_way": return 2;
-            case "delivered": return 3;
+            case "on_the_way": return 3;
+            case "delivered": return 4;
             default: return 0;
         }
     };
@@ -289,17 +291,18 @@ export default function OrdersPage() {
     // Separate active and past orders
     // 'accepted_by_delivery' is an active state — delivery boy has claimed it but not yet delivered
     const activeOrders = orders.filter(o =>
-        ["placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus || o.status)
+        ["pending", "placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus || o.status)
     );
     const pastOrders = orders.filter(o =>
         ["delivered", "cancelled"].includes(o.orderStatus || o.status)
     );
 
     const trackingSteps = [
-        { id: 0, title: "Order Placed", description: "We have received your order", iconComp: MdReceiptLong },
-        { id: 1, title: "Preparing Order", description: "Your order is being prepared in the kitchen", iconComp: MdRestaurant },
-        { id: 2, title: "Out for Delivery", description: "Delivery partner is on the way to you", iconComp: MdTwoWheeler },
-        { id: 3, title: "Delivered", description: "Enjoy your items!", iconComp: MdCheckCircle },
+        { id: 0, title: "Confirming Order", description: "Verifying your order details...", iconComp: MdHourglassTop },
+        { id: 1, title: "Order Placed", description: "We have received your order", iconComp: MdReceiptLong },
+        { id: 2, title: "Preparing Order", description: "Your order is being prepared in the kitchen", iconComp: MdRestaurant },
+        { id: 3, title: "Out for Delivery", description: "Delivery partner is on the way to you", iconComp: MdTwoWheeler },
+        { id: 4, title: "Delivered", description: "Enjoy your items!", iconComp: MdCheckCircle },
     ];
 
     if (loading) {
@@ -484,7 +487,7 @@ export default function OrdersPage() {
                                 >
                                     Contact Support
                                 </a>
-                                {currentActiveOrder.orderStatus === "placed" && currentActiveOrder.paymentMethod === "COD" && (
+                                {["pending", "placed"].includes(currentActiveOrder.orderStatus) && currentActiveOrder.paymentMethod === "COD" && (
                                     <button
                                         onClick={() => handleOpenCancelModal(currentActiveOrder._id)}
                                         className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100/50 transition-colors"

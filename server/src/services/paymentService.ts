@@ -2,6 +2,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import Order from "../models/Order";
 import Payment from "../models/Payment";
+import { emitToRooms } from "../services/socketService";
 
 const getRazorpayInstance = () => {
     return new Razorpay({
@@ -131,12 +132,34 @@ export const verifyRazorpayPayment = async (
         return { success: false, order: failedOrder };
     }
 
-    // 4. Update Order to paid
+    // 4. Update Order to paid and transition orderStatus from "pending" to "placed"
     const paidOrder = await Order.findByIdAndUpdate(
         orderId,
-        { paymentStatus: "paid" },
+        { paymentStatus: "paid", orderStatus: "placed" },
         { new: true }
     );
+
+    // --- Socket.IO: Notify seller/moderator that a new confirmed order is ready ---
+    // This fires here instead of createOrder because ONLINE orders stay "pending" until payment is verified.
+    if (paidOrder) {
+        try {
+            const rooms: string[] = ["admin"];
+            if (paidOrder.orderType === "food" && paidOrder.restaurant) {
+                rooms.push(`seller:${paidOrder.restaurant.toString()}`);
+            } else if (paidOrder.orderType === "grocery" && (paidOrder as any).deliveryZone) {
+                rooms.push(`grocery:${(paidOrder as any).deliveryZone.toString()}`);
+            }
+            rooms.push(`user:${paidOrder.user.toString()}`);
+            emitToRooms(rooms, "new_order", {
+                order: paidOrder,
+                orderType: paidOrder.orderType,
+                restaurantId: paidOrder.orderType === "food" ? paidOrder.restaurant?.toString() : undefined,
+                zoneId: paidOrder.orderType === "grocery" ? (paidOrder as any).deliveryZone?.toString() : undefined,
+            });
+        } catch (emitErr: any) {
+            console.error("[Socket] new_order emit error (post-payment):", emitErr.message);
+        }
+    }
 
     // Record successful payment document
     const payment = new Payment({
@@ -158,7 +181,7 @@ export const verifyRazorpayPayment = async (
 export const logPaymentCancellation = async (orderId: string, errorDetails: any, userId: string) => {
     const order = await Order.findByIdAndUpdate(
         orderId,
-        { paymentStatus: "failed" },
+        { paymentStatus: "failed", orderStatus: "cancelled" },
         { new: true }
     );
 

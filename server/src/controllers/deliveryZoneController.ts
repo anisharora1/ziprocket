@@ -6,6 +6,7 @@ import { validateCoupon } from "./couponController";
 import { findApplicableZone } from "../services/deliveryRadiusService";
 import * as zoneCacheService from "../services/zoneCacheService";
 import * as redisService from "../services/redisService";
+import { computeBillFromZone } from "../utils/billCalculator";
 
 // --- CRUD OPERATIONS (For Admin Panel) ---
 
@@ -323,49 +324,11 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             durationMinutes = routeMetrics.durationMinutes;
         }
 
-        // Delivery Fee calculations based on resolved zone's profile parameters
-        let rawDeliveryFee = activeZone.baseDeliveryFee;
-        if (distanceKm > activeZone.baseDistanceKm) {
-            const extraDistance = distanceKm - activeZone.baseDistanceKm;
-            rawDeliveryFee += extraDistance * activeZone.extraFeePerKm;
-        }
+        // Delivery Fee calculations, taxes, platform fees — all via shared utility
+        const bill = computeBillFromZone(activeZone, itemTotal, distanceKm, orderType);
 
-        // Clamp raw fee within min & max caps
-        let deliveryFee = Math.min(activeZone.maxDeliveryFee, Math.max(activeZone.minDeliveryFee, rawDeliveryFee));
-        deliveryFee = Math.ceil(deliveryFee);
-
-        // Apply free delivery threshold
-        if (itemTotal >= activeZone.freeDeliveryThreshold) {
-            deliveryFee = 0;
-        }
-
-        // Small Order Handling Fee
-        let smallOrderFee = 0;
-        if (itemTotal > 0 && itemTotal < activeZone.smallOrderThreshold && activeZone.smallOrderFeeActive) {
-            smallOrderFee = activeZone.smallOrderFee;
-        }
-
-        // Surge pricing multiplier
-        let surgeCharge = 0;
-        if (activeZone.surgeActive && activeZone.surgeMultiplier > 1.0) {
-            surgeCharge = Math.ceil(deliveryFee * (activeZone.surgeMultiplier - 1.0));
-            deliveryFee = Math.ceil(deliveryFee * activeZone.surgeMultiplier);
-        }
-
-        // Platform fee
-        const platformFee = activeZone.platformFeeActive ? activeZone.platformFee : 0;
-
-        // Packaging charge
-        const packagingCharge = activeZone.packagingChargeActive ? activeZone.packagingCharge : 0;
-
-        // Convenience fee
-        const convenienceFee = activeZone.convenienceFeeActive ? activeZone.convenienceFee : 0;
-
-        // GST calculation
-        let gst = 0;
-        if (activeZone.gstActive) {
-            gst = Math.round(itemTotal * (activeZone.gstPercentage / 100));
-        }
+        // Surge charge for display (already factored into bill.deliveryFee)
+        let surgeCharge = bill.surgeCharge;
 
         // Coupon validation & calculations
         let discountAmount = 0;
@@ -390,8 +353,8 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             }
         }
 
-        // Compute Grand Total
-        const grandTotal = Math.max(0, itemTotal - discountAmount + deliveryFee + smallOrderFee + platformFee + packagingCharge + convenienceFee + gst);
+        // Apply coupon discount to the shared bill's grand total
+        const grandTotal = Math.max(0, bill.grandTotal - discountAmount);
 
         const prepBuffer = orderType === 'grocery' ? 5 : 15;
 
@@ -400,13 +363,13 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             zoneId: activeZone._id,
             zoneName: activeZone.name,
             itemTotal,
-            deliveryFee,
+            deliveryFee: bill.deliveryFee,
             freeDeliveryThreshold: activeZone.freeDeliveryThreshold,
-            smallOrderFee,
-            platformFee,
-            packagingCharge,
-            convenienceFee,
-            gst,
+            smallOrderFee: bill.smallOrderFee,
+            platformFee: bill.platformFee,
+            packagingCharge: bill.packagingCharge,
+            convenienceFee: bill.convenienceFee,
+            gst: bill.gst,
             surgeCharge,
             discountAmount,
             couponApplied,

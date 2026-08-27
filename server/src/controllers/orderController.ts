@@ -13,6 +13,7 @@ import * as cartCacheService from "../services/cartCacheService";
 import PlatformSettings from "../models/PlatformSettings";
 import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
+import { computeBillFromZone } from "../utils/billCalculator";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -123,10 +124,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const user = req.user ? req.user._id : req.body.user;
 
         // Inventory Stock Validations for Grocery (Batch Query)
+        let productMap: Map<string, any> = new Map();
         if (orderType === "grocery") {
             const groceryItemIds = items.map((i: any) => i.groceryItem);
             const products = await GroceryProduct.find({ _id: { $in: groceryItemIds } });
-            const productMap = new Map(products.map(p => [p._id.toString(), p]));
+            productMap = new Map(products.map(p => [p._id.toString(), p]));
 
             for (const item of items) {
                 const product = productMap.get(item.groceryItem?.toString());
@@ -158,7 +160,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
-        let applicableZone = null;
+        let applicableZone: any = null;
         for (const zone of activeZones) {
             const dist = calculateDistance(zone.center.lat, zone.center.lng, address.lat, address.lng);
             if (dist <= zone.radiusKm) {
@@ -206,6 +208,29 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             return;
         }
 
+        // ── SERVER-SIDE PRICE VERIFICATION ──────────────────────────────
+        // Re-fetch real prices for every item — never trust client-submitted item.price
+        let verifiedItemTotal = 0;
+        const verifiedItems: any[] = [];
+        for (const item of items) {
+            let product: any;
+            if (orderType === "food") {
+                product = await MenuItem.findById(item.menuItem);
+            } else {
+                product = productMap.get(item.groceryItem?.toString()); // already fetched above for stock check
+            }
+            if (!product) {
+                res.status(404).json({ success: false, message: "One or more items in your cart are no longer available." });
+                return;
+            }
+            const realPrice = product.price;
+            verifiedItemTotal += realPrice * item.quantity;
+            verifiedItems.push({ ...item, price: realPrice }); // overwrite client-submitted price
+        }
+
+        // Reuse the shared bill calculation logic (single source of truth with checkout preview)
+        const verifiedBill = computeBillFromZone(applicableZone, verifiedItemTotal, calculatedDistance, orderType);
+
         // Update user phone number if updated during checkout review
         const { phone } = req.body;
         if (phone && user) {
@@ -240,7 +265,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             }
         }
 
-        // Secure Coupon Validation on placement
+        // Secure Coupon Validation on placement (using server-verified subtotal, not client-submitted)
         let calculatedDiscount = 0;
         let couponDoc = null;
 
@@ -248,7 +273,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             const validation = await validateCoupon(
                 couponCode,
                 user,
-                totalAmount - deliveryCharge, // item subtotal before delivery fees
+                verifiedItemTotal, // server-verified item subtotal
                 deliveryZone.toString(),
                 orderType === "food" ? restaurant : undefined,
                 orderType
@@ -262,6 +287,9 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             calculatedDiscount = validation.discountAmount;
             couponDoc = validation.coupon;
         }
+
+        // Final server-verified total (bill grand total minus any applicable coupon discount)
+        const finalTotal = Math.max(0, verifiedBill.grandTotal - calculatedDiscount);
 
         // Perform atomic batch stock deduction using bulkWrite (single DB round trip)
         if (orderType === "grocery") {
@@ -314,10 +342,11 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 user,
                 restaurant: orderType === "food" ? restaurant : undefined,
                 orderType,
-                items,
-                totalAmount: Math.max(0, totalAmount - calculatedDiscount), // Secure reduction
-                deliveryCharge,
+                items: verifiedItems, // server-verified prices, not client-submitted
+                totalAmount: finalTotal, // server-computed total
+                deliveryCharge: verifiedBill.deliveryFee, // server-computed delivery fee
                 paymentMethod,
+                orderStatus: "pending", // true initial state — transitions to "placed" after verification
                 distance: calculatedDistance,
                 address: {
                     fullAddress: address.fullAddress,
@@ -333,6 +362,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             });
 
             await newOrder.save();
+
+            // For COD orders, immediately transition to "placed" — no payment to wait for.
+            // For ONLINE orders, stay "pending" until verifyRazorpayPayment confirms payment.
+            if (paymentMethod === "COD") {
+                newOrder.orderStatus = "placed";
+                await newOrder.save();
+            }
 
             // Clear user's cached cart and recent orders list from Redis
             if (user) {
@@ -363,7 +399,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 if (!updatedCoupon) {
                     // Limit was hit by a concurrent request between validation and this point — roll back the discount, don't fail the whole order.
                     newOrder.discountAmount = 0;
-                    newOrder.totalAmount = totalAmount; // original amount, no discount
+                    newOrder.totalAmount = verifiedBill.grandTotal; // full server-verified amount, no discount
                     newOrder.couponCode = undefined;
                     await newOrder.save();
                 } else {
@@ -373,7 +409,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                         // Roll back both the order discount AND the usedCount increment we just made.
                         await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: -1 } });
                         newOrder.discountAmount = 0;
-                        newOrder.totalAmount = totalAmount;
+                        newOrder.totalAmount = verifiedBill.grandTotal;
                         newOrder.couponCode = undefined;
                         await newOrder.save();
                     } else {
@@ -384,30 +420,34 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             }
 
             // --- Socket.IO: Notify seller/grocery moderator of new order ---
-            try {
-                const rooms: string[] = ["admin"];
-                if (orderType === "food" && restaurant) {
-                    rooms.push(`seller:${restaurant}`);
-                } else if (orderType === "grocery" && deliveryZone) {
-                    rooms.push(`grocery:${deliveryZone.toString()}`);
+            // Only emit new_order notifications once the order has transitioned to "placed".
+            // For ONLINE orders still in "pending", the notification fires from verifyRazorpayPayment instead.
+            if (newOrder.orderStatus === "placed") {
+                try {
+                    const rooms: string[] = ["admin"];
+                    if (orderType === "food" && restaurant) {
+                        rooms.push(`seller:${restaurant}`);
+                    } else if (orderType === "grocery" && deliveryZone) {
+                        rooms.push(`grocery:${deliveryZone.toString()}`);
+                    }
+                    // Also notify the customer so their orders list refreshes via socket
+                    if (user) {
+                        rooms.push(`user:${user.toString()}`);
+                    }
+                    emitToRooms(rooms, "new_order", {
+                        order: newOrder,
+                        orderType,
+                        restaurantId: orderType === "food" ? restaurant : undefined,
+                        zoneId: orderType === "grocery" ? deliveryZone?.toString() : undefined,
+                    });
+                } catch (emitErr: any) {
+                    console.error("[Socket] new_order emit error:", emitErr.message);
                 }
-                // Also notify the customer so their orders list refreshes via socket
-                if (user) {
-                    rooms.push(`user:${user.toString()}`);
-                }
-                emitToRooms(rooms, "new_order", {
-                    order: newOrder,
-                    orderType,
-                    restaurantId: orderType === "food" ? restaurant : undefined,
-                    zoneId: orderType === "grocery" ? deliveryZone?.toString() : undefined,
-                });
-            } catch (emitErr: any) {
-                console.error("[Socket] new_order emit error:", emitErr.message);
             }
 
             res.status(201).json({
                 success: true,
-                message: "Order placed successfully",
+                message: newOrder.orderStatus === "pending" ? "Order submitted — awaiting payment" : "Order placed successfully",
                 order: newOrder
             });
         } catch (saveError: any) {
@@ -562,9 +602,12 @@ export const getRestaurantOrders = async (req: Request, res: Response): Promise<
 
         let filter: any = { restaurant: restaurantId };
         
-        // Optional filtering by order status (e.g., to see only 'pending' or 'accepted' orders)
+        // Optional filtering by order status
         if (orderStatus) {
             filter.orderStatus = orderStatus;
+        } else {
+            // By default, exclude unverified "pending" orders — restaurants should only see confirmed orders
+            filter.orderStatus = { $ne: "pending" };
         }
 
         const [orders, total] = await Promise.all([
@@ -595,7 +638,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
         const { orderStatus, cancelledBy } = req.body;
         const orderId = req.params.id;
 
-        const validStatuses = ["placed", "accepted", "preparing", "on_the_way", "delivered", "cancelled"];
+        const validStatuses = ["pending", "placed", "accepted", "preparing", "on_the_way", "delivered", "cancelled"];
         if (!validStatuses.includes(orderStatus)) {
             res.status(400).json({ success: false, message: "Invalid order status" });
             return;
@@ -604,6 +647,22 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
         const orderToCheck = await Order.findById(orderId);
         if (!orderToCheck) {
             res.status(404).json({ success: false, message: "Order not found" });
+            return;
+        }
+
+        // State-transition validation — prevent invalid jumps (e.g., placed → delivered)
+        const VALID_TRANSITIONS: Record<string, string[]> = {
+            pending:   ["placed", "cancelled"],
+            placed:    ["accepted", "cancelled"],
+            accepted:  ["preparing", "cancelled"],
+            preparing: ["on_the_way", "cancelled"],
+            accepted_by_delivery: ["on_the_way", "cancelled"],
+            on_the_way: ["delivered"],
+            delivered: [],
+            cancelled: [],
+        };
+        if (!VALID_TRANSITIONS[orderToCheck.orderStatus]?.includes(orderStatus)) {
+            res.status(400).json({ success: false, message: `Cannot move an order from "${orderToCheck.orderStatus}" directly to "${orderStatus}".` });
             return;
         }
 
@@ -793,6 +852,9 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
         
         if (orderStatus) {
             filter.orderStatus = orderStatus;
+        } else {
+            // By default, exclude unverified "pending" orders — sellers should only see confirmed orders
+            filter.orderStatus = { $ne: "pending" };
         }
 
         const [orders, total] = await Promise.all([
@@ -882,7 +944,7 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         }
 
         if (!isAdmin) {
-            if (order.orderStatus !== "placed") {
+            if (!["pending", "placed"].includes(order.orderStatus)) {
                 res.status(400).json({
                     success: false,
                     message: "Order cannot be cancelled. The restaurant has already accepted or started preparing it."

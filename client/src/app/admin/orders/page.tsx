@@ -360,18 +360,11 @@ export default function OrdersAdminPage() {
 
   // Real-time updates for Admin
   useOrderSocket({
-    onNewOrder: (data) => {
-      if (data?.order) {
-        setOrders((prev) => {
-          const exists = prev.some((o) => o._id === data.order._id);
-          if (exists) return prev;
-          return [data.order, ...prev];
-        });
-      } else {
-        fetchOrders();
-      }
+    onNewOrder: () => {
+      fetchOrders(); // refresh the current page/filter so new orders appear without a manual click
     },
     onOrderStatusUpdated: (data) => {
+      // Patch the specific order in place if it's on the current page — avoids a full refetch for every status tick
       if (data?.orderId && data?.orderStatus) {
         setOrders((prev) =>
           prev.map((o) =>
@@ -402,6 +395,9 @@ export default function OrdersAdminPage() {
             o._id === data.orderId ? { ...o, orderStatus: "accepted_by_delivery" } : o
           )
         );
+        setSelectedOrder((prev: any) =>
+          prev && prev._id === data.orderId ? { ...prev, orderStatus: "accepted_by_delivery" } : prev
+        );
       }
     },
     onDeliveryStatusUpdated: (data) => {
@@ -410,6 +406,9 @@ export default function OrdersAdminPage() {
           prev.map((o) =>
             o._id === data.orderId ? { ...o, orderStatus: data.status } : o
           )
+        );
+        setSelectedOrder((prev: any) =>
+          prev && prev._id === data.orderId ? { ...prev, orderStatus: data.status } : prev
         );
       }
     },
@@ -438,7 +437,7 @@ export default function OrdersAdminPage() {
       }
     },
     onReconnect: () => {
-      fetchOrders();
+      fetchOrders(); // catch up on anything missed while disconnected
     },
   });
 
@@ -500,13 +499,23 @@ export default function OrdersAdminPage() {
               className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:border-slate-900 transition-all shadow-sm"
             />
           </div>
-          <button 
-            onClick={fetchOrders}
-            className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
-          >
-            <MdRefresh className="text-[18px]" />
-            <span>Refresh</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-2.5 bg-emerald-50 border border-emerald-200/60 rounded-xl text-emerald-700 text-xs font-bold shadow-sm shrink-0">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>Live</span>
+            </div>
+            <button 
+              onClick={fetchOrders}
+              className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-2 shadow-sm shrink-0"
+              title="Force refresh orders"
+            >
+              <MdRefresh className="text-[18px]" />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -562,6 +571,7 @@ export default function OrdersAdminPage() {
             className="w-full sm:w-auto px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-[12px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900 shadow-sm transition-colors cursor-pointer"
           >
             <option value="all">All Orders</option>
+            <option value="pending">Pending (Unverified)</option>
             <option value="placed">Placed (New)</option>
             <option value="accepted">Accepted</option>
             <option value="preparing">Preparing</option>

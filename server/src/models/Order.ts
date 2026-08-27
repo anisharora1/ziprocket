@@ -2,7 +2,8 @@ import mongoose, { Schema, Types } from "mongoose";
 import { BaseDocument } from "../types/common";
 
 export type OrderStatus =
-    | "placed"
+    | "pending"      // order submitted, server verification/payment in progress
+    | "placed"       // verification complete, order confirmed and visible to restaurant/moderator
     | "accepted"
     | "preparing"
     | "accepted_by_delivery"
@@ -97,6 +98,7 @@ const orderSchema = new Schema<IOrder>({
     orderStatus: {
         type: String,
         enum: [
+            "pending",
             "placed",
             "accepted",
             "preparing",
@@ -105,7 +107,7 @@ const orderSchema = new Schema<IOrder>({
             "delivered",
             "cancelled"
         ],
-        default: "placed"
+        default: "pending"
     },
 
     distance: Number,

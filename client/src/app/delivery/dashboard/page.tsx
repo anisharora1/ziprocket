@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { apiClient } from "../../../services/api";
+import { useOrderSocket } from "../../../hooks/useOrderSocket";
+import { useSocket } from "../../../context/SocketContext";
 import {
   MdStar,
   MdSportsMotorsports,
@@ -73,6 +75,7 @@ export default function DeliveryDashboardPage() {
   const [isActive, setIsActive] = useState<boolean>(true);
   const [toggling, setToggling] = useState<boolean>(false);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
+  const { joinDeliveryZone } = useSocket();
   
   // Tab states
   const [activeTab, setActiveTab] = useState<"pending" | "accepted" | "history" | "rejected">("pending");
@@ -83,6 +86,17 @@ export default function DeliveryDashboardPage() {
   
   const [loading, setLoading] = useState<boolean>(true);
   const [actioningId, setActioningId] = useState<string | null>(null);
+
+  // Real-time socket events replacing polling
+  useOrderSocket({
+    onNewOrder: () => { if (isActive) fetchDashboardData(); },
+    onDeliveryAssigned: () => { if (isActive) fetchDashboardData(); },
+    onDeliveryAccepted: () => { if (isActive) fetchDashboardData(); },
+    onDeliveryStatusUpdated: () => { if (isActive) fetchDashboardData(); },
+    onOrderCancelled: () => { if (isActive) fetchDashboardData(); },
+    onOrderDelivered: () => { if (isActive) fetchDashboardData(); },
+    onReconnect: () => { if (isActive) fetchDashboardData(); },
+  });
 
   const handleCopyAddress = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -97,6 +111,10 @@ export default function DeliveryDashboardPage() {
       if (res.data.success && res.data.profile) {
         setProfile(res.data.profile);
         setIsActive(res.data.profile.isActive !== undefined ? res.data.profile.isActive : true);
+        if (res.data.profile.deliveryZone) {
+          const zoneId = res.data.profile.deliveryZone._id || res.data.profile.deliveryZone;
+          joinDeliveryZone(zoneId.toString());
+        }
       }
     } catch (err) {
       console.error("Failed to fetch courier profile:", err);
@@ -142,13 +160,6 @@ export default function DeliveryDashboardPage() {
   useEffect(() => {
     if (isActive) {
       fetchDashboardData();
-      // Poll orders status every 5 seconds to ensure instant real-time sync if active
-      const interval = setInterval(() => {
-        if (typeof document !== "undefined" && !document.hidden) {
-          fetchDashboardData();
-        }
-      }, 5000);
-      return () => clearInterval(interval);
     } else {
       setPendingOrders([]);
       setActiveDeliveries([]);
