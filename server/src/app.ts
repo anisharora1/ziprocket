@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
+import mongoose from "mongoose";
 
 // Security Middlewares
 import helmetMiddleware from "./middlewares/helmetMiddleware";
@@ -7,6 +9,7 @@ import securityHeadersMiddleware from "./middlewares/securityHeadersMiddleware";
 import { globalLimiter } from "./middlewares/rateLimitMiddleware";
 import { nosqlSanitizer, xssSanitizer } from "./middlewares/authSecurityMiddleware";
 import { errorHandler } from "./middlewares/errorHandler";
+import { getClient as getRedisClient } from "./services/redisService";
 
 import authRoutes from "./routes/authRoutes";
 import adminRoutes from "./routes/adminRoutes";
@@ -43,8 +46,36 @@ app.use(helmetMiddleware);
 // Enable auxiliary custom headers
 app.use(securityHeadersMiddleware);
 
-// CORS configuration
-app.use(cors());
+// Enable response compression (gzip/deflate) to optimize payload transfer sizes
+app.use(compression());
+
+// CORS configuration with explicit allowlist
+const defaultAllowedOrigins = [
+  "https://ziprocket.in",
+  "https://www.ziprocket.in",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173"
+];
+
+const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
+  ? process.env.CORS_ALLOWED_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
+  : defaultAllowedOrigins;
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (e.g. server-to-server, curl, mobile tools)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes("*")) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true
+  })
+);
 
 // Configure body limits to prevent payload flooding / DoS attacks
 app.use(express.json({ limit: "10kb" }));
@@ -80,6 +111,22 @@ app.use("/api/applications", applicationRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running 🚀");
+});
+
+// Health check endpoint for monitoring and deployment platforms (e.g., Render)
+app.get("/health", (req, res) => {
+  const mongoStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+  const redisClient = getRedisClient();
+  const redisStatus = redisClient && redisClient.status === "ready" ? "connected" : "disconnected";
+
+  const isHealthy = mongoStatus === "connected" && redisStatus === "connected";
+  const statusCode = isHealthy ? 200 : 503;
+
+  return res.status(statusCode).json({
+    status: isHealthy ? "ok" : "error",
+    mongo: mongoStatus,
+    redis: redisStatus
+  });
 });
 
 // Global Error Handler to catch Multer and other unhandled errors

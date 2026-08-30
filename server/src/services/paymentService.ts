@@ -64,6 +64,11 @@ export const verifyRazorpayPayment = async (
         throw new Error("Order not found");
     }
 
+    // Return immediately if order is already marked as paid to prevent duplicate Payment records on retries
+    if (order.paymentStatus === "paid") {
+        return { success: true, order };
+    }
+
     // 1. Confirm that the given razorpayOrderId belongs to this exact order
     if (!order.razorpayOrderId || order.razorpayOrderId !== razorpayOrderId) {
         console.warn(`[Payment Security] Mismatched Razorpay Order ID for order ${orderId}. Expected: ${order.razorpayOrderId}, Received: ${razorpayOrderId}`);
