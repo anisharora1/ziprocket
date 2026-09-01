@@ -193,11 +193,12 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        const { name, phone, location, isActive, availabilityStatus, cuisines } = req.body;
+        const { name, phone, location, isActive, availabilityStatus, cuisines, locationNeedsReview } = req.body;
 
         const updateFields: any = {};
         if (name !== undefined) updateFields.name = name;
         if (phone !== undefined) updateFields.phone = phone;
+        if (locationNeedsReview !== undefined) updateFields.locationNeedsReview = locationNeedsReview;
         if (location !== undefined) {
             if (typeof location === "string") {
                 try {

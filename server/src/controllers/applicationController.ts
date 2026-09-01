@@ -23,23 +23,19 @@ export const applyRestaurant = async (req: Request, res: Response): Promise<void
         }
 
         const geocodeResult = await getForwardGeocode(address);
-        if (!geocodeResult) {
-            res.status(400).json({
-                success: false,
-                message: "We couldn't locate this address on the map. Please provide a more specific address (nearby landmark, area, pincode) and try again."
-            });
-            return;
-        }
+
+        const restaurantLocation = geocodeResult
+            ? { address: geocodeResult.formattedAddress || address, lat: geocodeResult.lat, lng: geocodeResult.lng }
+            : { address, lat: 0, lng: 0 };
+
+        const locationNeedsReview = !geocodeResult;
 
         const newRestaurant = new Restaurant({
             name: restaurantName,
             owner: userId,
             phone,
-            location: {
-                address: geocodeResult.formattedAddress || address,
-                lat: geocodeResult.lat,
-                lng: geocodeResult.lng
-            },
+            location: restaurantLocation,
+            locationNeedsReview,
             ownerName,
             cuisines,
             fssaiNumber,

@@ -29,6 +29,9 @@ export const getForwardGeocode = async (address: string) => {
                     formattedAddress: result.formatted_address || address
                 };
             }
+            console.warn(`[Geocode] Google returned no result for "${address}" — status: ${data.status || "unknown"}${data.error_message ? ` — ${data.error_message}` : ""}`);
+        } else {
+            console.warn(`[Geocode] Google Maps API key missing. Skipping Google Geocoding for "${address}".`);
         }
     } catch (err) {
         console.error("Google forward geocode failed:", err);
@@ -39,13 +42,14 @@ export const getForwardGeocode = async (address: string) => {
         const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=in&limit=1`;
         const res = await fetch(url, { headers: { "User-Agent": "ZipRocket/1.0" } });
         const data = await res.json() as any;
-        if (data && data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
             return {
                 lat: parseFloat(data[0].lat),
                 lng: parseFloat(data[0].lon),
                 formattedAddress: data[0].display_name
             };
         }
+        console.warn(`[Geocode] Nominatim returned no result for "${address}" — response: ${JSON.stringify(data)}`);
     } catch (nomErr) {
         console.error("Nominatim forward geocode fallback failed:", nomErr);
     }

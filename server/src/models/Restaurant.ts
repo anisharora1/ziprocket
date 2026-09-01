@@ -17,6 +17,7 @@ export interface IRestaurant extends BaseDocument {
         lat: number;
         lng: number;
     };
+    locationNeedsReview?: boolean;
 
     isActive: boolean;
     isBlocked: boolean;
@@ -57,6 +58,7 @@ const restaurantSchema = new Schema<IRestaurant>({
         lat: Number,
         lng: Number
     },
+    locationNeedsReview: { type: Boolean, default: false },
 
     isActive: { type: Boolean, default: true },
 

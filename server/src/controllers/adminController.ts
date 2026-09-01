@@ -382,6 +382,14 @@ export const approveApplication = async (req: Request, res: Response): Promise<v
         let userId;
 
         if (type === 'restaurant') {
+            const existingRestaurant = await Restaurant.findById(id);
+            if (!existingRestaurant) { res.status(404).json({ success: false, message: "Not found" }); return; }
+
+            if (existingRestaurant.locationNeedsReview || !existingRestaurant.location?.lat || !existingRestaurant.location?.lng) {
+                res.status(400).json({ success: false, message: "This restaurant's location hasn't been confirmed yet. Please set its map pin before approving." });
+                return;
+            }
+
             const restaurant = await Restaurant.findByIdAndUpdate(id, { status: "approved" }, { new: true });
             if (!restaurant) { res.status(404).json({ success: false, message: "Not found" }); return; }
             userId = restaurant.owner;
