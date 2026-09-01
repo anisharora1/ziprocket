@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { sendGAEvent } from '@next/third-parties/google';
+import { isIOSSafari } from '@/utils/inAppBrowser';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -18,16 +19,20 @@ interface PwaContextType {
   isInstalled: boolean;
   isInstalling: boolean;
   isOffline: boolean;
+  isIOSSafari: boolean;
   showOnlineToast: boolean;
   showUpdateToast: boolean;
   showFirstVisitModal: boolean;
+  showIOSInstallInstructions: boolean;
   showInstalledToast: boolean;
   installApp: () => Promise<void>;
   dismissFirstVisitModal: () => void;
+  dismissIOSInstallModal: () => void;
   triggerServiceWorkerUpdate: () => void;
   setShowOnlineToast: (val: boolean) => void;
   setShowUpdateToast: (val: boolean) => void;
   setShowInstalledToast: (val: boolean) => void;
+  setShowIOSInstallInstructions: (val: boolean) => void;
 }
 
 // Module-level capture so beforeinstallprompt is never missed if fired before React hydrates
@@ -51,6 +56,8 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
   const [showOnlineToast, setShowOnlineToast] = useState(false);
   const [showUpdateToast, setShowUpdateToast] = useState(false);
   const [showFirstVisitModal, setShowFirstVisitModal] = useState(false);
+  const [isIOSSafariDevice, setIsIOSSafariDevice] = useState(false);
+  const [showIOSInstallInstructions, setShowIOSInstallInstructions] = useState(false);
   const [showInstalledToast, setShowInstalledToast] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
@@ -68,19 +75,35 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
     setShowFirstVisitModal(false);
   }, []);
 
+  const dismissIOSInstallModal = useCallback(() => {
+    setShowIOSInstallInstructions(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('pwa-ios-dismissed', 'true');
+    }
+  }, []);
+
   useEffect(() => {
     setMounted(true);
     const installed = checkIsInstalled();
     setIsInstalled(installed);
+
+    const iosSafari = isIOSSafari();
+    setIsIOSSafariDevice(iosSafari);
 
     // Clean up any legacy first-visit dismissed flag
     if (typeof window !== 'undefined') {
       localStorage.removeItem('pwa-first-visit-dismissed');
     }
 
+    const isIOSDismissed = typeof window !== 'undefined' && localStorage.getItem('pwa-ios-dismissed') === 'true';
+
+    if (iosSafari && !installed && !isIOSDismissed) {
+      setShowIOSInstallInstructions(true);
+    }
+
     if (globalDeferredPrompt) {
       setDeferredPrompt(globalDeferredPrompt);
-      if (!installed) {
+      if (!installed && !iosSafari) {
         setShowFirstVisitModal(true);
       }
     }
@@ -97,6 +120,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
         if (relatedApps && relatedApps.length > 0) {
           setIsInstalled(true);
           setShowFirstVisitModal(false);
+          setShowIOSInstallInstructions(false);
           localStorage.setItem('pwa-installed', 'true');
         }
       }).catch(() => { });
@@ -142,6 +166,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
         globalDeferredPrompt = null;
         setDeferredPrompt(null);
         setShowFirstVisitModal(false);
+        setShowIOSInstallInstructions(false);
         localStorage.setItem('pwa-installed', 'true');
       }
     };
@@ -259,6 +284,7 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
       if (choiceResult && choiceResult.outcome === 'accepted') {
         setIsInstalled(true);
         setShowFirstVisitModal(false);
+        setShowIOSInstallInstructions(false);
         setShowInstalledToast(true);
         localStorage.setItem('pwa-installed', 'true');
         sendGAEvent({ event: 'pwa_prompt_accepted' });
@@ -291,16 +317,20 @@ export const PwaProvider = ({ children }: { children: React.ReactNode }) => {
         isInstalled,
         isInstalling,
         isOffline,
+        isIOSSafari: isIOSSafariDevice,
         showOnlineToast,
         showUpdateToast,
         showFirstVisitModal,
+        showIOSInstallInstructions,
         showInstalledToast,
         installApp,
         dismissFirstVisitModal,
+        dismissIOSInstallModal,
         triggerServiceWorkerUpdate,
         setShowOnlineToast,
         setShowUpdateToast,
         setShowInstalledToast,
+        setShowIOSInstallInstructions,
       }}
     >
       {children}

@@ -9,6 +9,8 @@ import { PlatformProvider } from "@/context/PlatformContext";
 import LocationPromptModal from "@/components/LocationPromptModal";
 import { PwaProvider } from "@/context/PwaContext";
 import PwaManager from "@/components/PwaManager";
+import IOSInstallModal from "@/components/IOSInstallModal";
+import InAppBrowserBanner from "@/components/InAppBrowserBanner";
 import InstalledSuccessToast from "@/components/InstalledSuccessToast";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
@@ -155,9 +157,11 @@ export default function RootLayout({
                   <AuthProvider>
                     <SocketProvider>
                       <CartProvider>
+                        <InAppBrowserBanner />
                         {children}
                         <PlatformClosedModal />
                         <LocationPromptModal />
+                        <IOSInstallModal />
                         <PwaManager />
                         <InstalledSuccessToast />
                       </CartProvider>

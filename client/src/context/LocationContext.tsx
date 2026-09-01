@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback } from 'react';
 import { apiClient } from '@/services/api';
 import { getHighAccuracyGPSFix } from '@/utils/geolocation';
+import { isIOSSafari, isInAppBrowser } from '@/utils/inAppBrowser';
 
 interface Location {
   lat: number;
@@ -234,9 +235,17 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         }
       }
 
-      // If no stored location and no default address was selected, auto-detect location
+      // If no stored location and no default address was selected, only auto-fetch on mount
+      // for non-iOS-Safari browsers when NOT in an in-app browser.
+      // On iOS Safari / in-app browsers, geolocation requires explicit user gesture.
       if (!validStoredLocation && !defaultAddressSelected) {
-        fetchLocation();
+        const isRestricted = isIOSSafari() || isInAppBrowser();
+        if (!isRestricted) {
+          fetchLocation();
+        } else {
+          dispatch({ type: 'SET_FIRST_TIME', payload: true });
+          dispatch({ type: 'SET_LOCATION_LOADED', payload: true });
+        }
       } else {
         dispatch({ type: 'SET_LOCATION_LOADED', payload: true });
       }

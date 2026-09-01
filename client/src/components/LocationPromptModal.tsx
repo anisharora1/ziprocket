@@ -3,11 +3,22 @@ import React, { useState } from 'react';
 import { useLocation } from '@/context/LocationContext';
 import { MdLocationOn, MdSync, MdMyLocation, MdSearch } from 'react-icons/md';
 
-export default function LocationPromptModal() {
+interface LocationPromptModalProps {
+  onManualTrigger?: () => void;
+}
+
+export default function LocationPromptModal({ onManualTrigger }: LocationPromptModalProps = {}) {
   const { isFirstTime, fetchLocation, isLoading, error, dismissPrompt } = useLocation();
   const [showToast, setShowToast] = useState(false);
 
   if (!isFirstTime) return null;
+
+  const handleUseLocation = () => {
+    if (onManualTrigger) {
+      onManualTrigger();
+    }
+    fetchLocation();
+  };
 
   const handleManualSearchClick = () => {
     setShowToast(true);
@@ -39,7 +50,7 @@ export default function LocationPromptModal() {
 
         <div className="space-y-3 relative">
           <button
-            onClick={fetchLocation}
+            onClick={handleUseLocation}
             disabled={isLoading}
             className="w-full py-4 bg-[#FF5C00] text-white font-bold rounded-2xl shadow-lg shadow-[#FF5C00]/20 hover:bg-[#e05200] active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
           >
@@ -48,7 +59,7 @@ export default function LocationPromptModal() {
             ) : (
               <MdMyLocation className="text-[20px]" />
             )}
-            {isLoading ? 'Detecting...' : 'Detect current location'}
+            {isLoading ? 'Detecting...' : 'Use my location (Use my location)'}
           </button>
 
           <button
