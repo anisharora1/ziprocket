@@ -12,12 +12,16 @@ import {
   MdShoppingBag,
   MdAnalytics,
   MdReceiptLong,
+  MdCancel,
 } from "react-icons/md";
 
 export default function SellerFinancePage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [totalRevenue, setTotalRevenue] = useState(0);
   const [completedOrdersCount, setCompletedOrdersCount] = useState(0);
+  const [cancelledOrdersCount, setCancelledOrdersCount] = useState(0);
+  const [totalOrdersCount, setTotalOrdersCount] = useState(0);
+  const [averageOrderValue, setAverageOrderValue] = useState(0);
   const [isDataLoading, setIsDataLoading] = useState(true);
   
   const { user, isLoading: authLoading } = useAuth();
@@ -33,18 +37,22 @@ export default function SellerFinancePage() {
 
     const fetchFinanceData = async () => {
       try {
-        const ordersRes = await apiClient.get('/orders/my-orders');
+        const [ordersRes, statsRes] = await Promise.all([
+          apiClient.get('/orders/my-orders'),
+          apiClient.get('/orders/seller/stats')
+        ]);
+
         if (ordersRes.data.success) {
-          const fetchedOrders = ordersRes.data.orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          const fetchedOrders = (ordersRes.data.orders || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
           setOrders(fetchedOrders);
-          
-          // Calculate overall metrics
-          const completedOrders = fetchedOrders.filter((order: any) => order.status === 'delivered');
-          setCompletedOrdersCount(completedOrders.length);
-          
-          // We calculate total revenue from all orders as per user preference (or just delivered? Let's use all for overall income)
-          // "overall income on finance dashboard" - Let's calculate total revenue from all orders.
-          setTotalRevenue(fetchedOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0));
+        }
+
+        if (statsRes.data.success) {
+          setTotalRevenue(statsRes.data.totalRevenue || 0);
+          setCompletedOrdersCount(statsRes.data.completedOrdersCount || 0);
+          setCancelledOrdersCount(statsRes.data.cancelledOrdersCount || 0);
+          setTotalOrdersCount(statsRes.data.totalOrdersCount || 0);
+          setAverageOrderValue(statsRes.data.averageOrderValue || 0);
         }
       } catch (error) {
         console.error("Failed to fetch seller finance data:", error);
@@ -59,8 +67,6 @@ export default function SellerFinancePage() {
   if (authLoading || isDataLoading) {
     return <div className="p-8 text-center text-slate-500">Loading Finance Data...</div>;
   }
-
-  const averageOrderValue = orders.length > 0 ? (totalRevenue / orders.length).toFixed(2) : "0.00";
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 md:space-y-8 pb-24">
@@ -82,7 +88,7 @@ export default function SellerFinancePage() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         
         {/* Total Earnings */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 shadow-lg shadow-emerald-500/20 text-white relative overflow-hidden">
@@ -93,10 +99,10 @@ export default function SellerFinancePage() {
               <MdAccountBalanceWallet className="text-[18px]" />
             </div>
           </div>
-          <h2 className="text-[40px] font-black tracking-tight leading-none mb-3 relative z-10">₹{totalRevenue.toLocaleString()}</h2>
+          <h2 className="text-[36px] font-black tracking-tight leading-none mb-3 relative z-10">₹{totalRevenue.toLocaleString()}</h2>
           <p className="text-[12px] font-medium flex items-center gap-1 relative z-10 opacity-90">
             <MdAllInclusive className="text-[14px]" />
-            Lifetime earnings
+            Delivered orders only
           </p>
         </div>
 
@@ -108,9 +114,9 @@ export default function SellerFinancePage() {
               <MdShoppingBag className="text-[18px]" />
             </div>
           </div>
-          <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">{orders.length}</h2>
+          <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">{totalOrdersCount}</h2>
           <p className="text-[12px] text-slate-500 flex items-center gap-1 font-medium">
-             <span className="w-2 h-2 rounded-full bg-blue-500 inline-block mr-1"></span>
+             <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block mr-1"></span>
              {completedOrdersCount} Delivered
           </p>
         </div>
@@ -123,9 +129,24 @@ export default function SellerFinancePage() {
               <MdAnalytics className="text-[18px]" />
             </div>
           </div>
-          <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">₹{averageOrderValue}</h2>
+          <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">₹{averageOrderValue.toLocaleString()}</h2>
           <p className="text-[12px] text-slate-500 flex items-center gap-1 font-medium">
-             Revenue per order
+             Revenue ÷ completed
+          </p>
+        </div>
+
+        {/* Cancelled Orders */}
+        <div className="bg-white rounded-2xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100">
+          <div className="flex justify-between items-start mb-6">
+            <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">Cancelled Orders</p>
+            <div className="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+              <MdCancel className="text-[18px]" />
+            </div>
+          </div>
+          <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">{cancelledOrdersCount}</h2>
+          <p className="text-[12px] text-rose-500 flex items-center gap-1 font-medium">
+             <span className="w-2 h-2 rounded-full bg-rose-500 inline-block mr-1"></span>
+             Orders cancelled
           </p>
         </div>
 
@@ -172,11 +193,11 @@ export default function SellerFinancePage() {
                      </td>
                      <td className="px-6 py-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                          order.status === 'delivered' ? 'bg-emerald-50 text-emerald-600' :
-                          order.status === 'cancelled' ? 'bg-red-50 text-red-600' :
+                          (order.orderStatus || order.status) === 'delivered' ? 'bg-emerald-50 text-emerald-600' :
+                          (order.orderStatus || order.status) === 'cancelled' ? 'bg-red-50 text-red-600' :
                           'bg-amber-50 text-amber-600'
                         }`}>
-                          {order.status}
+                          {order.orderStatus || order.status}
                         </span>
                      </td>
                      <td className="px-6 py-4 text-right">

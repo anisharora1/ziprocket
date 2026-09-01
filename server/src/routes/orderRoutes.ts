@@ -8,6 +8,7 @@ import {
     updatePaymentStatus,
     getAllOrders,
     getMyOrders,
+    getSellerDashboardStats,
     getGroceryOrders,
     getGroceryZoneUsers,
     cancelOrder
@@ -27,6 +28,7 @@ router.get("/grocery", protect, authorize("grocery_moderator", "admin"), getGroc
 router.get("/grocery/users", protect, authorize("grocery_moderator", "admin"), getGroceryZoneUsers);
 
 // Protected Seller Route
+router.get("/seller/stats", protect, authorize("seller", "admin"), getSellerDashboardStats);
 router.get("/my-orders", protect, authorize("seller", "admin"), getMyOrders);
 
 router.get("/:id", protect, validateObjectId(["id"]), getOrderById);

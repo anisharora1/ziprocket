@@ -110,7 +110,10 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
         // 1. Every user joins their personal room for direct messages
         socket.join(`user:${userId}`);
 
-        // 2. Role-specific rooms
+        // 2. Broadcast to a shared "customers" room for live public status updates
+        socket.join("customers");
+
+        // 3. Role-specific rooms
         try {
             if (user.role === "admin") {
                 socket.join("admin");

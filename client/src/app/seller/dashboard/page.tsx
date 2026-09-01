@@ -65,21 +65,19 @@ export default function SellerDashboardPage() {
           setRestaurant(restRes.data.restaurant);
           setIsActive(restRes.data.restaurant.isActive !== undefined ? restRes.data.restaurant.isActive : true);
           
-          const ordersRes = await apiClient.get('/orders/my-orders');
+          const [ordersRes, statsRes] = await Promise.all([
+            apiClient.get('/orders/my-orders'),
+            apiClient.get('/orders/seller/stats')
+          ]);
+
           if (ordersRes.data.success) {
-            const fetchedOrders = ordersRes.data.orders.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const fetchedOrders = (ordersRes.data.orders || []).sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
             setOrders(fetchedOrders);
-            
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            const todaysOrders = fetchedOrders.filter((order: any) => {
-              const orderDate = new Date(order.createdAt);
-              return orderDate >= today;
-            });
-            
-            setTodayOrdersCount(todaysOrders.length);
-            setTodayRevenue(todaysOrders.reduce((sum: number, order: any) => sum + (order.totalAmount || 0), 0));
+          }
+
+          if (statsRes.data.success) {
+            setTodayRevenue(statsRes.data.todayRevenue || 0);
+            setTodayOrdersCount(statsRes.data.todayOrdersCount || 0);
           }
         }
       } catch (error) {
@@ -100,8 +98,6 @@ export default function SellerDashboardPage() {
      const mins = diffMins % 60;
      return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
   };
-
-  const preparingOrdersCount = orders.filter(o => o.status === 'preparing').length;
 
   if (authLoading || isDataLoading) {
     return <div className="p-8 text-center text-slate-500">Loading Dashboard...</div>;

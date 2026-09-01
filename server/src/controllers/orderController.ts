@@ -888,6 +888,58 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
     }
 };
 
+// Get aggregated dashboard & finance stats for the authenticated seller's restaurant
+export const getSellerDashboardStats = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const restaurant = await Restaurant.findOne({ owner: req.user?._id });
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: "No restaurant found for this seller" });
+            return;
+        }
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const [overall, todayStats] = await Promise.all([
+            Order.aggregate([
+                { $match: { restaurant: restaurant._id } },
+                { $group: {
+                    _id: null,
+                    totalRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$totalAmount", 0] } },
+                    completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, 1, 0] } },
+                    preparingOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "preparing"] }, 1, 0] } },
+                    cancelledOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] } },
+                    totalOrders: { $sum: 1 }
+                }}
+            ]),
+            Order.aggregate([
+                { $match: { restaurant: restaurant._id, createdAt: { $gte: today } } },
+                { $group: {
+                    _id: null,
+                    todayRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$totalAmount", 0] } },
+                    todayOrdersCount: { $sum: 1 }
+                }}
+            ])
+        ]);
+
+        const o = overall[0] || { totalRevenue: 0, completedOrders: 0, preparingOrders: 0, cancelledOrders: 0, totalOrders: 0 };
+        const t = todayStats[0] || { todayRevenue: 0, todayOrdersCount: 0 };
+
+        res.status(200).json({
+            success: true,
+            totalRevenue: o.totalRevenue,
+            completedOrdersCount: o.completedOrders,
+            preparingOrdersCount: o.preparingOrders,
+            cancelledOrdersCount: o.cancelledOrders,
+            totalOrdersCount: o.totalOrders,
+            averageOrderValue: o.completedOrders > 0 ? Math.round(o.totalRevenue / o.completedOrders) : 0,
+            todayRevenue: t.todayRevenue,
+            todayOrdersCount: t.todayOrdersCount,
+        });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 // Get all grocery orders (Grocery Moderator Dashboard)
 export const getGroceryOrders = async (req: Request, res: Response): Promise<void> => {
     try {

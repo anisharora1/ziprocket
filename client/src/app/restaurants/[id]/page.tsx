@@ -8,6 +8,7 @@ import { apiClient } from "@/services/api";
 import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
+import { useSocket } from "@/context/SocketContext";
 import {
   MdArrowBack,
   MdFavoriteBorder,
@@ -25,10 +26,31 @@ export default function RestaurantMenuPage() {
   const router = useRouter();
   const { addToCart } = useCart();
   const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage } = usePlatform();
+  const { socket } = useSocket();
   
   const [restaurant, setRestaurant] = useState<any>(null);
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleStatusUpdate = (data: { restaurantId: string; availabilityStatus: string; isActive: boolean }) => {
+      if (data.restaurantId === id) {
+        setRestaurant((prev: any) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            availabilityStatus: data.availabilityStatus,
+            isActive: data.isActive,
+          };
+        });
+      }
+    };
+    socket.on("restaurant_status_updated", handleStatusUpdate);
+    return () => {
+      socket.off("restaurant_status_updated", handleStatusUpdate);
+    };
+  }, [socket, id]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -163,13 +185,13 @@ export default function RestaurantMenuPage() {
               <span className={`text-[11px] font-bold leading-none ${
                 settings?.maintenanceMode
                   ? 'text-rose-600'
-                  : restaurant.availabilityStatus === "open"
+                  : (restaurant.isActive !== false && restaurant.availabilityStatus === "open")
                   ? 'text-emerald-600'
                   : 'text-red-500'
               }`}>
                 {settings?.maintenanceMode
                   ? 'MAINTENANCE'
-                  : restaurant.availabilityStatus === "open"
+                  : (restaurant.isActive !== false && restaurant.availabilityStatus === "open")
                   ? 'OPEN'
                   : restaurant.availabilityStatus === "disabled"
                   ? 'DISABLED'
@@ -187,7 +209,7 @@ export default function RestaurantMenuPage() {
       {/* Platform / Restaurant Status Warning Banner */}
       {(() => {
         const platformMsg = getPlatformStatusMessage();
-        const isRestaurantOpen = restaurant && restaurant.availabilityStatus === "open";
+        const isRestaurantOpen = restaurant && restaurant.isActive !== false && restaurant.availabilityStatus === "open";
         const isOrderingDisabled = !!platformMsg || !isRestaurantOpen;
 
         if (!isOrderingDisabled) return null;
@@ -318,9 +340,9 @@ export default function RestaurantMenuPage() {
                               orderType: 'food'
                             });
                           }}
-                          disabled={!item.isAvailable || !!getPlatformStatusMessage() || restaurant.availabilityStatus !== "open"}
+                          disabled={!item.isAvailable || !!getPlatformStatusMessage() || !restaurant || restaurant.isActive === false || restaurant.availabilityStatus !== "open"}
                           className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-md transition-transform active:scale-90 ${
-                            (!item.isAvailable || !!getPlatformStatusMessage() || restaurant.availabilityStatus !== "open") 
+                            (!item.isAvailable || !!getPlatformStatusMessage() || !restaurant || restaurant.isActive === false || restaurant.availabilityStatus !== "open") 
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' 
                               : 'bg-[#a73a00] text-white hover:bg-[#8e3100]'
                           }`}

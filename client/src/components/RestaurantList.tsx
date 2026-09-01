@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { apiClient } from "@/services/api";
 import { useLocation } from "@/context/LocationContext";
+import { useSocket } from "@/context/SocketContext";
 import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
 import RestaurantCardCarousel from "./RestaurantCardCarousel";
@@ -56,7 +57,7 @@ function getInitialZoneId(): string | null {
   return null;
 }
 
-function StatusBadge({ isMaintenance, status = "open" }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled" }) {
+function StatusBadge({ isMaintenance, status = "open", isActive = true }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled"; isActive?: boolean }) {
   if (isMaintenance) {
     return (
       <div className="absolute top-3 left-3 z-20 pointer-events-none bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
@@ -64,7 +65,7 @@ function StatusBadge({ isMaintenance, status = "open" }: { isMaintenance?: boole
       </div>
     );
   }
-  if (status === "open") {
+  if (isActive && status === "open") {
     return (
       <div className="absolute top-3 left-3 z-20 pointer-events-none bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
         OPEN NOW
@@ -81,6 +82,7 @@ function StatusBadge({ isMaintenance, status = "open" }: { isMaintenance?: boole
 export default function RestaurantList() {
   const { zoneId, zoneName, error: feasibilityError } = useLocation();
   const { settings, getPlatformStatusMessage } = usePlatform();
+  const { socket } = useSocket();
 
   // Memoize to avoid synchronous localStorage I/O + JSON.parse on every render
   const activeZoneId = useMemo(() => zoneId || getInitialZoneId(), [zoneId]);
@@ -88,6 +90,23 @@ export default function RestaurantList() {
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!socket) return;
+    const handleStatusUpdate = (data: { restaurantId: string; availabilityStatus: string; isActive: boolean }) => {
+      setRestaurants((prev) =>
+        prev.map((r) =>
+          r._id === data.restaurantId
+            ? { ...r, availabilityStatus: data.availabilityStatus as any, isActive: data.isActive }
+            : r
+        )
+      );
+    };
+    socket.on("restaurant_status_updated", handleStatusUpdate);
+    return () => {
+      socket.off("restaurant_status_updated", handleStatusUpdate);
+    };
+  }, [socket]);
 
   useEffect(() => {
     let isMounted = true;
@@ -204,6 +223,7 @@ export default function RestaurantList() {
                 <StatusBadge 
                   isMaintenance={settings?.maintenanceMode} 
                   status={restaurant.availabilityStatus || "open"} 
+                  isActive={restaurant.isActive}
                 />
               </div>
               

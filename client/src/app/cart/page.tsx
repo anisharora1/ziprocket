@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
+import { useSocket } from "@/context/SocketContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import {
   MdArrowBack,
@@ -26,10 +27,28 @@ export default function CartPage() {
     const { cart, updateQuantity, clearCart, addToCart } = useCart();
     const router = useRouter();
     const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage, isGroceryCurrentlyOpen, getGroceryStatusMessage } = usePlatform();
+    const { socket } = useSocket();
     
     const [recommendations, setRecommendations] = useState<any[]>([]);
     const [loadingRecs, setLoadingRecs] = useState(false);
     const [vendorAvailability, setVendorAvailability] = useState<string>("open");
+
+    useEffect(() => {
+        if (!socket) return;
+        const handleStatusUpdate = (data: { restaurantId: string; availabilityStatus: string; isActive: boolean }) => {
+            if (cart.orderType === 'food' && cart.vendorId === data.restaurantId) {
+                if (data.isActive === false || data.availabilityStatus === "closed" || data.availabilityStatus === "disabled") {
+                    setVendorAvailability(data.availabilityStatus || "closed");
+                } else {
+                    setVendorAvailability(data.availabilityStatus || "open");
+                }
+            }
+        };
+        socket.on("restaurant_status_updated", handleStatusUpdate);
+        return () => {
+            socket.off("restaurant_status_updated", handleStatusUpdate);
+        };
+    }, [socket, cart.vendorId, cart.orderType]);
 
     useEffect(() => {
         const fetchVendorStatus = async () => {
@@ -37,7 +56,12 @@ export default function CartPage() {
                 try {
                     const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
                     if (res.data.success && res.data.restaurant) {
-                        setVendorAvailability(res.data.restaurant.availabilityStatus || "open");
+                        const rest = res.data.restaurant;
+                        if (rest.isActive === false || rest.availabilityStatus === "closed" || rest.availabilityStatus === "disabled") {
+                            setVendorAvailability(rest.availabilityStatus || "closed");
+                        } else {
+                            setVendorAvailability(rest.availabilityStatus || "open");
+                        }
                     }
                 } catch (err) {
                     console.error("Failed to check restaurant status in cart:", err);

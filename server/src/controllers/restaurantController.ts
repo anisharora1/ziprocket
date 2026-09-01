@@ -4,6 +4,7 @@ import Restaurant from "../models/Restaurant";
 import MenuItem from "../models/MenuItem";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
+import { emitToRooms } from "../services/socketService";
 
 // Helper to safely delete from Cloudinary without crashing the request pipeline
 async function safeDeleteCloudinary(publicId?: string): Promise<void> {
@@ -270,6 +271,14 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
         if (restaurant) {
             // Invalidate cache
             await restaurantCacheService.invalidateRestaurantCache(restaurant._id.toString());
+
+            if (updateFields.availabilityStatus !== undefined || updateFields.isActive !== undefined) {
+                emitToRooms("customers", "restaurant_status_updated", {
+                    restaurantId: restaurant._id.toString(),
+                    availabilityStatus: restaurant.availabilityStatus,
+                    isActive: restaurant.isActive,
+                });
+            }
         }
 
         res.status(200).json({
@@ -305,6 +314,12 @@ export const updateRestaurantStatus = async (req: Request, res: Response): Promi
 
         // Invalidate cache
         await restaurantCacheService.invalidateRestaurantCache(restaurant._id.toString());
+
+        emitToRooms("customers", "restaurant_status_updated", {
+            restaurantId: restaurant._id.toString(),
+            availabilityStatus: restaurant.availabilityStatus,
+            isActive: restaurant.isActive,
+        });
 
         res.status(200).json({
             success: true,
