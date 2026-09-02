@@ -292,19 +292,50 @@ export default function RestaurantMenuPage() {
               <div className="space-y-5">
                 {(groupedItems[category] || []).map((item: any) => (
                   <div key={item._id} className={`bg-white rounded-2xl overflow-hidden shadow-[0_4px_12px_rgba(0,0,0,0.04)] border border-slate-100 ${!item.isAvailable ? 'opacity-70' : ''}`}>
-                    <div className="h-48 w-full relative bg-slate-100">
-                      <OptimizedImage 
-                        className={`w-full h-full object-cover ${!item.isAvailable ? 'grayscale' : ''}`}
-                        src={(item.images && item.images[0]) || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800"} 
-                        alt={item.name}
-                        preset="card"
-                        onError={(e) => {
-                          const target = e.target as HTMLImageElement;
-                          target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
-                        }}
-                      />
+                    <div className="h-48 w-full relative bg-slate-100 group/gallery overflow-hidden">
+                      {item.images && item.images.length > 1 ? (
+                        <div className="w-full h-full overflow-x-auto snap-x snap-mandatory flex no-scrollbar scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden select-none">
+                          {item.images.map((imgUrl: string, idx: number) => (
+                            <div key={idx} className="snap-center shrink-0 w-full h-full relative">
+                              <OptimizedImage 
+                                className={`w-full h-full object-cover ${!item.isAvailable ? 'grayscale' : ''}`}
+                                src={imgUrl} 
+                                alt={`${item.name} - ${idx + 1}`}
+                                preset="card"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <OptimizedImage 
+                          className={`w-full h-full object-cover ${!item.isAvailable ? 'grayscale' : ''}`}
+                          src={(item.images && item.images[0]) || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800"} 
+                          alt={item.name}
+                          preset="card"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800";
+                          }}
+                        />
+                      )}
+
+                      {item.images && item.images.length > 1 && (
+                        <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10 py-0.5 px-2 rounded-full bg-black/50 backdrop-blur-xs pointer-events-none">
+                          <span className="text-[9px] font-bold text-white tracking-wide">{item.images.length} photos</span>
+                        </div>
+                      )}
+
+                      {item.isFeatured && (
+                        <div className="absolute top-3 left-3 bg-amber-500/95 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm text-white text-[10px] font-bold flex items-center gap-1 z-10">
+                          🔥 Bestseller
+                        </div>
+                      )}
                       {!item.isAvailable && (
-                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-10">
                           <span className="bg-white/90 backdrop-blur-sm px-3 py-1 rounded-full text-xs font-bold text-slate-800 uppercase tracking-widest shadow-sm">
                             Currently Unavailable
                           </span>
@@ -313,25 +344,57 @@ export default function RestaurantMenuPage() {
                     </div>
                     <div className="p-4">
                       <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <div className={`shrink-0 w-4 h-4 flex items-center justify-center border ${item.isVeg ? 'border-green-600' : 'border-red-600'} bg-white rounded-sm`}>
                             <div className={`w-2 h-2 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`}></div>
                           </div>
                           <h3 className="font-bold text-[16px] text-slate-900 leading-tight">{item.name}</h3>
+                          {item.isFeatured && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md flex items-center gap-0.5 shrink-0">
+                              🔥 Bestseller
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <p className="text-[12px] text-slate-500 leading-relaxed mb-4 line-clamp-2">
+                      <p className="text-[12px] text-slate-500 leading-relaxed mb-2.5 line-clamp-2">
                         {item.description || "Delicious food prepared fresh."}
                       </p>
+
+                      {/* Spice level and Prep time chips */}
+                      <div className="flex items-center gap-2 mb-3.5 flex-wrap">
+                        <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          ⏱️ ~{item.prepTimeMinutes || 15} min
+                        </span>
+                        {item.spiceLevel && item.spiceLevel !== "none" && (
+                          <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                            item.spiceLevel === "hot" 
+                              ? "bg-red-50 text-red-700 border border-red-200" 
+                              : item.spiceLevel === "medium" 
+                              ? "bg-orange-50 text-orange-700 border border-orange-200" 
+                              : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}>
+                            {item.spiceLevel === "hot" ? "🌶️🌶️🌶️ Hot" : item.spiceLevel === "medium" ? "🌶️🌶️ Medium" : "🌶️ Mild"}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex justify-between items-center mt-auto">
-                        <span className="font-bold text-[#a73a00] text-[16px]">₹{item.price}</span>
+                        <div className="flex items-baseline gap-1.5">
+                          {item.discountedPrice && Number(item.discountedPrice) > 0 ? (
+                            <>
+                              <span className="font-bold text-[#a73a00] text-[16px]">₹{item.discountedPrice}</span>
+                              <span className="line-through text-slate-400 text-[12px]">₹{item.price}</span>
+                            </>
+                          ) : (
+                            <span className="font-bold text-[#a73a00] text-[16px]">₹{item.price}</span>
+                          )}
+                        </div>
                         <button 
                           onClick={() => {
                             addToCart({
                               item: {
                                 id: `food-${item._id}`,
                                 name: item.name,
-                                price: item.price,
+                                price: item.discountedPrice && Number(item.discountedPrice) > 0 ? item.discountedPrice : item.price,
                                 quantity: 1,
                                 img: (item.images && item.images[0]) || ""
                               },

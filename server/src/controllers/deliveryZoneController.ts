@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import DeliveryZone from "../models/DeliveryZone";
 import Restaurant from "../models/Restaurant";
+import MenuItem from "../models/MenuItem";
 import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
 import { findApplicableZone } from "../services/deliveryRadiusService";
@@ -191,7 +192,7 @@ export const deleteDeliveryZone = async (req: Request, res: Response): Promise<v
 // Endpoint to check if user is within radius and calculate dynamic delivery fee
 export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { userLat, userLng, pincode, addressText, orderType = "food" } = req.body;
+        const { userLat, userLng, pincode, addressText, orderType = "food", items } = req.body;
 
         if (!userLat || !userLng) {
             res.status(400).json({ success: false, message: "Please provide user latitude and longitude" });
@@ -200,7 +201,7 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
 
         const feasibilityKey = `zone:feasibility:${orderType}:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
         const cachedFeasibility = await redisService.getJson<any>(feasibilityKey);
-        if (cachedFeasibility) {
+        if (cachedFeasibility && (!items || items.length === 0)) {
             console.log(`[Feasibility Cache] Hit for key: ${feasibilityKey}`);
             res.status(200).json(cachedFeasibility);
             return;
@@ -245,20 +246,29 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
         let deliveryFee = Math.min(applicableZone.maxDeliveryFee, Math.max(applicableZone.minDeliveryFee, totalDeliveryFee));
         deliveryFee = Math.ceil(deliveryFee);
 
-        const prepBuffer = orderType === 'grocery' ? 5 : 10;
+        let prepBuffer = orderType === "grocery" ? 5 : 15; // existing default, unchanged fallback
+        if (orderType === "food" && items?.length) {
+            const menuItemIds = items.map((i: any) => i.menuItem || i._id || (typeof i.id === "string" ? i.id.replace("food-", "") : undefined)).filter(Boolean);
+            const menuItemDocs = await MenuItem.find({ _id: { $in: menuItemIds } }, { prepTimeMinutes: 1 });
+            if (menuItemDocs.length) {
+                prepBuffer = Math.max(...menuItemDocs.map((m: any) => m.prepTimeMinutes || 15));
+            }
+        }
 
         const responsePayload = {
             success: true,
             isDeliverable: true,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
-            durationMinutes: durationMinutes + prepBuffer, // Fulfillment Buffer (5 mins for grocery, 10 mins for food)
+            durationMinutes: durationMinutes + prepBuffer, // Fulfillment Buffer (item-aware prep time or grocery packing)
             deliveryFee,
             zoneName: applicableZone.name,
             zoneId: applicableZone._id
         };
 
-        // Cache the feasibility calculation for 10 minutes
-        await redisService.setJson(feasibilityKey, responsePayload, 600);
+        // Cache the feasibility calculation for 10 minutes when no custom items passed
+        if (!items || items.length === 0) {
+            await redisService.setJson(feasibilityKey, responsePayload, 600);
+        }
 
         res.status(200).json(responsePayload);
 
@@ -356,7 +366,14 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         // Apply coupon discount to the shared bill's grand total
         const grandTotal = Math.max(0, bill.grandTotal - discountAmount);
 
-        const prepBuffer = orderType === 'grocery' ? 5 : 15;
+        let prepBuffer = orderType === "grocery" ? 5 : 15; // existing default, unchanged fallback
+        if (orderType === "food" && items?.length) {
+            const menuItemIds = items.map((i: any) => i.menuItem || i._id || (typeof i.id === "string" ? i.id.replace("food-", "") : undefined)).filter(Boolean);
+            const menuItemDocs = await MenuItem.find({ _id: { $in: menuItemIds } }, { prepTimeMinutes: 1 });
+            if (menuItemDocs.length) {
+                prepBuffer = Math.max(...menuItemDocs.map((m: any) => m.prepTimeMinutes || 15));
+            }
+        }
 
         res.status(200).json({
             success: true,

@@ -10,6 +10,7 @@ import { getRouteDistanceAndDuration } from "../utils/googleMaps";
 import { validateCoupon } from "./couponController";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
+import * as restaurantCacheService from "../services/restaurantCacheService";
 import PlatformSettings from "../models/PlatformSettings";
 import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
@@ -216,6 +217,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             let product: any;
             if (orderType === "food") {
                 product = await MenuItem.findById(item.menuItem);
+                if (product && product.restaurant?.toString() !== restaurant?.toString()) {
+                    res.status(400).json({
+                        success: false,
+                        message: `"${product.name}" doesn't belong to this restaurant. Please clear your cart and try again.`
+                    });
+                    return;
+                }
             } else {
                 product = productMap.get(item.groceryItem?.toString()); // already fetched above for stock check
             }
@@ -223,7 +231,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 res.status(404).json({ success: false, message: "One or more items in your cart are no longer available." });
                 return;
             }
-            const realPrice = product.price;
+            const realPrice = (product.discountedPrice !== undefined && Number(product.discountedPrice) > 0) ? product.discountedPrice : product.price;
             verifiedItemTotal += realPrice * item.quantity;
             verifiedItems.push({ ...item, price: realPrice }); // overwrite client-submitted price
         }
@@ -1115,6 +1123,58 @@ export const getGroceryZoneUsers = async (req: Request, res: Response): Promise<
             count: users.length,
             users
         });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Rate a completed food order
+export const rateOrder = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { id } = req.params;
+        const { rating } = req.body;
+        const userId = req.user?._id;
+
+        if (!rating || Number(rating) < 1 || Number(rating) > 5) {
+            res.status(400).json({ success: false, message: "Rating must be between 1 and 5." });
+            return;
+        }
+
+        const order = await Order.findById(id);
+        if (!order) {
+            res.status(404).json({ success: false, message: "Order not found." });
+            return;
+        }
+        if (order.user.toString() !== userId?.toString()) {
+            res.status(403).json({ success: false, message: "Not authorized to rate this order." });
+            return;
+        }
+        if (order.orderStatus !== "delivered") {
+            res.status(400).json({ success: false, message: "Only delivered orders can be rated." });
+            return;
+        }
+        if (order.orderType !== "food" || !order.restaurant) {
+            res.status(400).json({ success: false, message: "Only restaurant orders can be rated." });
+            return;
+        }
+        if (order.rating) {
+            res.status(400).json({ success: false, message: "You've already rated this order." });
+            return;
+        }
+
+        order.rating = Number(rating);
+        await order.save();
+
+        // Recompute the restaurant's live average rating
+        const agg = await Order.aggregate([
+            { $match: { restaurant: order.restaurant, rating: { $exists: true } } },
+            { $group: { _id: null, avgRating: { $avg: "$rating" } } }
+        ]);
+        const newAvg = agg[0]?.avgRating || 0;
+        await Restaurant.findByIdAndUpdate(order.restaurant, { rating: Math.round(newAvg * 10) / 10 });
+        await restaurantCacheService.invalidateRestaurantCache(order.restaurant.toString());
+
+        res.status(200).json({ success: true, message: "Thanks for rating your order!", rating: order.rating });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }

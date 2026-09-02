@@ -270,14 +270,26 @@ export default function SearchBar() {
                             <span className="text-[13px] font-bold text-slate-800 group-hover:text-[#FF5C00] transition-colors leading-tight">
                               {item.name}
                             </span>
+                            {item.isFeatured && (
+                              <span className="text-[9px] bg-amber-100 text-amber-800 font-bold px-1 rounded">
+                                🔥
+                              </span>
+                            )}
                           </div>
                           <span className="text-[10px] text-slate-400 font-medium mt-0.5 pl-4.5 leading-none">
                             from {item.restaurant?.name || "Local Kitchen"}
                           </span>
                         </div>
-                        <span className="text-[12px] font-black text-slate-700 shrink-0 pl-2">
-                          ₹{item.price}
-                        </span>
+                        <div className="flex items-baseline gap-1 shrink-0 pl-2">
+                          {item.discountedPrice && Number(item.discountedPrice) > 0 ? (
+                            <>
+                              <span className="text-[12px] font-black text-slate-700">₹{item.discountedPrice}</span>
+                              <span className="text-[10px] font-semibold text-slate-400 line-through">₹{item.price}</span>
+                            </>
+                          ) : (
+                            <span className="text-[12px] font-black text-slate-700">₹{item.price}</span>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>

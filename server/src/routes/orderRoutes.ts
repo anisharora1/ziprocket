@@ -11,7 +11,8 @@ import {
     getSellerDashboardStats,
     getGroceryOrders,
     getGroceryZoneUsers,
-    cancelOrder
+    cancelOrder,
+    rateOrder
 } from "../controllers/orderController";
 import { protect, authorize } from "../middlewares/authMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
@@ -39,5 +40,6 @@ router.get("/restaurant/:restaurantId", protect, authorize("seller", "admin"), v
 router.patch("/:id/status", protect, authorize("seller", "admin", "delivery", "grocery_moderator"), validateObjectId(["id"]), updateOrderStatus);
 router.patch("/:id/payment", protect, authorize("admin"), validateObjectId(["id"]), updatePaymentStatus);
 router.patch("/:id/cancel", protect, validateObjectId(["id"]), cancelOrder);
+router.patch("/:id/rate", protect, validateObjectId(["id"]), rateOrder);
 
 export default router;

@@ -35,7 +35,7 @@ export const uploadArray = (fieldName: string, maxCount = 5, maxSize = 2 * 1024 
 };
 
 // Backwards compatibility for existing menu and grocery routes
-export const uploadMenuImages = uploadArray("images", 2, 2 * 1024 * 1024);
+export const uploadMenuImages = uploadArray("images", 4, 2 * 1024 * 1024);
 
 /**
  * Middleware for restaurant media uploads (Cover Image, Logo, and Gallery).

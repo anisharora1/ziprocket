@@ -97,7 +97,7 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
                         { $match: { $expr: { $and: [{ $eq: ["$restaurant", "$$restId"] }, { $eq: ["$isAvailable", true] }] } } },
                         { $sort: { price: -1 } },
                         { $limit: 5 },
-                        { $project: { name: 1, price: 1, images: 1 } }
+                        { $project: { name: 1, price: 1, discountedPrice: 1, isFeatured: 1, prepTimeMinutes: 1, spiceLevel: 1, images: 1 } }
                     ],
                     as: "popularItems"
                 }
@@ -121,13 +121,23 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
             }
         ]);
 
+        const normalizedRestaurants = restaurants.map((r: any) => ({
+            ...r,
+            popularItems: Array.isArray(r.popularItems)
+                ? r.popularItems.map((item: any) => ({
+                    ...item,
+                    images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+                }))
+                : []
+        }));
+
         // Cache lists in Redis
-        await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, restaurants);
+        await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, normalizedRestaurants);
 
         res.status(200).json({
             success: true,
-            count: restaurants.length,
-            restaurants
+            count: normalizedRestaurants.length,
+            restaurants: normalizedRestaurants
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -361,12 +371,23 @@ export const deleteRestaurant = async (req: Request, res: Response): Promise<voi
 // Add a menu item to a restaurant
 export const addMenuItem = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { name, description, price, category, isAvailable, isVeg } = req.body;
+        const { name, description, price, discountedPrice, isFeatured, prepTimeMinutes, spiceLevel, category, isAvailable, isVeg } = req.body;
         const restaurantId = req.params.restaurantId;
 
         const parsedPrice = Number(price);
         if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
             res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
+            return;
+        }
+
+        if (discountedPrice !== undefined && Number(discountedPrice) > 0 && Number(discountedPrice) >= Number(price)) {
+            res.status(400).json({ success: false, message: "Discounted price must be lower than the original price." });
+            return;
+        }
+
+        const parsedPrepTime = (prepTimeMinutes !== undefined && prepTimeMinutes !== "") ? Number(prepTimeMinutes) : 15;
+        if (isNaN(parsedPrepTime) || parsedPrepTime < 1) {
+            res.status(400).json({ success: false, message: "Prep time must be at least 1 minute." });
             return;
         }
 
@@ -395,6 +416,10 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
             name,
             description,
             price: parsedPrice,
+            discountedPrice: (discountedPrice !== undefined && discountedPrice !== "" && discountedPrice !== null) ? Number(discountedPrice) : undefined,
+            isFeatured: isFeatured === 'true' || isFeatured === true,
+            prepTimeMinutes: parsedPrepTime,
+            spiceLevel: ["none", "mild", "medium", "hot"].includes(spiceLevel) ? spiceLevel : "none",
             category,
             images: imageUrls,
             isAvailable: isAvailable === 'true' || isAvailable === true,
@@ -432,14 +457,18 @@ export const getRestaurantMenuItems = async (req: Request, res: Response): Promi
         }
 
         const menuItems = await MenuItem.find({ restaurant: restaurantId }).lean();
+        const normalizedMenuItems = menuItems.map((item: any) => ({
+            ...item,
+            images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+        }));
 
         // Cache the menu list
-        await restaurantCacheService.cacheRestaurantMenu(restaurantId, menuItems);
+        await restaurantCacheService.cacheRestaurantMenu(restaurantId, normalizedMenuItems);
 
         res.status(200).json({
             success: true,
-            count: menuItems.length,
-            menuItems
+            count: normalizedMenuItems.length,
+            menuItems: normalizedMenuItems
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -449,7 +478,7 @@ export const getRestaurantMenuItems = async (req: Request, res: Response): Promi
 // Update a menu item
 export const updateMenuItem = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { name, description, price, category, isAvailable, isVeg } = req.body;
+        const { name, description, price, discountedPrice, isFeatured, prepTimeMinutes, spiceLevel, category, isAvailable, isVeg, removedImages } = req.body;
 
         const parsedPrice = Number(price);
         if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
@@ -469,31 +498,92 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        let imageUrls = menuItemToUpdate.images || [];
-        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-            if (menuItemToUpdate.images && menuItemToUpdate.images.length > 0) {
-                await Promise.all(
-                    (menuItemToUpdate.images as any[]).filter(img => img.publicId)
-                        .map(img => safeDeleteCloudinary(img.publicId))
-                );
+        const effectivePrice = price !== undefined ? parsedPrice : menuItemToUpdate.price;
+        if (discountedPrice !== undefined && Number(discountedPrice) > 0 && Number(discountedPrice) >= Number(effectivePrice)) {
+            res.status(400).json({ success: false, message: "Discounted price must be lower than the original price." });
+            return;
+        }
+
+        // Process removed images
+        let removedImagesList: string[] = [];
+        if (removedImages) {
+            if (Array.isArray(removedImages)) {
+                removedImagesList = removedImages;
+            } else if (typeof removedImages === "string") {
+                try {
+                    const parsed = JSON.parse(removedImages);
+                    if (Array.isArray(parsed)) removedImagesList = parsed;
+                    else removedImagesList = [removedImages];
+                } catch {
+                    removedImagesList = [removedImages];
+                }
             }
-            // Upload new images in parallel
-            imageUrls = await Promise.all(
+        }
+
+        let remainingImages = (menuItemToUpdate.images || []) as any[];
+        if (removedImagesList.length > 0) {
+            const imagesToDelete = remainingImages.filter(img => {
+                const urlMatch = img.url && removedImagesList.includes(img.url);
+                const publicIdMatch = img.publicId && removedImagesList.includes(img.publicId);
+                const stringMatch = typeof img === "string" && removedImagesList.includes(img);
+                return urlMatch || publicIdMatch || stringMatch;
+            });
+
+            await Promise.all(
+                imagesToDelete.filter(img => img.publicId).map(img => safeDeleteCloudinary(img.publicId))
+            );
+
+            remainingImages = remainingImages.filter(img => !imagesToDelete.includes(img));
+        }
+
+        // Upload newly attached images
+        let newlyUploadedImages: any[] = [];
+        if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+            newlyUploadedImages = await Promise.all(
                 (req.files as Express.Multer.File[]).map(file => uploadToCloudinary(file.buffer, "products"))
             );
         }
 
+        const finalImages = [...remainingImages, ...newlyUploadedImages];
+
+        const updateFields: any = { 
+            name, 
+            description, 
+            price: price !== undefined ? parsedPrice : undefined, 
+            category, 
+            images: finalImages, 
+            isAvailable: isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : undefined,
+            isVeg: isVeg !== undefined ? (isVeg === 'true' || isVeg === true) : undefined
+        };
+
+        if (discountedPrice !== undefined) {
+            if (discountedPrice === "" || discountedPrice === null) {
+                updateFields.discountedPrice = null;
+            } else {
+                updateFields.discountedPrice = Number(discountedPrice);
+            }
+        }
+
+        if (isFeatured !== undefined) {
+            updateFields.isFeatured = isFeatured === 'true' || isFeatured === true;
+        }
+
+        if (prepTimeMinutes !== undefined && prepTimeMinutes !== "") {
+            const parsedPrepTime = Number(prepTimeMinutes);
+            if (isNaN(parsedPrepTime) || parsedPrepTime < 1) {
+                res.status(400).json({ success: false, message: "Prep time must be at least 1 minute." });
+                return;
+            }
+            updateFields.prepTimeMinutes = parsedPrepTime;
+        }
+
+        if (spiceLevel !== undefined) {
+            updateFields.spiceLevel = ["none", "mild", "medium", "hot"].includes(spiceLevel) ? spiceLevel : "none";
+        }
+
         const updatedMenuItem = await MenuItem.findByIdAndUpdate(
             req.params.menuItemId,
-            { 
-                name, 
-                description, 
-                price: price !== undefined ? parsedPrice : undefined, 
-                category, 
-                images: imageUrls, 
-                isAvailable: isAvailable !== undefined ? (isAvailable === 'true' || isAvailable === true) : undefined,
-                isVeg: isVeg !== undefined ? (isVeg === 'true' || isVeg === true) : undefined
-            },
+            updateFields,
             { new: true, runValidators: true }
         );
 

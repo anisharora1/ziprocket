@@ -6,6 +6,10 @@ import OptimizedImage from "./OptimizedImage";
 export interface CarouselItem {
   name: string;
   price: number;
+  discountedPrice?: number;
+  isFeatured?: boolean;
+  prepTimeMinutes?: number;
+  spiceLevel?: string;
   images?: any[];
 }
 
@@ -132,12 +136,26 @@ export default function RestaurantCardCarousel({
             />
 
             {/* Top-left item name + price overlay badge */}
-            <div className="absolute top-10 left-3 max-w-[65%] bg-black/65 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-sm z-10 pointer-events-none">
-              <p className="text-[11px] font-bold text-white truncate leading-tight">
-                {item.name}
-              </p>
-              <p className="text-[10px] font-extrabold text-amber-300 leading-tight mt-0.5">
-                ₹{item.price}
+            <div className="absolute top-10 left-3 max-w-[70%] bg-black/65 backdrop-blur-md px-2 py-1 rounded-lg border border-white/10 shadow-sm z-10 pointer-events-none">
+              <div className="flex items-center gap-1">
+                <p className="text-[11px] font-bold text-white truncate leading-tight">
+                  {item.name}
+                </p>
+                {item.isFeatured && (
+                  <span className="text-[9px] bg-amber-500 text-white font-black px-1 rounded shrink-0">
+                    🔥
+                  </span>
+                )}
+              </div>
+              <p className="text-[10px] font-extrabold text-amber-300 leading-tight mt-0.5 flex items-baseline gap-1">
+                {item.discountedPrice !== undefined && item.discountedPrice !== null && Number(item.discountedPrice) > 0 ? (
+                  <>
+                    <span>₹{item.discountedPrice}</span>
+                    <span className="line-through text-white/60 text-[9px]">₹{item.price}</span>
+                  </>
+                ) : (
+                  <span>₹{item.price}</span>
+                )}
               </p>
             </div>
           </div>

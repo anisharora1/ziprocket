@@ -12,6 +12,10 @@ export interface IMenuItem extends BaseDocument {
     name: string;
     description: string;
     price: number;
+    discountedPrice?: number;
+    isFeatured?: boolean;
+    prepTimeMinutes?: number;
+    spiceLevel?: "none" | "mild" | "medium" | "hot";
     category: string;
     images?: IMenuItemImage[];
     isAvailable: boolean;
@@ -26,6 +30,14 @@ const menuItemSchema = new Schema<IMenuItem>({
     description: { type: String, required: true },
 
     price: { type: Number, required: true, min: [0, "Price cannot be negative"] },
+
+    discountedPrice: { type: Number, min: [0, "Cannot be negative"] },
+
+    isFeatured: { type: Boolean, default: false },
+
+    prepTimeMinutes: { type: Number, min: [1, "Must be at least 1 minute"], default: 15 },
+
+    spiceLevel: { type: String, enum: ["none", "mild", "medium", "hot"], default: "none" },
 
     category: String,
 

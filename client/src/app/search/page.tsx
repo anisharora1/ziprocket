@@ -86,7 +86,7 @@ function SearchResultsContent() {
       item: {
         id: `food-${item._id}`,
         name: item.name,
-        price: item.price,
+        price: item.discountedPrice && Number(item.discountedPrice) > 0 ? item.discountedPrice : item.price,
         quantity: 1,
         img: (item.images && item.images[0]) || ""
       },
@@ -248,13 +248,27 @@ function SearchResultsContent() {
                                 ●
                               </span>
                               <h3 className="text-[13.5px] font-extrabold text-slate-800 truncate leading-snug">{item.name}</h3>
+                              {item.isFeatured && (
+                                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-bold rounded flex items-center gap-0.5 shrink-0">
+                                  🔥 Bestseller
+                                </span>
+                              )}
                             </div>
                             <p className="text-[11px] text-slate-400 mt-1 truncate">
                               from <Link href={`/restaurants/${restId}`} className="text-[#FF5C00] font-bold hover:underline">{restName}</Link>
                             </p>
                           </div>
                           <div className="flex items-center gap-4 shrink-0">
-                            <span className="text-[13.5px] font-black text-slate-800">₹{item.price}</span>
+                            <div className="flex items-baseline gap-1">
+                              {item.discountedPrice && Number(item.discountedPrice) > 0 ? (
+                                <>
+                                  <span className="text-[13.5px] font-black text-slate-800">₹{item.discountedPrice}</span>
+                                  <span className="text-[11px] font-semibold text-slate-400 line-through">₹{item.price}</span>
+                                </>
+                              ) : (
+                                <span className="text-[13.5px] font-black text-slate-800">₹{item.price}</span>
+                              )}
+                            </div>
                             
                             {isFoodInCart(item._id) ? (
                               <div className="flex items-center bg-[#FF5C00] text-white rounded-xl overflow-hidden text-xs font-black shadow-sm h-8">

@@ -59,6 +59,7 @@ export interface IOrder extends BaseDocument {
     discountAmount?: number;
     razorpayOrderId?: string;
     deliveryOtp?: string;
+    rating?: number; // 1-5, set once by the customer after delivery
 }
 
 const orderSchema = new Schema<IOrder>({
@@ -138,7 +139,8 @@ const orderSchema = new Schema<IOrder>({
     couponCode: { type: String, default: null },
     discountAmount: { type: Number, default: 0 },
     razorpayOrderId: { type: String, default: null },
-    deliveryOtp: { type: String, select: true }
+    deliveryOtp: { type: String, select: true },
+    rating: { type: Number, min: 1, max: 5 }
 
 }, { timestamps: true });
 

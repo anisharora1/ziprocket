@@ -11,6 +11,10 @@ interface MenuItem {
   name: string;
   description: string;
   price: number;
+  discountedPrice?: number;
+  isFeatured?: boolean;
+  prepTimeMinutes?: number;
+  spiceLevel?: "none" | "mild" | "medium" | "hot";
   category: string;
   images: string[];
   isAvailable: boolean;
@@ -31,10 +35,16 @@ export default function SellerMenuPage() {
     name: "",
     description: "",
     price: "",
+    discountedPrice: "",
+    prepTimeMinutes: "15",
+    spiceLevel: "none",
     category: "Mains",
     isAvailable: true,
     isVeg: false,
+    isFeatured: false,
   });
+  const [existingImages, setExistingImages] = useState<string[]>([]);
+  const [removedImages, setRemovedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
@@ -85,7 +95,8 @@ export default function SellerMenuPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const filesArray = Array.from(e.target.files).slice(0, 2); // Max 2 files
+      const maxAllowed = Math.max(0, 4 - existingImages.length);
+      const filesArray = Array.from(e.target.files).slice(0, maxAllowed);
       setImageFiles(filesArray);
     }
   };
@@ -98,9 +109,16 @@ export default function SellerMenuPage() {
     form.append("name", formData.name);
     form.append("description", formData.description);
     form.append("price", formData.price);
+    form.append("discountedPrice", formData.discountedPrice);
+    form.append("isFeatured", String(formData.isFeatured));
+    form.append("prepTimeMinutes", formData.prepTimeMinutes || "15");
+    form.append("spiceLevel", formData.spiceLevel || "none");
     form.append("category", formData.category);
     form.append("isAvailable", String(formData.isAvailable));
     form.append("isVeg", String(formData.isVeg));
+    if (removedImages.length > 0) {
+      form.append("removedImages", JSON.stringify(removedImages));
+    }
 
     imageFiles.forEach((file) => {
       form.append("images", file);
@@ -171,11 +189,17 @@ export default function SellerMenuPage() {
       name: item.name,
       description: item.description,
       price: item.price.toString(),
+      discountedPrice: item.discountedPrice !== undefined && item.discountedPrice !== null ? item.discountedPrice.toString() : "",
+      prepTimeMinutes: (item.prepTimeMinutes || 15).toString(),
+      spiceLevel: item.spiceLevel || "none",
       category: item.category || "Mains",
       isAvailable: item.isAvailable,
       isVeg: item.isVeg || false,
+      isFeatured: item.isFeatured || false,
     });
     setEditingItemId(item._id);
+    setExistingImages(Array.isArray(item.images) ? item.images : []);
+    setRemovedImages([]);
     setImageFiles([]); // Reset files as we might not upload new ones
     setIsModalOpen(true);
   };
@@ -185,10 +209,16 @@ export default function SellerMenuPage() {
       name: "",
       description: "",
       price: "",
+      discountedPrice: "",
+      prepTimeMinutes: "15",
+      spiceLevel: "none",
       category: "Mains",
       isAvailable: true,
       isVeg: false,
+      isFeatured: false,
     });
+    setExistingImages([]);
+    setRemovedImages([]);
     setImageFiles([]);
     setEditingItemId(null);
   };
@@ -225,17 +255,47 @@ export default function SellerMenuPage() {
         
         {menuItems.map((item) => (
           <div key={item._id} className={`bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.04)] border border-slate-100 overflow-hidden flex flex-col group ${!item.isAvailable ? 'opacity-80' : ''}`}>
-            <div className={`h-48 relative overflow-hidden bg-slate-100 ${!item.isAvailable ? 'grayscale' : ''}`}>
+            <div className={`h-48 relative overflow-hidden bg-slate-100 group/gallery ${!item.isAvailable ? 'grayscale' : ''}`}>
               {item.images && item.images.length > 0 ? (
-                <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                item.images.length === 1 ? (
+                  <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                ) : (
+                  <div className="w-full h-full overflow-x-auto snap-x snap-mandatory flex no-scrollbar scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden select-none">
+                    {item.images.map((imgUrl, idx) => (
+                      <div key={idx} className="snap-center shrink-0 w-full h-full relative">
+                        <img src={imgUrl} alt={`${item.name} - image ${idx + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-400">No Image</div>
               )}
+
+              {item.images && item.images.length > 1 && (
+                <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1 z-10 py-0.5 px-2 rounded-full bg-black/50 backdrop-blur-xs pointer-events-none">
+                  <span className="text-[9px] font-bold text-white tracking-wide">{item.images.length} photos</span>
+                </div>
+              )}
               
-              <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-white/20">
-                <span className="text-[12px] font-bold text-emerald-700">₹{item.price}</span>
+              <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-white/20 flex items-center gap-1.5 z-10">
+                {item.discountedPrice !== undefined && item.discountedPrice !== null && Number(item.discountedPrice) > 0 ? (
+                  <>
+                    <span className="line-through text-slate-400 text-[11px]">₹{item.price}</span>
+                    <span className="text-emerald-700 font-bold text-[12px]">₹{item.discountedPrice}</span>
+                  </>
+                ) : (
+                  <span className="text-[12px] font-bold text-emerald-700">₹{item.price}</span>
+                )}
               </div>
-              <div className="absolute top-3 right-3 flex flex-col gap-2">
+
+              {item.isFeatured && (
+                <div className="absolute top-11 left-3 bg-amber-500/95 backdrop-blur-sm px-2 py-0.5 rounded-full shadow-sm text-white text-[10px] font-bold flex items-center gap-1 z-10">
+                  🔥 Bestseller
+                </div>
+              )}
+
+              <div className="absolute top-3 right-3 flex flex-col gap-2 z-10">
                 <button 
                   onClick={() => openEditModal(item)}
                   className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md text-slate-600 hover:text-emerald-600 transition-colors"
@@ -253,7 +313,7 @@ export default function SellerMenuPage() {
               </div>
               
               {!item.isAvailable && (
-                <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 bg-slate-900/40 flex items-center justify-center pointer-events-none z-10">
                   <span className="px-3 py-1.5 bg-white/20 backdrop-blur-md border border-white/30 text-white text-[11px] font-bold tracking-widest uppercase rounded">Unavailable</span>
                 </div>
               )}
@@ -261,11 +321,16 @@ export default function SellerMenuPage() {
             
             <div className="p-5 flex-1 flex flex-col">
               <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <div className={`w-3 h-3 flex items-center justify-center border ${item.isVeg ? 'border-green-600' : 'border-red-600'} bg-white rounded-sm`}>
                     <div className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? 'bg-green-600' : 'bg-red-600'}`}></div>
                   </div>
                   <p className="text-[10px] font-bold text-amber-600 tracking-widest uppercase">{item.category}</p>
+                  {item.isFeatured && (
+                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-bold rounded-md flex items-center gap-0.5">
+                      🔥 Bestseller
+                    </span>
+                  )}
                 </div>
                 <div className="flex flex-col items-end">
                   <div 
@@ -278,7 +343,25 @@ export default function SellerMenuPage() {
                 </div>
               </div>
               <h3 className="text-[16px] font-bold text-slate-900 mb-1">{item.name}</h3>
-              <p className="text-[12px] text-slate-500 leading-relaxed mb-4">{item.description}</p>
+              <p className="text-[12px] text-slate-500 leading-relaxed mb-3 line-clamp-2">{item.description}</p>
+
+              {/* Spice level and Prep time chips */}
+              <div className="flex items-center gap-2 mb-2 flex-wrap mt-auto">
+                <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">
+                  ⏱️ ~{item.prepTimeMinutes || 15} min
+                </span>
+                {item.spiceLevel && item.spiceLevel !== "none" && (
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 ${
+                    item.spiceLevel === "hot" 
+                      ? "bg-red-50 text-red-700 border border-red-200" 
+                      : item.spiceLevel === "medium" 
+                      ? "bg-orange-50 text-orange-700 border border-orange-200" 
+                      : "bg-amber-50 text-amber-700 border border-amber-200"
+                  }`}>
+                    {item.spiceLevel === "hot" ? "🌶️🌶️🌶️ Hot" : item.spiceLevel === "medium" ? "🌶️🌶️ Medium" : "🌶️ Mild"}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
         ))}
@@ -312,9 +395,9 @@ export default function SellerMenuPage() {
           style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}
         >
           <div 
-            className="bg-white rounded-2xl w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col"
+            className="bg-white rounded-2xl w-full max-w-[540px] max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col"
             onClick={(e) => e.stopPropagation()}
-            style={{ width: '100%', maxWidth: '500px' }}
+            style={{ width: '100%', maxWidth: '540px' }}
           >
             <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
               <h2 className="text-xl font-bold text-slate-800">{editingItemId ? 'Edit Menu Item' : 'Add Menu Item'}</h2>
@@ -348,7 +431,7 @@ export default function SellerMenuPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Price (₹)</label>
                     <input 
@@ -359,16 +442,44 @@ export default function SellerMenuPage() {
                       name="price"
                       value={formData.price}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900" 
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm" 
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Discounted (₹)</label>
+                    <input 
+                      type="number" 
+                      step="0.01"
+                      min="0"
+                      name="discountedPrice"
+                      value={formData.discountedPrice}
+                      onChange={handleInputChange}
+                      placeholder="Optional"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Prep Time (mins)</label>
+                    <input 
+                      required
+                      type="number" 
+                      min="1"
+                      name="prepTimeMinutes"
+                      value={formData.prepTimeMinutes}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm" 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
                     <select 
                       name="category"
                       value={formData.category}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm"
                     >
                       <option value="Starters">Starters</option>
                       <option value="Mains">Mains</option>
@@ -379,23 +490,79 @@ export default function SellerMenuPage() {
                       <option value="Drinks">Drinks</option>
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Spice Level</label>
+                    <select 
+                      name="spiceLevel"
+                      value={formData.spiceLevel}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm"
+                    >
+                      <option value="none">None (Not Spicy)</option>
+                      <option value="mild">Mild 🌶️</option>
+                      <option value="medium">Medium 🌶️🌶️</option>
+                      <option value="hot">Hot 🌶️🌶️🌶️</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Upload Images (Max 2, 2MB each)</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Food Type</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setFormData(p => ({ ...p, isVeg: true }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border-2 text-sm font-bold ${formData.isVeg ? 'border-green-600 bg-green-50 text-green-700' : 'border-slate-200 text-slate-500'}`}>
+                      <span className="w-3 h-3 border border-green-600 flex items-center justify-center rounded-sm"><span className="w-1.5 h-1.5 rounded-full bg-green-600" /></span>
+                      Vegetarian
+                    </button>
+                    <button type="button" onClick={() => setFormData(p => ({ ...p, isVeg: false }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border-2 text-sm font-bold ${!formData.isVeg ? 'border-red-600 bg-red-50 text-red-700' : 'border-slate-200 text-slate-500'}`}>
+                      <span className="w-3 h-3 border border-red-600 flex items-center justify-center rounded-sm"><span className="w-1.5 h-1.5 rounded-full bg-red-600" /></span>
+                      Non-Vegetarian
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Upload Images (Max 4, 2MB each)</label>
+
+                  {existingImages.length > 0 && (
+                    <div className="mb-3">
+                      <p className="text-xs font-semibold text-slate-600 mb-1.5">Current Images ({existingImages.length}/4)</p>
+                      <div className="flex gap-2 overflow-x-auto pb-1">
+                        {existingImages.map((imgUrl, idx) => (
+                          <div key={idx} className="relative w-16 h-16 rounded-lg overflow-hidden border border-slate-200 shrink-0 group">
+                            <img src={imgUrl} alt={`Image ${idx + 1}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setRemovedImages(prev => [...prev, imgUrl]);
+                                setExistingImages(prev => prev.filter((_, i) => i !== idx));
+                              }}
+                              className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-md hover:bg-red-700 transition-colors"
+                              title="Remove image"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <input 
                     type="file" 
                     multiple 
                     accept="image/*"
                     onChange={handleFileChange}
-                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm text-slate-900" 
+                    disabled={existingImages.length >= 4}
+                    className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm text-slate-900 disabled:opacity-50" 
                   />
                   {imageFiles.length > 0 && (
-                    <p className="text-xs text-emerald-600 mt-1">{imageFiles.length} file(s) selected</p>
+                    <p className="text-xs text-emerald-600 mt-1">{imageFiles.length} new file(s) selected</p>
                   )}
                 </div>
 
-                <div className="flex items-center gap-6 mt-4">
+                <div className="flex flex-wrap items-center gap-6 mt-4">
                   <div className="flex items-center gap-2">
                     <input 
                       type="checkbox" 
@@ -409,16 +576,13 @@ export default function SellerMenuPage() {
                   <div className="flex items-center gap-2">
                     <input 
                       type="checkbox" 
-                      id="isVeg" 
-                      checked={formData.isVeg}
-                      onChange={(e) => setFormData(prev => ({ ...prev, isVeg: e.target.checked }))}
-                      className="w-4 h-4 text-green-600 rounded border-slate-300 focus:ring-green-500"
+                      id="isFeatured" 
+                      checked={formData.isFeatured}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isFeatured: e.target.checked }))}
+                      className="w-4 h-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
                     />
-                    <label htmlFor="isVeg" className="text-sm text-slate-700 cursor-pointer flex items-center gap-1">
-                      <div className="w-3 h-3 flex items-center justify-center border border-green-600 bg-white rounded-sm">
-                        <div className="w-1.5 h-1.5 rounded-full bg-green-600"></div>
-                      </div>
-                      Vegetarian
+                    <label htmlFor="isFeatured" className="text-sm text-slate-700 cursor-pointer flex items-center gap-1 font-medium">
+                      🔥 Mark as Bestseller / Famous Item
                     </label>
                   </div>
                 </div>

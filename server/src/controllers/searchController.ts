@@ -219,13 +219,18 @@ export const searchGlobal = async (req: Request, res: Response): Promise<void> =
                 .slice(0, limit);
         }
 
+        const normalizedMenuItems = finalMenuItems.map((item: any) => ({
+            ...item,
+            images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+        }));
+
         res.status(200).json({
             success: true,
             query,
             results: {
                 restaurants: finalRestaurants,
                 groceryProducts: finalGrocery,
-                menuItems: finalMenuItems
+                menuItems: normalizedMenuItems
             }
         });
     } catch (error: any) {
@@ -477,6 +482,11 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
             ]);
         }
 
+        const normalizedMenuItems = menuItems.map((item: any) => ({
+            ...item,
+            images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+        }));
+
         res.status(200).json({
             success: true,
             query,
@@ -486,7 +496,7 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
                 pages: Math.ceil(total / limit),
                 limit
             },
-            results: menuItems
+            results: normalizedMenuItems
         });
     } catch (error: any) {
         console.error("Search menu items error:", error);

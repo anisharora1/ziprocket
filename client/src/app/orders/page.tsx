@@ -561,6 +561,38 @@ export default function OrdersPage() {
                                             <p className="text-[12px] text-slate-400 font-semibold truncate mt-1">{summary}</p>
                                         </div>
 
+                                        {!isCancelled && order.orderType === "food" && !order.rating && (
+                                            <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
+                                                <span className="text-[11px] font-semibold text-slate-500 mr-1">Rate this order:</span>
+                                                {[1, 2, 3, 4, 5].map((star) => (
+                                                    <button
+                                                        key={star}
+                                                        onClick={async () => {
+                                                            try {
+                                                                const res = await apiClient.patch(`/orders/${order._id}/rate`, { rating: star });
+                                                                if (res.data.success) {
+                                                                    queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
+                                                                        prev.map((o: any) => o._id === order._id ? { ...o, rating: star } : o)
+                                                                    );
+                                                                    invalidateOrders();
+                                                                }
+                                                            } catch (err: any) {
+                                                                alert(err.response?.data?.message || "Failed to submit rating.");
+                                                            }
+                                                        }}
+                                                        className="text-[20px] text-amber-400 hover:scale-110 transition-transform cursor-pointer"
+                                                    >
+                                                        ★
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {!isCancelled && order.rating && (
+                                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-100 text-[12px] font-semibold text-slate-500">
+                                                You rated: {"★".repeat(order.rating)}{"☆".repeat(5 - order.rating)}
+                                            </div>
+                                        )}
+
                                         <div className="mt-5 pt-3.5 border-t border-slate-50 flex items-center justify-between">
                                             <span className="font-black text-slate-850 text-sm font-sans flex flex-col">
                                                 <span>₹{order.totalAmount.toLocaleString()}</span>
