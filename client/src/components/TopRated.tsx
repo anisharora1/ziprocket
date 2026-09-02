@@ -79,7 +79,9 @@ export default function TopRated() {
         let topRatedRestaurants: any[] = [];
         if (restRes.data.success) {
           const allRest = restRes.data.restaurants || [];
-          topRatedRestaurants = [...allRest].sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
+          topRatedRestaurants = allRest
+            .filter((r: any) => Number(r.rating) > 0) // only genuinely-rated restaurants qualify
+            .sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
         }
 
         const assembled: any[] = [];
@@ -91,7 +93,7 @@ export default function TopRated() {
               _id: ad.restaurant._id,
               name: ad.restaurant.name,
               cuisines: ad.restaurant.cuisines,
-              rating: ad.restaurant.rating || 4.5,
+              rating: Number(ad.restaurant.rating) || 0,
               image: ad.image || ad.restaurant.image,
               isAd: true,
               badgeText: ad.description.split("•")[0].trim() || "Featured"
@@ -106,7 +108,7 @@ export default function TopRated() {
               _id: rest._id,
               name: rest.name,
               cuisines: rest.cuisines,
-              rating: rest.rating || 4.0,
+              rating: rest.rating, // already guaranteed > 0 by the filter
               image: rest.image,
               isAd: false,
               badgeText: ""
@@ -114,11 +116,9 @@ export default function TopRated() {
           }
         });
 
-        if (assembled.length > 0) {
-          setFeaturedItems(assembled);
-          cachedFeaturedItems = assembled;
-          cachedFeaturedFetched = true;
-        }
+        setFeaturedItems(assembled);
+        cachedFeaturedItems = assembled;
+        cachedFeaturedFetched = true;
       } catch (err) {
         console.error("Failed to fetch featured/top rated restaurants on client:", err);
       } finally {
@@ -180,10 +180,14 @@ export default function TopRated() {
               </p>
 
               <div className="flex items-center justify-between text-slate-450 text-[11px] font-semibold mt-1">
-                <div className="flex items-center gap-0.5 text-amber-500">
-                  <MdStar className="text-[13px]" />
-                  <span>{(Number(restaurant?.rating) || 0) > 0 ? Number(restaurant.rating).toFixed(1) : "New"}</span>
-                </div>
+                {(Number(restaurant?.rating) || 0) > 0 ? (
+                  <div className="flex items-center gap-0.5 text-amber-500">
+                    <MdStar className="text-[13px]" />
+                    <span>{Number(restaurant.rating).toFixed(1)}</span>
+                  </div>
+                ) : (
+                  <div></div>
+                )}
                 <span className="text-[10px] text-slate-455 truncate max-w-[90px]">
                   {restaurant.cuisines ? restaurant.cuisines.split(",")[0] : "Fast Food"}
                 </span>
