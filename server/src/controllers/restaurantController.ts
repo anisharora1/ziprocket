@@ -95,8 +95,8 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
                     let: { restId: "$_id" },
                     pipeline: [
                         { $match: { $expr: { $and: [{ $eq: ["$restaurant", "$$restId"] }, { $eq: ["$isAvailable", true] }] } } },
-                        { $sort: { price: -1 } },
-                        { $limit: 5 },
+                        { $sort: { isFeatured: -1, price: -1 } },
+                        { $limit: 10 },
                         { $project: { name: 1, price: 1, discountedPrice: 1, isFeatured: 1, prepTimeMinutes: 1, spiceLevel: 1, images: 1 } }
                     ],
                     as: "popularItems"

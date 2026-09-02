@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import OptimizedImage from "./OptimizedImage";
 
 export interface CarouselItem {
@@ -36,25 +36,54 @@ export default function RestaurantCardCarousel({
   restaurantName,
 }: RestaurantCardCarouselProps) {
   const [activeIndex, setActiveIndex] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isDraggingRef = useRef(false);
   const startXRef = useRef(0);
   const scrollLeftRef = useRef(0);
   const hasMovedRef = useRef(false);
 
-  // If there are no menu items, gracefully fall back to a single image
-  if (!items || items.length === 0) {
-    return (
-      <div className="w-full h-full relative overflow-hidden bg-slate-50">
-        <OptimizedImage
-          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103"
-          src={fallbackImage}
-          alt={restaurantName}
-          preset="card"
-        />
-      </div>
+  const [isVisible, setIsVisible] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const autoScrollTimer = useRef<NodeJS.Timeout | null>(null);
+  const resumeTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Pause auto-scroll on manual interaction, resume after a short delay
+  const pauseAutoScroll = useCallback(() => {
+    setIsPaused(true);
+    if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    resumeTimer.current = setTimeout(() => setIsPaused(false), 6000); // resume 6s after user stops interacting
+  }, []);
+
+  // Only auto-scroll when the card is actually visible on screen — avoids wasting timers/battery on off-screen cards
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.5 }
     );
-  }
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (resumeTimer.current) clearTimeout(resumeTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isVisible || isPaused || items.length <= 1) return;
+    autoScrollTimer.current = setInterval(() => {
+      if (!scrollRef.current) return;
+      const nextIndex = (activeIndex + 1) % items.length;
+      const width = scrollRef.current.clientWidth;
+      scrollRef.current.scrollTo({ left: nextIndex * width, behavior: "smooth" });
+      setActiveIndex(nextIndex);
+    }, 2500); // 2.5s per slide
+
+    return () => {
+      if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
+    };
+  }, [isVisible, isPaused, activeIndex, items.length]);
 
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
@@ -70,6 +99,7 @@ export default function RestaurantCardCarousel({
   const scrollToSlide = (idx: number, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    pauseAutoScroll();
     if (scrollRef.current) {
       const width = scrollRef.current.clientWidth;
       scrollRef.current.scrollTo({
@@ -83,6 +113,7 @@ export default function RestaurantCardCarousel({
   // Mouse drag handlers for desktop click-drag
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
+    pauseAutoScroll();
     isDraggingRef.current = true;
     hasMovedRef.current = false;
     startXRef.current = e.pageX - scrollRef.current.offsetLeft;
@@ -111,8 +142,26 @@ export default function RestaurantCardCarousel({
     isDraggingRef.current = false;
   };
 
+  const handleTouchStart = () => {
+    pauseAutoScroll();
+  };
+
+  // If there are no menu items, gracefully fall back to a single image
+  if (!items || items.length === 0) {
+    return (
+      <div ref={containerRef} className="w-full h-full relative overflow-hidden bg-slate-50">
+        <OptimizedImage
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-103"
+          src={fallbackImage}
+          alt={restaurantName}
+          preset="card"
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="relative w-full h-full group/carousel overflow-hidden">
+    <div ref={containerRef} className="relative w-full h-full group/carousel overflow-hidden">
       {/* Horizontally swipeable image container */}
       <div
         ref={scrollRef}
@@ -121,6 +170,7 @@ export default function RestaurantCardCarousel({
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseLeave}
+        onTouchStart={handleTouchStart}
         className="w-full h-full overflow-x-auto snap-x snap-mandatory flex no-scrollbar scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden select-none"
       >
         {items.map((item, idx) => (
