@@ -17,6 +17,7 @@ import {
   MdDashboard,
   MdBolt,
   MdLogout,
+  MdGavel,
 } from 'react-icons/md';
 import { FaWhatsapp } from 'react-icons/fa';
 
@@ -140,6 +141,13 @@ export default function BottomNavBar({ activeTab = "home" }: { activeTab?: "home
                       <span className="text-[11px] text-emerald-600 font-semibold">Chat on WhatsApp</span>
                     </div>
                   </a>
+
+                  <Link href="/about-us" prefetch={false} onClick={() => setIsProfileOpen(false)} className="flex items-center gap-3.5 px-3 py-3 rounded-2xl hover:bg-slate-50 transition-colors text-slate-700 hover:text-[#FF5C00] group active:scale-[0.98]">
+                    <div className="bg-slate-50 group-hover:bg-[#FF5C00]/10 w-10 h-10 rounded-full flex items-center justify-center transition-colors">
+                      <MdGavel className="text-[18px] text-slate-400 group-hover:text-[#FF5C00] transition-colors" />
+                    </div>
+                    <span className="text-[14px] font-bold">Legal & Policies</span>
+                  </Link>
 
                   {user.role === 'customer' && (
                     <>
