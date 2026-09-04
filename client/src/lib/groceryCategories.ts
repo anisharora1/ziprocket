@@ -17,11 +17,11 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
   },
   "Dairy & Bread": {
     name: "Dairy & Bread",
-    image: "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788498832/dairy_bread.avif",
     color: "bg-[#FFF8F2] text-[#E05200] border-[#FFECDB]/50"
   },
   "Atta, Rice & Dals": {
-    name: "Atta & Flours",
+    name: "Atta, Rice, Oils",
     image: "https://images.unsplash.com/photo-1574316071802-0d684efa7bf5?auto=format&fit=crop&w=150&h=150&q=80",
     color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
   },
@@ -47,7 +47,7 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
   },
   "Masala & Dry Fruits": {
     name: "Masala & Dry Fruits",
-    image: "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788498832/mashalas.avif",
     color: "bg-[#FFF4E0] text-[#B8860B] border-[#F5DEB3]/50"
   }
 };
@@ -55,8 +55,8 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
 export const GROCERY_SUBCATEGORY_ICONS: Record<string, string> = {
   "All": "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=120&h=120&q=80",
   // Vegetables & Fruits
-  "Fresh Vegetables": "https://images.unsplash.com/photo-1566385101042-1a010c129fa1?auto=format&fit=crop&w=120&h=120&q=80",
-  "Fresh Fruits": "https://images.unsplash.com/photo-1619546813926-a78fa6372cd2?auto=format&fit=crop&w=120&h=120&q=80",
+  "Fresh Vegetables": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788498833/grouping_asset_Fresh_Vegetables.png",
+  "Fresh Fruits": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788498832/grouping_asset_Fresh_fruits.png",
   "Herbs & Seasonings": "https://images.unsplash.com/photo-1508747703725-719777637510?auto=format&fit=crop&w=120&h=120&q=80",
   // Dairy & Bread
   "Milk & Cream": "https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=120&h=120&q=80",

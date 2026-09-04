@@ -36,7 +36,7 @@ const HOME_CATEGORIES: CategoryItem[] = [
     href: "/grocery/category/Cold%20Drinks%20%26%20Juices",
   },
   {
-    name: "Atta & Flours",
+    name: "Atta, Rice, Oils",
     icon: "🌾",
     color: "bg-[#FFEBE5] text-[#C23900] border-[#FFD5CC]/50",
     href: "/grocery/category/Atta%2C%20Rice%20%26%20Dals",
