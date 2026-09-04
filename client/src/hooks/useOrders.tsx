@@ -86,3 +86,21 @@ export function useDeliveryData() {
     staleTime: 0,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Pending Food Orders (Needs Attention): /orders/pending-food
+// ---------------------------------------------------------------------------
+export function usePendingFoodOrders() {
+  return useQuery({
+    queryKey: ['orders', 'pending-food'],
+    queryFn: async () => {
+      const res = await apiClient.get('/orders/pending-food');
+      return {
+        orders: (res.data.orders ?? []) as any[],
+        count: (res.data.count ?? 0) as number,
+      };
+    },
+    staleTime: 0,
+  });
+}
+

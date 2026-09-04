@@ -11,6 +11,7 @@ import {
     getSellerDashboardStats,
     getGroceryOrders,
     getGroceryZoneUsers,
+    getPendingFoodOrders,
     cancelOrder,
     rateOrder
 } from "../controllers/orderController";
@@ -27,6 +28,7 @@ router.get("/", protect, authorize("admin"), getAllOrders);
 // Protected Grocery Moderator Route
 router.get("/grocery", protect, authorize("grocery_moderator", "admin"), getGroceryOrders);
 router.get("/grocery/users", protect, authorize("grocery_moderator", "admin"), getGroceryZoneUsers);
+router.get("/pending-food", protect, authorize("grocery_moderator", "admin"), getPendingFoodOrders);
 
 // Protected Seller Route
 router.get("/seller/stats", protect, authorize("seller", "admin"), getSellerDashboardStats);

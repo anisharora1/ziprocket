@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useModeratorSidebar } from '@/context/ModeratorSidebarContext';
+import { usePendingFoodOrders } from '@/hooks/useOrders';
+import { useOrderSocket } from '@/hooks/useOrderSocket';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   MdShoppingBag,
   MdDashboard,
@@ -14,11 +17,13 @@ import {
   MdClose,
   MdChevronLeft,
   MdChevronRight,
+  MdRestaurant,
 } from 'react-icons/md';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   dashboard: MdDashboard,
   local_shipping: MdLocalShipping,
+  restaurant: MdRestaurant,
   groups: MdGroups,
   storefront: MdStorefront,
   category: MdCategory,
@@ -26,6 +31,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
 
 export default function ModeratorSidebar() {
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const {
     isCollapsed,
     isMobileOpen,
@@ -33,9 +39,33 @@ export default function ModeratorSidebar() {
     closeMobileSidebar,
   } = useModeratorSidebar();
 
+  const { data: pendingFoodData } = usePendingFoodOrders();
+  const pendingFoodCount = pendingFoodData?.count ?? (pendingFoodData?.orders?.length || 0);
+
+  // Sync socket events for badge counter
+  useOrderSocket({
+    onNewOrder: (data) => {
+      if (data?.orderType === 'food' || data?.order?.orderType === 'food') {
+        queryClient.invalidateQueries({ queryKey: ['orders', 'pending-food'] });
+      }
+    },
+    onOrderStatusUpdated: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'pending-food'] });
+    },
+    onOrderCancelled: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['orders', 'pending-food'] });
+    },
+  });
+
   const navLinks = [
     { name: 'Dashboard', href: '/moderator/dashboard', iconKey: 'dashboard' },
     { name: 'Grocery Orders', href: '/moderator/orders', iconKey: 'local_shipping' },
+    {
+      name: 'Pending Food',
+      href: '/moderator/food-orders',
+      iconKey: 'restaurant',
+      badge: pendingFoodCount > 0 ? pendingFoodCount : undefined,
+    },
     { name: 'Zone Customers', href: '/moderator/users', iconKey: 'groups' },
     { name: 'Grocery Products', href: '/moderator/products', iconKey: 'storefront' },
     { name: 'Categories', href: '/moderator/categories', iconKey: 'category' },
@@ -115,7 +145,12 @@ export default function ModeratorSidebar() {
                     </div>
                   )}
                   <span>{link.name}</span>
-                  {isActive && (
+                  {link.badge !== undefined && (
+                    <span className="ml-auto px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white shadow-xs animate-pulse">
+                      {link.badge}
+                    </span>
+                  )}
+                  {isActive && !link.badge && (
                     <div className="ml-auto w-2 h-2 rounded-full bg-emerald-600"></div>
                   )}
                 </Link>
@@ -223,7 +258,12 @@ export default function ModeratorSidebar() {
                   {IconComp && (
                     <IconComp className={`text-[22px] transition-transform duration-200 group-hover:scale-110`} />
                   )}
-                  {isActive && (
+                  {link.badge !== undefined && (
+                    <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center border-2 border-white shadow-xs animate-pulse">
+                      {link.badge > 99 ? '99+' : link.badge}
+                    </span>
+                  )}
+                  {isActive && !link.badge && (
                     <div className="absolute -right-2 top-1/2 -translate-y-1/2 w-1 h-5 bg-emerald-600 rounded-l-full"></div>
                   )}
 
@@ -253,7 +293,12 @@ export default function ModeratorSidebar() {
                   />
                 )}
                 <span className="truncate">{link.name}</span>
-                {isActive && (
+                {link.badge !== undefined && (
+                  <span className="ml-auto px-2.5 py-0.5 rounded-full text-[11px] font-black bg-rose-500 text-white shadow-xs animate-pulse shrink-0">
+                    {link.badge}
+                  </span>
+                )}
+                {isActive && !link.badge && (
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 w-1.5 h-6 bg-emerald-600 rounded-l-full"></div>
                 )}
               </Link>

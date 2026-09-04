@@ -438,6 +438,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     const rooms: string[] = ["admin"];
                     if (orderType === "food" && restaurant) {
                         rooms.push(`seller:${restaurant}`);
+                        if (deliveryZone) rooms.push(`grocery:${deliveryZone.toString()}`); // moderators now oversee food orders too
                     } else if (orderType === "grocery" && deliveryZone) {
                         rooms.push(`grocery:${deliveryZone.toString()}`);
                     }
@@ -736,6 +737,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
             ];
             if (order.orderType === "food" && order.restaurant) {
                 rooms.push(`seller:${order.restaurant.toString()}`);
+                if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
             } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
                 rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
             }
@@ -1067,6 +1069,7 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
             ];
             if (order.orderType === "food" && order.restaurant) {
                 rooms.push(`seller:${order.restaurant.toString()}`);
+                if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
             } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
                 rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
             }
@@ -1179,4 +1182,31 @@ export const rateOrder = async (req: Request, res: Response): Promise<void> => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+// Get pending food orders (waiting on restaurant confirmation) for grocery moderators & admins
+export const getPendingFoodOrders = async (req: Request, res: Response): Promise<void> => {
+    try {
+        let query: any = { orderType: "food", orderStatus: "placed" };
+        if (req.user?.role === "grocery_moderator") {
+            const currentUser = await User.findById(req.user._id);
+            query.deliveryZone = { $in: currentUser?.assignedZones || [] };
+        }
+        const orders = await Order.find(query)
+            .populate("restaurant", "name phone")
+            .populate("items.menuItem", "name")
+            .populate("deliveryZone", "name")
+            .sort({ createdAt: 1 }) // oldest first — the ones waiting longest surface at the top
+            .lean();
+
+        const normalizedOrders = orders.map((o: any) => ({
+            ...o,
+            items: o.items.map((item: any) => ({ ...item, name: item.menuItem?.name || "Item" }))
+        }));
+
+        res.status(200).json({ success: true, count: normalizedOrders.length, orders: normalizedOrders });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 

@@ -151,6 +151,7 @@ export const verifyRazorpayPayment = async (
             const rooms: string[] = ["admin"];
             if (paidOrder.orderType === "food" && paidOrder.restaurant) {
                 rooms.push(`seller:${paidOrder.restaurant.toString()}`);
+                if ((paidOrder as any).deliveryZone) rooms.push(`grocery:${(paidOrder as any).deliveryZone.toString()}`);
             } else if (paidOrder.orderType === "grocery" && (paidOrder as any).deliveryZone) {
                 rooms.push(`grocery:${(paidOrder as any).deliveryZone.toString()}`);
             }
