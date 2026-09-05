@@ -22,12 +22,12 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
   },
   "Atta, Rice & Dals": {
     name: "Atta, Rice, Oils",
-    image: "https://images.unsplash.com/photo-1574316071802-0d684efa7bf5?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580721/asset_atta__rice___dal.png",
     color: "bg-[#FFEBE5] text-[#FF4500] border-[#FFD5CC]/50"
   },
   "Munchies": {
     name: "Munchies",
-    image: "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580030/munchies.avif",
     color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   },
   "Cold Drinks & Juices": {
@@ -69,8 +69,8 @@ export const GROCERY_SUBCATEGORY_ICONS: Record<string, string> = {
   "Dals & Pulses": "https://images.unsplash.com/photo-1515942400420-2b98fed1f515?auto=format&fit=crop&w=120&h=120&q=80",
   "Ghee & Oils": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=120&h=120&q=80",
   // Munchies
-  "Chips & Crisps": "https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=120&h=120&q=80",
-  "Bhujia & Namkeen": "https://images.unsplash.com/photo-1601050690597-df056fb4ce78?auto=format&fit=crop&w=120&h=120&q=80",
+  "Chips & Crisps": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580721/chips.webp",
+  "Bhujia & Namkeen": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580721/namkeen.webp",
   "Biscuits & Cookies": "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?auto=format&fit=crop&w=120&h=120&q=80",
   "Popcorn": "https://images.unsplash.com/photo-1578849278619-e73505e9610f?auto=format&fit=crop&w=120&h=120&q=80",
   // Cold Drinks & Juices
