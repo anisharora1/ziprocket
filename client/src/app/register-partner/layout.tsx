@@ -1,10 +1,11 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: "Partner With Us - Register Your Restaurant | ZipRocket",
   description: "Become a restaurant partner on ZipRocket. Grow your business, get more orders and manage deliveries seamlessly.",
   alternates: {
-    canonical: "https://ziprocket.in/register-partner",
+    canonical: `${SITE_URL}/register-partner`,
   },
 };
 
@@ -17,13 +18,13 @@ export default function RegisterPartnerLayout({ children }: { children: React.Re
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://ziprocket.in"
+        "item": SITE_URL
       },
       {
         "@type": "ListItem",
         "position": 2,
         "name": "Register Partner",
-        "item": "https://ziprocket.in/register-partner"
+        "item": `${SITE_URL}/register-partner`
       }
     ]
   };

@@ -8,12 +8,13 @@ import StaticRestaurantList from "@/components/RestaurantList";
 import StaticFloatingCartButton from "@/components/FloatingCartButton";
 import StaticBottomNavBar from "@/components/BottomNavBar";
 import StaticFirstVisitInstallModal from "@/components/FirstVisitInstallModal";
+import { SITE_URL } from "@/lib/constants";
 
 export const metadata: Metadata = {
   title: "ZipRocket - Fast Food & Grocery Delivery Platform",
   description: "Order food and groceries online with ZipRocket. Get lightning-fast 10-minute grocery delivery and hot meals from your favorite local restaurants.",
   alternates: {
-    canonical: "https://ziprocket.in",
+    canonical: SITE_URL,
   },
 };
 
@@ -21,10 +22,10 @@ export default function Home() {
   const localBusinessSchema = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    "@id": "https://ziprocket.in/#localbusiness",
+    "@id": `${SITE_URL}/#localbusiness`,
     "name": "ZipRocket Delivery Service",
-    "image": "https://ziprocket.in/logo.png",
-    "url": "https://ziprocket.in",
+    "image": `${SITE_URL}/logo.png`,
+    "url": SITE_URL,
     "telephone": "+91-9117662441",
     "priceRange": "₹10-₹50",
     "address": {

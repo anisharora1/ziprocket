@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/lib/constants';
 
 export async function generateMetadata({ params }: { params: Promise<{ categoryName: string }> }): Promise<Metadata> {
   const { categoryName } = await params;
@@ -7,7 +8,7 @@ export async function generateMetadata({ params }: { params: Promise<{ categoryN
     title: `Buy Fresh ${decodedCategory} Online | ZipGrocery - ZipRocket`,
     description: `Shop fresh ${decodedCategory}, quality products, and daily essentials online at ZipGrocery. Fast 15-minute doorstep delivery in your city.`,
     alternates: {
-      canonical: `https://ziprocket.in/grocery/category/${categoryName}`,
+      canonical: `${SITE_URL}/grocery/category/${categoryName}`,
     },
   };
 }
@@ -30,19 +31,19 @@ export default async function GroceryCategoryLayout({
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://ziprocket.in"
+        "item": SITE_URL
       },
       {
         "@type": "ListItem",
         "position": 2,
         "name": "Grocery",
-        "item": "https://ziprocket.in/grocery"
+        "item": `${SITE_URL}/grocery`
       },
       {
         "@type": "ListItem",
         "position": 3,
         "name": decodedCategory,
-        "item": `https://ziprocket.in/grocery/category/${categoryName}`
+        "item": `${SITE_URL}/grocery/category/${categoryName}`
       }
     ]
   };

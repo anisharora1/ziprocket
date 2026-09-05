@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/lib/constants';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -15,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
           title: `${rest.name} - Menu & Order Food Online | ZipRocket`,
           description: `Order delicious food online from ${rest.name} in ${rest.location?.address || 'your area'}. View menu, ratings, delivery details and customer reviews on ZipRocket.`,
           alternates: {
-            canonical: `https://ziprocket.in/restaurants/${id}`,
+            canonical: `${SITE_URL}/restaurants/${id}`,
           },
         };
       }
@@ -28,7 +29,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     title: "Restaurant Menu | Fast Food Delivery - ZipRocket",
     description: "Browse menu and order delicious fast food online for quick delivery via ZipRocket.",
     alternates: {
-      canonical: `https://ziprocket.in/restaurants/${id}`,
+      canonical: `${SITE_URL}/restaurants/${id}`,
     },
   };
 }
@@ -65,19 +66,19 @@ export default async function RestaurantDetailLayout({
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://ziprocket.in"
+        "item": SITE_URL
       },
       {
         "@type": "ListItem",
         "position": 2,
         "name": "Restaurants",
-        "item": "https://ziprocket.in/restaurants"
+        "item": `${SITE_URL}/restaurants`
       },
       {
         "@type": "ListItem",
         "position": 3,
         "name": restaurant ? restaurant.name : "Restaurant Menu",
-        "item": `https://ziprocket.in/restaurants/${id}`
+        "item": `${SITE_URL}/restaurants/${id}`
       }
     ]
   };
@@ -85,10 +86,10 @@ export default async function RestaurantDetailLayout({
   const localBusinessSchema = restaurant ? {
     "@context": "https://schema.org",
     "@type": "Restaurant",
-    "@id": `https://ziprocket.in/restaurants/${id}#restaurant`,
+    "@id": `${SITE_URL}/restaurants/${id}#restaurant`,
     "name": restaurant.name,
-    "image": restaurant.image || "https://ziprocket.in/logo.png",
-    "url": `https://ziprocket.in/restaurants/${id}`,
+    "image": restaurant.image || `${SITE_URL}/logo.png`,
+    "url": `${SITE_URL}/restaurants/${id}`,
     "servesCuisine": restaurant.cuisines || "Multi-cuisine",
     "address": {
       "@type": "PostalAddress",

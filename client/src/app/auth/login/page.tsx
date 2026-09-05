@@ -793,7 +793,7 @@ export default function LoginPage() {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-700 font-medium text-xs sm:text-sm space-y-1">
                   <p className="font-bold text-slate-900">ZipRocket Support</p>
                   <p>Email: <a href="mailto:ziprocket.support@gmail.com" className="text-[#FF5C00] font-semibold underline">ziprocket.support@gmail.com</a></p>
-                  <p>Website: <a href="https://ziprocket.in" target="_blank" rel="noopener noreferrer" className="text-[#FF5C00] font-semibold underline">https://ziprocket.in</a></p>
+                  <p>Website: <a href="https://www.ziprocket.in" target="_blank" rel="noopener noreferrer" className="text-[#FF5C00] font-semibold underline">https://www.ziprocket.in</a></p>
                 </div>
               </section>
 

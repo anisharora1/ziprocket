@@ -1,10 +1,11 @@
 import { MetadataRoute } from 'next';
 import { GROCERY_CATEGORIES_MAP } from '@/lib/groceryCategories';
+import { SITE_URL } from '@/lib/constants';
 
 const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP);
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://ziprocket.in';
+  const baseUrl = SITE_URL;
 
   // Core public routes
   const staticRoutes = [

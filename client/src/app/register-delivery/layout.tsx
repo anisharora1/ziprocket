@@ -1,10 +1,11 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/lib/constants';
 
 export const metadata: Metadata = {
   title: "Join ZipRocket as a Delivery Partner | ZipRocket",
   description: "Become a delivery rider with ZipRocket. Flexible hours, competitive payout rates, and instant registration.",
   alternates: {
-    canonical: "https://ziprocket.in/register-delivery",
+    canonical: `${SITE_URL}/register-delivery`,
   },
 };
 
@@ -17,13 +18,13 @@ export default function RegisterDeliveryLayout({ children }: { children: React.R
         "@type": "ListItem",
         "position": 1,
         "name": "Home",
-        "item": "https://ziprocket.in"
+        "item": SITE_URL
       },
       {
         "@type": "ListItem",
         "position": 2,
         "name": "Register Delivery Rider",
-        "item": "https://ziprocket.in/register-delivery"
+        "item": `${SITE_URL}/register-delivery`
       }
     ]
   };

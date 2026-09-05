@@ -16,6 +16,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import QueryProvider from "@/components/QueryProvider";
 import PlatformClosedModal from "@/components/PlatformClosedModal";
+import { SITE_URL } from "@/lib/constants";
 
 // ... existing font setup ...
 
@@ -34,7 +35,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://ziprocket.in"),
+  metadataBase: new URL(SITE_URL),
   title: "ZipRocket - Fast Food & Grocery Delivery Platform",
   description: "ZipRocket is a fast food and grocery delivery platform that helps customers order from nearby restaurants and stores with quick doorstep delivery.",
   keywords: ["ZipRocket", "fast food delivery", "grocery delivery", "food delivery app", "online food order", "quick delivery", "nearby restaurants", "local stores"],
@@ -55,7 +56,7 @@ export const metadata: Metadata = {
     title: "ZipRocket - Fast Food & Grocery Delivery Platform",
     description:
       "Order food, groceries, and daily essentials online with ZipRocket. Quick doorstep delivery in tier-3 cities.",
-    url: "https://ziprocket.in",
+    url: SITE_URL,
     siteName: "ZipRocket",
     type: "website",
     locale: "en_IN",
@@ -82,12 +83,12 @@ export default function RootLayout({
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "@id": "https://ziprocket.in/#organization",
+    "@id": `${SITE_URL}/#organization`,
     "name": "ZipRocket",
-    "url": "https://ziprocket.in",
+    "url": SITE_URL,
     "logo": {
       "@type": "ImageObject",
-      "url": "https://ziprocket.in/logo.png",
+      "url": `${SITE_URL}/logo.png`,
       "width": "512",
       "height": "512"
     },
@@ -107,14 +108,14 @@ export default function RootLayout({
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "@id": "https://ziprocket.in/#website",
+    "@id": `${SITE_URL}/#website`,
     "name": "ZipRocket",
-    "url": "https://ziprocket.in",
+    "url": SITE_URL,
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
         "@type": "EntryPoint",
-        "urlTemplate": "https://ziprocket.in/restaurants?q={search_term_string}"
+        "urlTemplate": `${SITE_URL}/restaurants?q={search_term_string}`
       },
       "query-input": "required name=search_term_string"
     }
