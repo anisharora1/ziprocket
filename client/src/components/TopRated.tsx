@@ -102,20 +102,6 @@ function assembleFeaturedItems(promotions: any[] = [], restaurants: any[] = []):
     }
   });
 
-  // Fallback: if no ratings exist yet, show first few approved restaurants
-  if (assembled.length === 0 && Array.isArray(restaurants) && restaurants.length > 0) {
-    restaurants.slice(0, 6).forEach((rest: any) => {
-      assembled.push({
-        _id: rest._id,
-        name: rest.name,
-        cuisines: rest.cuisines,
-        rating: Number(rest.rating) || 0,
-        image: rest.image,
-        isAd: false,
-        badgeText: ""
-      });
-    });
-  }
 
   return assembled;
 }
