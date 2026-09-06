@@ -5,6 +5,7 @@ import MenuItem from "../models/MenuItem";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import { emitToRooms } from "../services/socketService";
+import { isWithinOperatingHours } from "../utils/restaurantHours";
 
 // Helper to safely delete from Cloudinary without crashing the request pipeline
 async function safeDeleteCloudinary(publicId?: string): Promise<void> {
@@ -21,7 +22,7 @@ async function safeDeleteCloudinary(publicId?: string): Promise<void> {
 // Create a new restaurant
 export const createRestaurant = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { name, owner, phone, location, cuisines, ownerName, fssaiNumber, panNumber, bankDetails, deliveryZone } = req.body;
+        const { name, owner, phone, location, cuisines, ownerName, fssaiNumber, panNumber, bankDetails, deliveryZone, operatingHours } = req.body;
 
         const newRestaurant = new Restaurant({
             name,
@@ -33,7 +34,8 @@ export const createRestaurant = async (req: Request, res: Response): Promise<voi
             fssaiNumber,
             panNumber,
             bankDetails,
-            deliveryZone
+            deliveryZone,
+            operatingHours: operatingHours || { open: "09:00", close: "22:00" }
         });
 
         await newRestaurant.save();
@@ -114,6 +116,7 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
                     totalOrders: 1,
                     status: 1,
                     availabilityStatus: 1,
+                    operatingHours: 1,
                     location: 1,
                     deliveryZone: 1,
                     popularItems: 1
@@ -121,15 +124,21 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
             }
         ]);
 
-        const normalizedRestaurants = restaurants.map((r: any) => ({
-            ...r,
-            popularItems: Array.isArray(r.popularItems)
-                ? r.popularItems.map((item: any) => ({
-                    ...item,
-                    images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
-                }))
-                : []
-        }));
+        const normalizedRestaurants = restaurants.map((r: any) => {
+            const operatingHours = r.operatingHours || { open: "09:00", close: "22:00" };
+            const isCurrentlyOpen = (r.isActive !== false) && r.availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+            return {
+                ...r,
+                operatingHours,
+                isCurrentlyOpen,
+                popularItems: Array.isArray(r.popularItems)
+                    ? r.popularItems.map((item: any) => ({
+                        ...item,
+                        images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+                    }))
+                    : []
+            };
+        });
 
         // Cache lists in Redis
         await restaurantCacheService.cacheRestaurantList(cacheKeySuffix, normalizedRestaurants);
@@ -154,9 +163,17 @@ export const getMyRestaurant = async (req: Request, res: Response): Promise<void
             return;
         }
 
+        const restObj = restaurant.toObject();
+        const operatingHours = restObj.operatingHours || { open: "09:00", close: "22:00" };
+        const isCurrentlyOpen = (restObj.isActive !== false) && restObj.availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+
         res.status(200).json({
             success: true,
-            restaurant
+            restaurant: {
+                ...restObj,
+                operatingHours,
+                isCurrentlyOpen
+            }
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -183,12 +200,21 @@ export const getRestaurantById = async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        const operatingHours = (restaurant as any).operatingHours || { open: "09:00", close: "22:00" };
+        const isCurrentlyOpen = ((restaurant as any).isActive !== false) && (restaurant as any).availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+
+        const restaurantWithOpenState = {
+            ...restaurant,
+            operatingHours,
+            isCurrentlyOpen
+        };
+
         // Cache detail in Redis
-        await restaurantCacheService.cacheRestaurantDetail(id, restaurant);
+        await restaurantCacheService.cacheRestaurantDetail(id, restaurantWithOpenState);
 
         res.status(200).json({
             success: true,
-            restaurant
+            restaurant: restaurantWithOpenState
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -204,7 +230,7 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
             return;
         }
 
-        const { name, phone, location, isActive, availabilityStatus, cuisines, locationNeedsReview } = req.body;
+        const { name, phone, location, isActive, availabilityStatus, cuisines, locationNeedsReview, operatingHours } = req.body;
 
         const updateFields: any = {};
         if (name !== undefined) updateFields.name = name;
@@ -232,6 +258,18 @@ export const updateRestaurant = async (req: Request, res: Response): Promise<voi
         if (isActive !== undefined) updateFields.isActive = isActive;
         if (availabilityStatus !== undefined) updateFields.availabilityStatus = availabilityStatus;
         if (cuisines !== undefined) updateFields.cuisines = cuisines;
+        if (operatingHours !== undefined) {
+            let parsedHours = operatingHours;
+            if (typeof parsedHours === "string") {
+                try { parsedHours = JSON.parse(parsedHours); } catch {}
+            }
+            if (parsedHours && typeof parsedHours === "object") {
+                updateFields.operatingHours = {
+                    open: parsedHours.open || restaurantToUpdate.operatingHours?.open || "09:00",
+                    close: parsedHours.close || restaurantToUpdate.operatingHours?.close || "22:00"
+                };
+            }
+        }
 
         // Handle file uploads (image, logo, gallery) from multer
         if (req.files && typeof req.files === "object" && !Array.isArray(req.files)) {

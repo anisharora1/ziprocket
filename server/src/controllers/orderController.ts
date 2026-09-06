@@ -15,6 +15,7 @@ import PlatformSettings from "../models/PlatformSettings";
 import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
 import { computeBillFromZone } from "../utils/billCalculator";
+import { isWithinOperatingHours } from "../utils/restaurantHours";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -118,6 +119,16 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     message: restMsg
                 });
                 return;
+            }
+
+            if (fetchedRestaurant.operatingHours?.open && fetchedRestaurant.operatingHours?.close) {
+                if (!isWithinOperatingHours(fetchedRestaurant.operatingHours.open, fetchedRestaurant.operatingHours.close)) {
+                    res.status(400).json({
+                        success: false,
+                        message: `This restaurant is currently closed. It reopens at ${fetchedRestaurant.operatingHours.open}.`
+                    });
+                    return;
+                }
             }
         }
 
@@ -234,6 +245,16 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             const realPrice = (product.discountedPrice !== undefined && Number(product.discountedPrice) > 0) ? product.discountedPrice : product.price;
             verifiedItemTotal += realPrice * item.quantity;
             verifiedItems.push({ ...item, price: realPrice }); // overwrite client-submitted price
+        }
+
+        // ── MINIMUM ORDER VALUE ENFORCEMENT ──────────────────────────────
+        const minOrderValue = orderType === "food" ? (settings?.minOrderValueFood || 0) : (settings?.minOrderValueGrocery || 0);
+        if (verifiedItemTotal < minOrderValue) {
+            res.status(400).json({
+                success: false,
+                message: `Minimum order value is ₹${minOrderValue}. Please add more items to place this order.`
+            });
+            return;
         }
 
         // Reuse the shared bill calculation logic (single source of truth with checkout preview)

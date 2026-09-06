@@ -21,6 +21,8 @@ interface PlatformSettings {
     close: string;
   };
   groceryStatus: "open" | "closed" | "disabled";
+  minOrderValueFood?: number;
+  minOrderValueGrocery?: number;
 }
 
 interface Restaurant {
@@ -39,7 +41,9 @@ export default function PlatformManagementPage() {
     isPlatformOpen: true,
     maintenanceMode: false,
     operatingHours: { open: "08:00", close: "22:00" },
-    groceryStatus: "open"
+    groceryStatus: "open",
+    minOrderValueFood: 0,
+    minOrderValueGrocery: 0
   });
 
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
@@ -92,7 +96,9 @@ export default function PlatformManagementPage() {
     setSavingSettings(true);
     try {
       const res = await apiClient.patch("/platform/settings", {
-        operatingHours: settings.operatingHours
+        operatingHours: settings.operatingHours,
+        minOrderValueFood: Number(settings.minOrderValueFood) || 0,
+        minOrderValueGrocery: Number(settings.minOrderValueGrocery) || 0
       });
       if (res.data.success) {
         showToast("Platform configuration updated successfully!");
@@ -280,11 +286,11 @@ export default function PlatformManagementPage() {
             )}
           </div>
 
-          {/* Operating hours settings */}
+          {/* Operating hours & Minimum Order settings */}
           <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
             <h3 className="text-lg font-black text-slate-800 mb-6 flex items-center gap-2">
               <MdSchedule className="text-[#FF5C00] text-[24px]" />
-              Operating Hours Control
+              Operating Hours & Order Thresholds
             </h3>
 
             {loadingSettings ? (
@@ -294,34 +300,76 @@ export default function PlatformManagementPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  Configure daily operational window (India Standard Time)
-                </p>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
+                    Daily Operational Window (India Standard Time)
+                  </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600">Open Time (e.g. 08:00)</label>
-                    <input
-                      type="time"
-                      value={settings.operatingHours.open}
-                      onChange={(e) => setSettings({
-                        ...settings,
-                        operatingHours: { ...settings.operatingHours, open: e.target.value }
-                      })}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600">Open Time (e.g. 08:00)</label>
+                      <input
+                        type="time"
+                        value={settings.operatingHours.open}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          operatingHours: { ...settings.operatingHours, open: e.target.value }
+                        })}
+                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600">Close Time (e.g. 22:00)</label>
+                      <input
+                        type="time"
+                        value={settings.operatingHours.close}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          operatingHours: { ...settings.operatingHours, close: e.target.value }
+                        })}
+                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-slate-600">Close Time (e.g. 22:00)</label>
-                    <input
-                      type="time"
-                      value={settings.operatingHours.close}
-                      onChange={(e) => setSettings({
-                        ...settings,
-                        operatingHours: { ...settings.operatingHours, close: e.target.value }
-                      })}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
-                    />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">
+                    Platform-Wide Minimum Order Values (₹)
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600">Minimum Food Order Value (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={settings.minOrderValueFood ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          minOrderValueFood: Math.max(0, parseFloat(e.target.value) || 0)
+                        })}
+                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
+                      />
+                      <p className="text-[11px] text-slate-400 font-medium">Orders with subtotal below this amount will be blocked.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-600">Minimum Grocery Order Value (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={settings.minOrderValueGrocery ?? 0}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          minOrderValueGrocery: Math.max(0, parseFloat(e.target.value) || 0)
+                        })}
+                        className="w-full px-4 py-3 bg-white border-2 border-slate-200 rounded-2xl text-[14px] font-bold text-slate-805 focus:outline-none focus:border-[#FF5C00] transition-colors shadow-sm"
+                      />
+                      <p className="text-[11px] text-slate-400 font-medium">Grocery orders below this amount cannot be checked out.</p>
+                    </div>
                   </div>
                 </div>
 
@@ -381,6 +429,18 @@ export default function PlatformManagementPage() {
                 <span className="text-xs font-bold text-slate-500">Operating window</span>
                 <span className="text-xs font-black text-slate-805">
                   {settings.operatingHours.open} - {settings.operatingHours.close}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Min. Food Order</span>
+                <span className="text-xs font-black text-slate-805">
+                  ₹{settings.minOrderValueFood ?? 0}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-500">Min. Grocery Order</span>
+                <span className="text-xs font-black text-slate-805">
+                  ₹{settings.minOrderValueGrocery ?? 0}
                 </span>
               </div>
             </div>

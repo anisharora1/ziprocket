@@ -8,6 +8,7 @@ import Link from "next/link";
 import OptimizedImage from "./OptimizedImage";
 import RestaurantCardCarousel from "./RestaurantCardCarousel";
 import { usePlatform } from "@/context/PlatformContext";
+import { isWithinOperatingHours, formatToAMPM } from "@/utils/restaurantHours";
 import {
   MdLocationOn,
   MdWarning,
@@ -29,6 +30,11 @@ interface Restaurant {
   totalOrders: number;
   status: string;
   availabilityStatus?: "open" | "closed" | "disabled";
+  operatingHours?: {
+    open?: string;
+    close?: string;
+  };
+  isCurrentlyOpen?: boolean;
   location?: {
     address: string;
     lat: number;
@@ -57,7 +63,7 @@ function getInitialZoneId(): string | null {
   return null;
 }
 
-function StatusBadge({ isMaintenance, status = "open", isActive = true }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled"; isActive?: boolean }) {
+function StatusBadge({ isMaintenance, status = "open", isActive = true, isCurrentlyOpen = true }: { isMaintenance?: boolean; status?: "open" | "closed" | "disabled"; isActive?: boolean; isCurrentlyOpen?: boolean }) {
   if (isMaintenance) {
     return (
       <div className="absolute top-3 left-3 z-20 pointer-events-none bg-rose-500 text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
@@ -65,7 +71,7 @@ function StatusBadge({ isMaintenance, status = "open", isActive = true }: { isMa
       </div>
     );
   }
-  if (isActive && status === "open") {
+  if (isActive && status === "open" && isCurrentlyOpen) {
     return (
       <div className="absolute top-3 left-3 z-20 pointer-events-none bg-[#FF5C00] text-white px-2.5 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-widest shadow-sm">
         OPEN NOW
@@ -95,11 +101,18 @@ export default function RestaurantList() {
     if (!socket) return;
     const handleStatusUpdate = (data: { restaurantId: string; availabilityStatus: string; isActive: boolean }) => {
       setRestaurants((prev) =>
-        prev.map((r) =>
-          r._id === data.restaurantId
-            ? { ...r, availabilityStatus: data.availabilityStatus as any, isActive: data.isActive }
-            : r
-        )
+        prev.map((r) => {
+          if (r._id !== data.restaurantId) return r;
+          const updatedActive = data.isActive;
+          const updatedStatus = data.availabilityStatus as any;
+          const isCurrentlyOpen = updatedActive && updatedStatus === "open" && isWithinOperatingHours(r.operatingHours?.open, r.operatingHours?.close);
+          return {
+            ...r,
+            availabilityStatus: updatedStatus,
+            isActive: updatedActive,
+            isCurrentlyOpen
+          };
+        })
       );
     };
     socket.on("restaurant_status_updated", handleStatusUpdate);
@@ -107,6 +120,19 @@ export default function RestaurantList() {
       socket.off("restaurant_status_updated", handleStatusUpdate);
     };
   }, [socket]);
+
+  // Live status re-check every minute without page reload
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRestaurants((prev) =>
+        prev.map((r) => ({
+          ...r,
+          isCurrentlyOpen: r.isActive && r.availabilityStatus === "open" && isWithinOperatingHours(r.operatingHours?.open, r.operatingHours?.close)
+        }))
+      );
+    }, 60000); // recheck every minute
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -120,7 +146,13 @@ export default function RestaurantList() {
 
         const res = await apiClient.get(url);
         if (isMounted && res.data.success) {
-          const list = res.data.restaurants || [];
+          const rawList = res.data.restaurants || [];
+          const list = rawList.map((r: any) => ({
+            ...r,
+            isCurrentlyOpen: r.isCurrentlyOpen !== undefined 
+              ? r.isCurrentlyOpen 
+              : (r.isActive && r.availabilityStatus === "open" && isWithinOperatingHours(r.operatingHours?.open, r.operatingHours?.close))
+          }));
           setRestaurants(list);
         }
       } catch (err) {
@@ -203,7 +235,9 @@ export default function RestaurantList() {
               href={`/restaurants/${restaurant._id}`} 
               prefetch={false}
               key={restaurant._id} 
-              className="block bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/70 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 active:scale-[0.98] group"
+              className={`block bg-white rounded-2xl overflow-hidden shadow-sm border border-slate-100/70 transition-all hover:shadow-md hover:-translate-y-0.5 duration-200 active:scale-[0.98] group relative ${
+                !restaurant.isCurrentlyOpen ? 'opacity-60 grayscale' : ''
+              }`}
             >
               <div className="h-44 relative overflow-hidden bg-slate-50">
                 <RestaurantCardCarousel
@@ -224,6 +258,7 @@ export default function RestaurantList() {
                   isMaintenance={settings?.maintenanceMode} 
                   status={restaurant.availabilityStatus || "open"} 
                   isActive={restaurant.isActive}
+                  isCurrentlyOpen={restaurant.isCurrentlyOpen}
                 />
               </div>
               
@@ -257,6 +292,14 @@ export default function RestaurantList() {
                   )}
                 </div>
               </div>
+
+              {!restaurant.isCurrentlyOpen && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center z-30 pointer-events-none">
+                  <span className="bg-slate-900 text-white text-[12px] font-bold px-4 py-1.5 rounded-full shadow-lg">
+                    Closed {restaurant.operatingHours?.open ? `· Opens at ${formatToAMPM(restaurant.operatingHours.open)}` : ''}
+                  </span>
+                </div>
+              )}
             </Link>
           ))}
         </div>

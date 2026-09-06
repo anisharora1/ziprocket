@@ -8,6 +8,8 @@ export interface IPlatformSettings extends Document {
         close: string; // "HH:MM" e.g., "22:00"
     };
     groceryStatus: "open" | "closed" | "disabled";
+    minOrderValueFood: number;
+    minOrderValueGrocery: number;
 }
 
 const platformSettingsSchema = new Schema<IPlatformSettings>({
@@ -17,7 +19,9 @@ const platformSettingsSchema = new Schema<IPlatformSettings>({
         open: { type: String, default: "08:00" },
         close: { type: String, default: "22:00" }
     },
-    groceryStatus: { type: String, enum: ["open", "closed", "disabled"], default: "open" }
+    groceryStatus: { type: String, enum: ["open", "closed", "disabled"], default: "open" },
+    minOrderValueFood: { type: Number, default: 0, min: 0 },
+    minOrderValueGrocery: { type: Number, default: 0, min: 0 }
 }, { timestamps: true });
 
 export default mongoose.model<IPlatformSettings>("PlatformSettings", platformSettingsSchema);

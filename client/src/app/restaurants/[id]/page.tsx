@@ -9,6 +9,7 @@ import { useCart } from "@/context/CartContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import { usePlatform } from "@/context/PlatformContext";
 import { useSocket } from "@/context/SocketContext";
+import { isWithinOperatingHours, formatToAMPM } from "@/utils/restaurantHours";
 import {
   MdArrowBack,
   MdFavoriteBorder,
@@ -182,21 +183,27 @@ export default function RestaurantMenuPage() {
           <div className="flex items-center gap-1.5 px-4 py-2 rounded-full bg-[#e8f0f4] border border-[#d2e2eb]">
             <MdInfo className="text-[14px] text-slate-500" />
             <div className="flex flex-col items-center">
-              <span className={`text-[11px] font-bold leading-none ${
-                settings?.maintenanceMode
-                  ? 'text-rose-600'
-                  : (restaurant.isActive !== false && restaurant.availabilityStatus === "open")
-                  ? 'text-emerald-600'
-                  : 'text-red-500'
-              }`}>
-                {settings?.maintenanceMode
-                  ? 'MAINTENANCE'
-                  : (restaurant.isActive !== false && restaurant.availabilityStatus === "open")
-                  ? 'OPEN'
-                  : restaurant.availabilityStatus === "disabled"
-                  ? 'DISABLED'
-                  : 'CLOSED'}
-              </span>
+              {(() => {
+                const isWithinHours = isWithinOperatingHours(restaurant?.operatingHours?.open, restaurant?.operatingHours?.close);
+                const isCurrentlyOpen = (restaurant.isActive !== false) && restaurant.availabilityStatus === "open" && isWithinHours;
+                return (
+                  <span className={`text-[11px] font-bold leading-none ${
+                    settings?.maintenanceMode
+                      ? 'text-rose-600'
+                      : isCurrentlyOpen
+                      ? 'text-emerald-600'
+                      : 'text-red-500'
+                  }`}>
+                    {settings?.maintenanceMode
+                      ? 'MAINTENANCE'
+                      : isCurrentlyOpen
+                      ? 'OPEN'
+                      : restaurant.availabilityStatus === "disabled"
+                      ? 'DISABLED'
+                      : 'CLOSED'}
+                  </span>
+                );
+              })()}
               <span className="text-[9px] text-slate-500 leading-none">Status</span>
             </div>
           </div>
@@ -209,10 +216,13 @@ export default function RestaurantMenuPage() {
       {/* Platform / Restaurant Status Warning Banner */}
       {(() => {
         const platformMsg = getPlatformStatusMessage();
-        const isRestaurantOpen = restaurant && restaurant.isActive !== false && restaurant.availabilityStatus === "open";
+        const isWithinHours = isWithinOperatingHours(restaurant?.operatingHours?.open, restaurant?.operatingHours?.close);
+        const isRestaurantOpen = restaurant && restaurant.isActive !== false && restaurant.availabilityStatus === "open" && isWithinHours;
         const isOrderingDisabled = !!platformMsg || !isRestaurantOpen;
 
         if (!isOrderingDisabled) return null;
+
+        const openTimeFormatted = restaurant?.operatingHours?.open ? formatToAMPM(restaurant.operatingHours.open) : "";
 
         return (
           <div className="mx-4 mt-4 bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
@@ -232,6 +242,8 @@ export default function RestaurantMenuPage() {
               <p className="text-[12px] text-rose-600 leading-relaxed font-semibold">
                 {platformMsg || (restaurant?.availabilityStatus === "disabled" 
                   ? "This restaurant is temporarily disabled by platform administration." 
+                  : !isWithinHours && openTimeFormatted
+                  ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
                   : "This restaurant is currently closed and not accepting new orders.")}
               </p>
             </div>

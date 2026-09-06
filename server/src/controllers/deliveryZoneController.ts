@@ -8,6 +8,7 @@ import { findApplicableZone } from "../services/deliveryRadiusService";
 import * as zoneCacheService from "../services/zoneCacheService";
 import * as redisService from "../services/redisService";
 import { computeBillFromZone } from "../utils/billCalculator";
+import PlatformSettings from "../models/PlatformSettings";
 
 // --- CRUD OPERATIONS (For Admin Panel) ---
 
@@ -375,6 +376,12 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             }
         }
 
+        // Minimum order value validation
+        const platformSettings = await PlatformSettings.findOne();
+        const minOrderValue = orderType === "food" ? (platformSettings?.minOrderValueFood || 0) : (platformSettings?.minOrderValueGrocery || 0);
+        const isBelowMinimum = itemTotal < minOrderValue;
+        const amountNeededForMinOrder = isBelowMinimum ? minOrderValue - itemTotal : 0;
+
         res.status(200).json({
             success: true,
             zoneId: activeZone._id,
@@ -393,7 +400,10 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             couponError,
             grandTotal,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
-            durationMinutes: durationMinutes + prepBuffer // Culinary preparation / grocery packing + transit buffer
+            durationMinutes: durationMinutes + prepBuffer, // Culinary preparation / grocery packing + transit buffer
+            minOrderValue,
+            isBelowMinimum,
+            amountNeededForMinOrder
         });
 
     } catch (error: any) {

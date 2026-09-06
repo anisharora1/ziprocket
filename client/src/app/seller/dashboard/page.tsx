@@ -13,6 +13,9 @@ import {
   MdShoppingCart as MdShoppingCartIcon,
   MdStorefront as MdStorefrontIcon,
   MdStore as MdStoreIcon,
+  MdSchedule as MdScheduleIcon,
+  MdSave as MdSaveIcon,
+  MdCheckCircle as MdCheckCircleIcon
 } from "react-icons/md";
 
 const SellerLiveOrders = dynamic(() => import("./components/SellerLiveOrders"), {
@@ -28,6 +31,9 @@ export default function SellerDashboardPage() {
   const [isDataLoading, setIsDataLoading] = useState(true);
   const [isActive, setIsActive] = useState<boolean>(true);
   const [toggling, setToggling] = useState<boolean>(false);
+  const [operatingHours, setOperatingHours] = useState<{ open: string; close: string }>({ open: "09:00", close: "22:00" });
+  const [savingHours, setSavingHours] = useState<boolean>(false);
+  const [hoursSavedSuccess, setHoursSavedSuccess] = useState<boolean>(false);
 
   const handleToggleAvailability = async () => {
     if (!restaurant || toggling) return;
@@ -46,6 +52,25 @@ export default function SellerDashboardPage() {
       setToggling(false);
     }
   };
+
+  const handleSaveOperatingHours = async () => {
+    if (!restaurant || savingHours) return;
+    try {
+      setSavingHours(true);
+      setHoursSavedSuccess(false);
+      const res = await apiClient.put(`/restaurants/${restaurant._id}`, { operatingHours });
+      if (res.data.success) {
+        setRestaurant((prev: any) => ({ ...prev, operatingHours }));
+        setHoursSavedSuccess(true);
+        setTimeout(() => setHoursSavedSuccess(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to save operating hours:", err);
+      alert("Failed to save operating hours. Please try again.");
+    } finally {
+      setSavingHours(false);
+    }
+  };
   
   const { user, isLoading: authLoading } = useAuth();
   const router = useRouter();
@@ -62,8 +87,15 @@ export default function SellerDashboardPage() {
       try {
         const restRes = await apiClient.get('/restaurants/my-restaurant');
         if (restRes.data.success && restRes.data.restaurant) {
-          setRestaurant(restRes.data.restaurant);
-          setIsActive(restRes.data.restaurant.isActive !== undefined ? restRes.data.restaurant.isActive : true);
+          const restData = restRes.data.restaurant;
+          setRestaurant(restData);
+          setIsActive(restData.isActive !== undefined ? restData.isActive : true);
+          if (restData.operatingHours) {
+            setOperatingHours({
+              open: restData.operatingHours.open || "09:00",
+              close: restData.operatingHours.close || "22:00"
+            });
+          }
           
           const [ordersRes, statsRes] = await Promise.all([
             apiClient.get('/orders/my-orders'),
@@ -199,6 +231,53 @@ export default function SellerDashboardPage() {
           {/* Right/Side Column */}
           <div className="flex flex-col gap-6 md:gap-8">
             
+            {/* Operating Hours Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-[16px] font-bold text-slate-900 flex items-center gap-2">
+                  <MdScheduleIcon className="text-[#FF5C00] text-[20px]" />
+                  Operating Hours
+                </h3>
+                {hoursSavedSuccess && (
+                  <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-600 animate-in fade-in">
+                    <MdCheckCircleIcon /> Saved
+                  </span>
+                )}
+              </div>
+              <p className="text-[12px] text-slate-500 mb-4">
+                Set your daily kitchen timings. Outside these hours, your outlet will automatically show as closed.
+              </p>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Opening Time</label>
+                  <input
+                    type="time"
+                    value={operatingHours.open}
+                    onChange={(e) => setOperatingHours(prev => ({ ...prev, open: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#FF5C00]"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">Closing Time</label>
+                  <input
+                    type="time"
+                    value={operatingHours.close}
+                    onChange={(e) => setOperatingHours(prev => ({ ...prev, close: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#FF5C00]"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveOperatingHours}
+                  disabled={savingHours}
+                  className="w-full mt-2 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all active:scale-[0.98] cursor-pointer"
+                >
+                  <MdSaveIcon className="text-[16px]" />
+                  {savingHours ? "Saving..." : "Save Operating Hours"}
+                </button>
+              </div>
+            </div>
+
             {/* Recent Alerts */}
             <div className="bg-white rounded-2xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100">
               <h3 className="text-[16px] font-bold text-slate-900 mb-6">Recent Alerts</h3>

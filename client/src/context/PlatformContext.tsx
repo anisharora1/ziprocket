@@ -11,6 +11,8 @@ export interface PlatformSettings {
         close: string;
     };
     groceryStatus: "open" | "closed" | "disabled";
+    minOrderValueFood?: number;
+    minOrderValueGrocery?: number;
 }
 
 interface PlatformContextType {
@@ -29,7 +31,7 @@ interface PlatformContextType {
 
 const PlatformContext = createContext<PlatformContextType | undefined>(undefined);
 
-const formatToAMPM = (timeStr: string): string => {
+export const formatToAMPM = (timeStr: string): string => {
     if (!timeStr) return "";
     const cleanTime = timeStr.replace(/[^\d:]/g, '');
     const [h, m] = cleanTime.split(":").map(Number);

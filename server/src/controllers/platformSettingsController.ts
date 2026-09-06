@@ -11,7 +11,9 @@ export const getOrCreateSettings = async () => {
             isPlatformOpen: true,
             maintenanceMode: false,
             operatingHours: { open: "08:00", close: "22:00" },
-            groceryStatus: "open"
+            groceryStatus: "open",
+            minOrderValueFood: 0,
+            minOrderValueGrocery: 0
         });
     }
     return settings;
@@ -55,7 +57,7 @@ export const streamSettings = async (req: Request, res: Response): Promise<void>
 // UPDATE settings (Admin only)
 export const updateSettings = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { isPlatformOpen, maintenanceMode, operatingHours, groceryStatus } = req.body;
+        const { isPlatformOpen, maintenanceMode, operatingHours, groceryStatus, minOrderValueFood, minOrderValueGrocery } = req.body;
 
         if (groceryStatus !== undefined && !["open", "closed", "disabled"].includes(groceryStatus)) {
             res.status(400).json({ success: false, message: "Invalid groceryStatus value." });
@@ -74,6 +76,8 @@ export const updateSettings = async (req: Request, res: Response): Promise<void>
             if (operatingHours.close !== undefined) settings.operatingHours.close = operatingHours.close;
         }
         if (groceryStatus !== undefined) settings.groceryStatus = groceryStatus;
+        if (minOrderValueFood !== undefined) settings.minOrderValueFood = Math.max(0, Number(minOrderValueFood) || 0);
+        if (minOrderValueGrocery !== undefined) settings.minOrderValueGrocery = Math.max(0, Number(minOrderValueGrocery) || 0);
 
         await settings.save();
         await redisService.setJson("platform:settings", settings.toObject ? settings.toObject() : settings, 60);

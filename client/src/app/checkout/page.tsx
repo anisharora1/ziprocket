@@ -68,6 +68,9 @@ interface BillDetails {
     discountAmount?: number;
     couponApplied?: boolean;
     couponError?: string;
+    minOrderValue?: number;
+    isBelowMinimum?: boolean;
+    amountNeededForMinOrder?: number;
 }
 
 export default function CheckoutPage() {
@@ -78,6 +81,7 @@ export default function CheckoutPage() {
     const [orderPlaced, setOrderPlaced] = useState(false);
     const { cart, clearCart } = useCart();
     const {
+        settings,
         isPlatformCurrentlyOpen,
         getPlatformStatusMessage,
         isGroceryCurrentlyOpen,
@@ -577,6 +581,10 @@ export default function CheckoutPage() {
     const activeFreeDeliveryThreshold = Number(billDetails?.freeDeliveryThreshold) || 0;
     const amountNeededForFreeDelivery = activeFreeDeliveryThreshold - itemTotal;
     const isEligibleForFreeDeliveryNudge = activeDeliveryFee > 0 && amountNeededForFreeDelivery > 0 && activeFreeDeliveryThreshold > 0;
+
+    const activeMinOrderValue = billDetails?.minOrderValue !== undefined ? Number(billDetails.minOrderValue) : (cart.orderType === 'food' ? (settings?.minOrderValueFood || 0) : (settings?.minOrderValueGrocery || 0));
+    const isBelowMinimum = billDetails?.isBelowMinimum !== undefined ? Boolean(billDetails.isBelowMinimum) : (itemTotal < activeMinOrderValue);
+    const amountNeededForMinOrder = billDetails?.amountNeededForMinOrder !== undefined ? Number(billDetails.amountNeededForMinOrder) : (isBelowMinimum ? Math.max(0, activeMinOrderValue - itemTotal) : 0);
 
     // Auto-redirect after notification card with a delay
     useEffect(() => {
@@ -1335,6 +1343,18 @@ export default function CheckoutPage() {
                                 </div>
                             )}
 
+                            {isBelowMinimum && activeMinOrderValue > 0 && (
+                                <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 mb-3">
+                                    <MdWarning className="text-amber-600 text-xl shrink-0" />
+                                    <p className="text-[12px] font-bold text-amber-900">
+                                        Add ₹{amountNeededForMinOrder.toFixed(0)} more to reach the ₹{activeMinOrderValue} minimum order value
+                                        <span className="block text-[10px] font-medium text-amber-700 mt-0.5">
+                                            Minimum order value for {cart.orderType === 'food' ? 'food' : 'grocery'} is ₹{activeMinOrderValue}
+                                        </span>
+                                    </p>
+                                </div>
+                            )}
+
                             <div className="space-y-2.5 text-[13px]">
                             <div className="flex justify-between text-slate-600">
                                 <span>Item Total</span>
@@ -1420,8 +1440,8 @@ export default function CheckoutPage() {
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 pb-safe z-50">
                 <button
                     onClick={handlePlaceOrder}
-                    disabled={placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled}
-                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
+                    disabled={placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled || isBelowMinimum}
+                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled || isBelowMinimum ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
                         }`}
                 >
                     <span className="font-medium text-[15px]">
@@ -1429,13 +1449,15 @@ export default function CheckoutPage() {
                             ? 'Ordering is unavailable'
                             : checkoutError
                                 ? 'Outside Delivery Service Area'
-                                : loadingBill
-                                    ? 'Calculating dynamic fares...'
-                                    : placingOrder
-                                        ? 'Processing...'
-                                        : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
+                                : isBelowMinimum
+                                    ? `Add ₹${amountNeededForMinOrder.toFixed(0)} more to place order`
+                                    : loadingBill
+                                        ? 'Calculating dynamic fares...'
+                                        : placingOrder
+                                            ? 'Processing...'
+                                            : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
                     </span>
-                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && <MdArrowForward className="text-[20px]" />}
+                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && !isBelowMinimum && <MdArrowForward className="text-[20px]" />}
                 </button>
                 <p className="text-center text-[10px] text-slate-500 mt-2.5">
                     By placing this order, you agree to our Terms & Conditions

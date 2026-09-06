@@ -44,6 +44,10 @@ export interface IRestaurant extends BaseDocument {
     logo?: IRestaurantImage;
     gallery?: IRestaurantImage[];
     availabilityStatus: "open" | "closed" | "disabled";
+    operatingHours?: {
+        open: string;
+        close: string;
+    };
 }
 
 const restaurantSchema = new Schema<IRestaurant>({
@@ -108,6 +112,10 @@ const restaurantSchema = new Schema<IRestaurant>({
         type: String,
         enum: ["open", "closed", "disabled"],
         default: "open"
+    },
+    operatingHours: {
+        open: { type: String, default: "09:00" },
+        close: { type: String, default: "22:00" }
     }
 
 }, { 
