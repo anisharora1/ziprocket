@@ -50,18 +50,99 @@ const TopRatedSkeleton = () => (
   </section>
 );
 
+interface TopRatedProps {
+  initialRestaurants?: any[];
+  initialPromotions?: any[];
+}
+
+function assembleFeaturedItems(promotions: any[] = [], restaurants: any[] = []): any[] {
+  let activeRestaurantAds: any[] = [];
+  if (Array.isArray(promotions)) {
+    activeRestaurantAds = promotions.filter(
+      (p: Promotion) => p.isActive && p.targetType === "restaurant" && p.restaurant
+    );
+  }
+
+  let topRatedRestaurants: any[] = [];
+  if (Array.isArray(restaurants)) {
+    topRatedRestaurants = restaurants
+      .filter((r: any) => Number(r.rating) > 0) // only genuinely-rated restaurants qualify
+      .sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
+  }
+
+  const assembled: any[] = [];
+
+  // Add all active sponsored restaurant ads first
+  activeRestaurantAds.forEach((ad: Promotion) => {
+    if (ad.restaurant) {
+      assembled.push({
+        _id: ad.restaurant._id,
+        name: ad.restaurant.name,
+        cuisines: ad.restaurant.cuisines,
+        rating: Number(ad.restaurant.rating) || 0,
+        image: ad.image || ad.restaurant.image,
+        isAd: true,
+        badgeText: ad.description?.split("•")[0]?.trim() || "Featured"
+      });
+    }
+  });
+
+  // Add top-rated restaurants that aren't already included as ads, up to 6 total items
+  topRatedRestaurants.forEach((rest: Restaurant) => {
+    if (!assembled.some(item => item._id === rest._id) && assembled.length < 6) {
+      assembled.push({
+        _id: rest._id,
+        name: rest.name,
+        cuisines: rest.cuisines,
+        rating: rest.rating, // already guaranteed > 0 by the filter
+        image: rest.image,
+        isAd: false,
+        badgeText: ""
+      });
+    }
+  });
+
+  // Fallback: if no ratings exist yet, show first few approved restaurants
+  if (assembled.length === 0 && Array.isArray(restaurants) && restaurants.length > 0) {
+    restaurants.slice(0, 6).forEach((rest: any) => {
+      assembled.push({
+        _id: rest._id,
+        name: rest.name,
+        cuisines: rest.cuisines,
+        rating: Number(rest.rating) || 0,
+        image: rest.image,
+        isAd: false,
+        badgeText: ""
+      });
+    });
+  }
+
+  return assembled;
+}
+
 // In-memory cache to persist featured items across page navigations
 let cachedFeaturedItems: any[] | null = null;
 let cachedFeaturedFetched = false;
 
-export default function TopRated() {
-  const [featuredItems, setFeaturedItems] = useState<any[]>(cachedFeaturedItems || []);
-  const [loading, setLoading] = useState(!cachedFeaturedFetched);
+export default function TopRated({
+  initialRestaurants = [],
+  initialPromotions = []
+}: TopRatedProps = {}) {
+  const initialItems = assembleFeaturedItems(initialPromotions, initialRestaurants);
+  const [featuredItems, setFeaturedItems] = useState<any[]>(() => {
+    if (cachedFeaturedItems && cachedFeaturedItems.length > 0) {
+      return cachedFeaturedItems;
+    }
+    return initialItems;
+  });
+  const [loading, setLoading] = useState(
+    !cachedFeaturedFetched && initialItems.length === 0 && (!cachedFeaturedItems || cachedFeaturedItems.length === 0)
+  );
 
   useEffect(() => {
     const fetchFeatured = async (isBackground = false) => {
       try {
-        if (!isBackground) {
+        if (!isBackground && featuredItems.length === 0) {
           setLoading(true);
         }
         const [promoRes, restRes] = await Promise.all([
@@ -69,52 +150,10 @@ export default function TopRated() {
           apiClient.get("/restaurants?status=approved&isActive=true")
         ]);
 
-        let activeRestaurantAds: any[] = [];
-        if (promoRes.data.success) {
-          activeRestaurantAds = (promoRes.data.promotions || []).filter(
-            (p: Promotion) => p.isActive && p.targetType === "restaurant" && p.restaurant
-          );
-        }
+        const rawPromos = promoRes.data?.success ? (promoRes.data.promotions || []) : [];
+        const rawRests = restRes.data?.success ? (restRes.data.restaurants || []) : [];
 
-        let topRatedRestaurants: any[] = [];
-        if (restRes.data.success) {
-          const allRest = restRes.data.restaurants || [];
-          topRatedRestaurants = allRest
-            .filter((r: any) => Number(r.rating) > 0) // only genuinely-rated restaurants qualify
-            .sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
-        }
-
-        const assembled: any[] = [];
-
-        // Add all active sponsored restaurant ads first
-        activeRestaurantAds.forEach((ad: Promotion) => {
-          if (ad.restaurant) {
-            assembled.push({
-              _id: ad.restaurant._id,
-              name: ad.restaurant.name,
-              cuisines: ad.restaurant.cuisines,
-              rating: Number(ad.restaurant.rating) || 0,
-              image: ad.image || ad.restaurant.image,
-              isAd: true,
-              badgeText: ad.description.split("•")[0].trim() || "Featured"
-            });
-          }
-        });
-
-        // Add top-rated restaurants that aren't already included as ads, up to 6 total items
-        topRatedRestaurants.forEach((rest: Restaurant) => {
-          if (!assembled.some(item => item._id === rest._id) && assembled.length < 6) {
-            assembled.push({
-              _id: rest._id,
-              name: rest.name,
-              cuisines: rest.cuisines,
-              rating: rest.rating, // already guaranteed > 0 by the filter
-              image: rest.image,
-              isAd: false,
-              badgeText: ""
-            });
-          }
-        });
+        const assembled = assembleFeaturedItems(rawPromos, rawRests);
 
         setFeaturedItems(assembled);
         cachedFeaturedItems = assembled;
@@ -126,8 +165,8 @@ export default function TopRated() {
       }
     };
 
-    if (cachedFeaturedFetched) {
-      // Revalidate in background immediately on revisit
+    if (cachedFeaturedFetched || initialItems.length > 0) {
+      // Revalidate in background immediately on revisit or after initial SSR paint
       fetchFeatured(true);
       return;
     }

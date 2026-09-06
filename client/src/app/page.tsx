@@ -18,7 +18,39 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+async function getHomepageData() {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+  try {
+    const [bannersRes, topRatedRes] = await Promise.all([
+      fetch(`${apiUrl}/promotions`, { next: { revalidate: 300 } }),
+      fetch(`${apiUrl}/restaurants?status=approved&isActive=true&limit=10`, { next: { revalidate: 300 } }),
+    ]);
+
+    const bannersData = bannersRes.ok ? await bannersRes.json() : null;
+    const topRatedData = topRatedRes.ok ? await topRatedRes.json() : null;
+
+    const rawPromotions = bannersData?.promotions || bannersData?.data?.promotions || [];
+    const activeBanners = rawPromotions.filter((p: any) => p.isActive);
+    const restaurants = topRatedData?.restaurants || topRatedData?.data?.restaurants || [];
+
+    return {
+      banners: activeBanners,
+      promotions: rawPromotions,
+      topRated: restaurants,
+    };
+  } catch (error) {
+    console.error("Failed to fetch homepage data server-side:", error);
+    return {
+      banners: [],
+      promotions: [],
+      topRated: [],
+    };
+  }
+}
+
+export default async function Home() {
+  const { banners, promotions, topRated } = await getHomepageData();
+
   const localBusinessSchema = {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
@@ -102,9 +134,9 @@ export default function Home() {
 
       <main className="pt-20 mt-4 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto space-y-xl w-full">
         <StaticSearchBar />
-        <HeroCarousel />
+        <HeroCarousel initialBanners={banners} />
         <Categories />
-        <TopRated />
+        <TopRated initialRestaurants={topRated} initialPromotions={promotions} />
         <StaticRestaurantList />
       </main>
 

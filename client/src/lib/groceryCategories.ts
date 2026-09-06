@@ -67,7 +67,7 @@ export const GROCERY_SUBCATEGORY_ICONS: Record<string, string> = {
   "Atta & Flours": "https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&w=120&h=120&q=80",
   "Rice & Basmati": "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=120&h=120&q=80",
   "Dals & Pulses": "https://images.unsplash.com/photo-1515942400420-2b98fed1f515?auto=format&fit=crop&w=120&h=120&q=80",
-  "Ghee & Oils": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=120&h=120&q=80",
+  "Ghee & Oils": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788678136/oil_ghee.avif",
   // Munchies
   "Chips & Crisps": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580721/chips.webp",
   "Bhujia & Namkeen": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788580721/namkeen.webp",

@@ -135,8 +135,6 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="ZipRocket" />
         <meta name="application-name" content="ZipRocket" />
 
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://images.unsplash.com" />
         <link rel="preconnect" href="https://res.cloudinary.com" />
 

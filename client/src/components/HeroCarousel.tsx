@@ -29,9 +29,11 @@ export default function HeroCarousel({ initialBanners = [] }: HeroCarouselProps)
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        setLoading(true);
+        if (initialBanners.length === 0) {
+          setLoading(true);
+        }
         const res = await apiClient.get("/promotions");
-        if (res.data.success) {
+        if (res.data?.success) {
           // Fetch ALL active banners published from admin dashboard
           const activeBanners = (res.data.promotions || []).filter(
             (p: Promotion) => p.isActive
@@ -45,9 +47,7 @@ export default function HeroCarousel({ initialBanners = [] }: HeroCarouselProps)
       }
     };
 
-    if (initialBanners.length === 0) {
-      fetchBanners();
-    }
+    fetchBanners();
   }, []);
 
   const displayBanners = banners;

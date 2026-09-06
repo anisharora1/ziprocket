@@ -170,21 +170,32 @@ export default function RestaurantList() {
   }, [activeZoneId, cacheKey]);
 
   if (loading && restaurants.length === 0) {
-    // Premium loading skeletons
+    // Realistic, high-fidelity loading skeleton to eliminate CLS
     return (
-      <section className="space-y-md">
+      <section className="space-y-md animate-pulse">
         <div className="flex justify-between items-end">
-          <div className="h-6 w-56 bg-slate-100 rounded-lg animate-pulse" />
-          <div className="h-4 w-32 bg-slate-100 rounded animate-pulse" />
+          <div className="space-y-2">
+            <div className="h-6 w-48 sm:w-64 bg-slate-100 rounded-lg" />
+            <div className="h-3 w-32 bg-slate-100 rounded" />
+          </div>
+          <div className="h-4 w-24 bg-slate-100 rounded hidden sm:block" />
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden h-[300px] animate-pulse">
-              <div className="h-44 bg-slate-100" />
-              <div className="p-4 space-y-3">
-                <div className="h-4 w-3/4 bg-slate-100 rounded" />
-                <div className="h-3 w-1/2 bg-slate-100 rounded" />
-                <div className="h-3 w-1/3 bg-slate-100 rounded pt-2" />
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="h-44 bg-slate-100 relative">
+                <div className="absolute top-3 left-3 h-5 w-20 bg-slate-200/80 rounded-lg" />
+                <div className="absolute bottom-3 right-3 h-5 w-16 bg-slate-200/80 rounded-xl" />
+              </div>
+              <div className="p-4 space-y-2">
+                <div className="flex justify-between items-center gap-3">
+                  <div className="h-4 w-3/5 bg-slate-100 rounded" />
+                  <div className="h-4 w-12 bg-slate-100 rounded-lg" />
+                </div>
+                <div className="h-3 w-4/5 bg-slate-100 rounded" />
+                <div className="pt-3 border-t border-slate-50 flex items-center justify-between">
+                  <div className="h-3 w-28 bg-slate-100 rounded" />
+                </div>
               </div>
             </div>
           ))}
