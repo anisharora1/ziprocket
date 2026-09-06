@@ -42,7 +42,7 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
   },
   "Personal Care": {
     name: "Personal Care",
-    image: "https://images.unsplash.com/photo-1607006342411-92346cf57b4e?auto=format&fit=crop&w=150&h=150&q=80",
+    image: "https://res.cloudinary.com/dxrtse4ni/image/upload/v1788724792/personalcareimg.png",
     color: "bg-[#FFF1E6] text-[#FF5C00] border-[#FFE2CC]/50"
   },
   "Masala & Dry Fruits": {
@@ -84,7 +84,7 @@ export const GROCERY_SUBCATEGORY_ICONS: Record<string, string> = {
   "Tissues & Disposables": "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=120&h=120&q=80",
   "Repellents": "https://images.unsplash.com/photo-1578894381163-e72c17f2d45f?auto=format&fit=crop&w=120&h=120&q=80",
   // Personal Care
-  "Soaps & Bodywash": "https://images.unsplash.com/photo-1607006342411-92346cf57b4e?auto=format&fit=crop&w=120&h=120&q=80",
+  "Soaps & Bodywash": "https://res.cloudinary.com/dxrtse4ni/image/upload/v1787626207/ziprocket/products/w1veuggbofzmfsuo9nxt.jpg",
   "Shampoos & Haircare": "https://images.unsplash.com/photo-1535585209827-a15fcdbc4c2d?auto=format&fit=crop&w=120&h=120&q=80",
   "Oral Care": "https://images.unsplash.com/photo-1559599101-f09722fb4925?auto=format&fit=crop&w=120&h=120&q=80",
   "Deodorants": "https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=120&h=120&q=80",
