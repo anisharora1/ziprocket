@@ -679,6 +679,11 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
             return;
         }
 
+        if (orderToCheck.orderStatus === orderStatus) {
+            res.status(200).json({ success: true, message: "Order is already in this status.", order: orderToCheck });
+            return;
+        }
+
         // State-transition validation — prevent invalid jumps (e.g., placed → delivered)
         const VALID_TRANSITIONS: Record<string, string[]> = {
             pending: ["placed", "cancelled"],
@@ -726,54 +731,59 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
             return;
         }
 
-        // Invalidate Redis caches for this order and user orders list
-        await redisService.del(`order:detail:${orderId}`);
-        // Use pattern delete to clear ALL paginated variants (e.g. :p1:l20, :p2:l20, etc.)
-        await redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`);
-
-        // Handle cancellations and increment the respective cancellation count
-        if (orderStatus === "cancelled") {
-            if (cancelledBy === "customer") {
-                await User.findByIdAndUpdate(order.user, { $inc: { cancellationCount: 1 } });
-            } else if (cancelledBy === "restaurant") {
-                await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { cancellationCount: 1 } });
-            }
-        }
-
-        // --- Socket.IO: Notify relevant parties of order status change ---
-        try {
-            const rooms: string[] = [
-                `user:${order.user.toString()}`,
-                "admin",
-            ];
-            if (order.orderType === "food" && order.restaurant) {
-                rooms.push(`seller:${order.restaurant.toString()}`);
-                if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
-            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
-                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
-            }
-            // Notify the assigned delivery boy if one has claimed this order
-            const activeDelivery = await DeliveryModel.findOne({ order: orderId }).select("deliveryBoy").lean();
-            if (activeDelivery?.deliveryBoy) {
-                rooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
-            }
-            emitToRooms(rooms, "order_status_updated", {
-                orderId: order._id.toString(),
-                orderStatus,
-                orderType: order.orderType,
-                restaurantId: order.restaurant?.toString(),
-                zoneId: (order as any).deliveryZone?.toString(),
-                userId: order.user.toString(),
-            });
-        } catch (emitErr: any) {
-            console.error("[Socket] order_status_updated emit error:", emitErr.message);
-        }
-
+        // Respond immediately — the caller doesn't need to wait for background tasks
         res.status(200).json({
             success: true,
             message: `Order status updated to ${orderStatus}`,
             order
         });
+
+        // Everything from here runs in the background, after the response has already gone out
+        (async () => {
+            try {
+                // Invalidate Redis caches in parallel
+                await Promise.all([
+                    redisService.del(`order:detail:${orderId}`),
+                    redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`),
+                ]);
+
+                // Handle cancellations and increment the respective cancellation count
+                if (orderStatus === "cancelled") {
+                    if (cancelledBy === "customer") {
+                        await User.findByIdAndUpdate(order.user, { $inc: { cancellationCount: 1 } });
+                    } else if (cancelledBy === "restaurant") {
+                        await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { cancellationCount: 1 } });
+                    }
+                }
+
+                // --- Socket.IO: Notify relevant parties of order status change ---
+                const rooms: string[] = [
+                    `user:${order.user.toString()}`,
+                    "admin",
+                ];
+                if (order.orderType === "food" && order.restaurant) {
+                    rooms.push(`seller:${order.restaurant.toString()}`);
+                    if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                    rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                }
+                // Notify the assigned delivery boy if one has claimed this order
+                const activeDelivery = await DeliveryModel.findOne({ order: orderId }).select("deliveryBoy").lean();
+                if (activeDelivery?.deliveryBoy) {
+                    rooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
+                }
+                emitToRooms(rooms, "order_status_updated", {
+                    orderId: order._id.toString(),
+                    orderStatus,
+                    orderType: order.orderType,
+                    restaurantId: order.restaurant?.toString(),
+                    zoneId: (order as any).deliveryZone?.toString(),
+                    userId: order.user.toString(),
+                });
+            } catch (bgError: any) {
+                console.error(`[updateOrderStatus background] Failed for order ${orderId}:`, bgError.message);
+            }
+        })();
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }

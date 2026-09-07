@@ -12,6 +12,8 @@ import {
   MdLocationOn,
   MdLocalMall,
   MdCreditCardOff,
+  MdError,
+  MdClose,
 } from "react-icons/md";
 
 interface OrderItem {
@@ -59,6 +61,7 @@ export default function ModeratorOrdersPage() {
   const [activeTab, setActiveTab] = useState<"all" | "active" | "completed">("active");
   const [page, setPage] = useState(1);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [errorToast, setErrorToast] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   // TanStack Query — single source of truth for grocery orders with server-side tab & pagination
@@ -186,7 +189,8 @@ export default function ModeratorOrdersPage() {
       }
     } catch (err: any) {
       console.error("Failed to update status:", err);
-      alert("Error: " + (err.response?.data?.message || err.message));
+      setErrorToast(err.response?.data?.message || err.message || "Failed to update order status.");
+      setTimeout(() => setErrorToast(null), 4000);
     } finally {
       setUpdatingId(null);
     }
@@ -536,6 +540,25 @@ export default function ModeratorOrdersPage() {
           </div>
         )}
       </main>
+
+      {/* Dismissible In-App Error Toast */}
+      {errorToast && (
+        <div className="fixed bottom-6 right-6 z-50 max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-4 flex items-start gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="w-9 h-9 rounded-xl bg-[#FF5C00]/10 flex items-center justify-center flex-shrink-0">
+            <MdError className="text-[20px] text-[#FF5C00]" />
+          </div>
+          <div className="flex-1 pt-0.5">
+            <p className="text-[13px] font-bold text-slate-800">Status Update Failed</p>
+            <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed">{errorToast}</p>
+          </div>
+          <button
+            onClick={() => setErrorToast(null)}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+          >
+            <MdClose className="text-[16px]" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
