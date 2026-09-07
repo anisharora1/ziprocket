@@ -681,9 +681,9 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
 
         // State-transition validation — prevent invalid jumps (e.g., placed → delivered)
         const VALID_TRANSITIONS: Record<string, string[]> = {
-            pending:   ["placed", "cancelled"],
-            placed:    ["accepted", "cancelled"],
-            accepted:  ["preparing", "cancelled"],
+            pending: ["placed", "cancelled"],
+            placed: ["accepted", "preparing", "cancelled"], // "preparing" added — grocery moderators accept directly into preparing, restaurants go through "accepted" first
+            accepted: ["preparing", "cancelled"],
             preparing: ["on_the_way", "cancelled"],
             accepted_by_delivery: ["on_the_way", "cancelled"],
             on_the_way: ["delivered"],
