@@ -9,6 +9,7 @@ import * as zoneCacheService from "../services/zoneCacheService";
 import * as redisService from "../services/redisService";
 import { computeBillFromZone } from "../utils/billCalculator";
 import PlatformSettings from "../models/PlatformSettings";
+import { verifyItemPrices } from "../utils/itemVerification";
 
 // --- CRUD OPERATIONS (For Admin Panel) ---
 
@@ -311,8 +312,15 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             return;
         }
 
-        // Calculate Subtotal (Item Total)
-        const itemTotal = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+        // Calculate Subtotal (Item Total) via server-verified prices
+        let itemTotal = 0;
+        try {
+            const verification = await verifyItemPrices(items, orderType, orderType === "food" ? vendorId : undefined);
+            itemTotal = verification.verifiedItemTotal;
+        } catch (verifErr: any) {
+            res.status(400).json({ success: false, message: verifErr.message || "Failed to verify item prices." });
+            return;
+        }
 
         // 4. Resolve vendor coordinates to compute route distance
         let distanceKm = 2.5; 

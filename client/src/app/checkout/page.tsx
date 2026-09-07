@@ -890,10 +890,10 @@ export default function CheckoutPage() {
                         btnShadow: 'shadow-emerald-200',
                     },
                     error: {
-                        grad: 'from-rose-500 via-rose-600 to-red-700',
+                        grad: 'from-[#FF5C00] via-[#FF5C00] to-[#e05200]',
                         iconComp: MdError,
-                        btnGrad: 'from-rose-500 to-rose-600 hover:from-rose-600 hover:to-red-700',
-                        btnShadow: 'shadow-rose-200',
+                        btnGrad: 'from-[#FF5C00] to-[#e05200] hover:from-[#e05200] hover:to-[#c94700]',
+                        btnShadow: 'shadow-orange-200',
                     },
                     warning: {
                         grad: 'from-amber-400 via-amber-500 to-orange-500',

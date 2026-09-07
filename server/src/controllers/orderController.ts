@@ -16,6 +16,7 @@ import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
 import { computeBillFromZone } from "../utils/billCalculator";
 import { isWithinOperatingHours } from "../utils/restaurantHours";
+import { verifyItemPrices } from "../utils/itemVerification";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -221,30 +222,19 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         }
 
         // ── SERVER-SIDE PRICE VERIFICATION ──────────────────────────────
-        // Re-fetch real prices for every item — never trust client-submitted item.price
+        // Re-fetch real prices for every item using shared helper — never trust client-submitted item.price
         let verifiedItemTotal = 0;
-        const verifiedItems: any[] = [];
-        for (const item of items) {
-            let product: any;
-            if (orderType === "food") {
-                product = await MenuItem.findById(item.menuItem);
-                if (product && product.restaurant?.toString() !== restaurant?.toString()) {
-                    res.status(400).json({
-                        success: false,
-                        message: `"${product.name}" doesn't belong to this restaurant. Please clear your cart and try again.`
-                    });
-                    return;
-                }
-            } else {
-                product = productMap.get(item.groceryItem?.toString()); // already fetched above for stock check
-            }
-            if (!product) {
-                res.status(404).json({ success: false, message: "One or more items in your cart are no longer available." });
-                return;
-            }
-            const realPrice = (product.discountedPrice !== undefined && Number(product.discountedPrice) > 0) ? product.discountedPrice : product.price;
-            verifiedItemTotal += realPrice * item.quantity;
-            verifiedItems.push({ ...item, price: realPrice }); // overwrite client-submitted price
+        let verifiedItems: any[] = [];
+        try {
+            const verification = await verifyItemPrices(items, orderType, restaurant);
+            verifiedItemTotal = verification.verifiedItemTotal;
+            verifiedItems = verification.verifiedItems;
+        } catch (verifErr: any) {
+            res.status(400).json({
+                success: false,
+                message: verifErr.message || "Price verification failed"
+            });
+            return;
         }
 
         // ── MINIMUM ORDER VALUE ENFORCEMENT ──────────────────────────────
