@@ -70,14 +70,43 @@ interface GroceryAnalytics {
   }[];
 }
 
-// Generate recent calendar week options for tier-3 logistics cycle (Mon -> Sun)
-const WEEK_OPTIONS = [
-  { id: "2026-W22", name: "May 25 - May 31, 2026 (Current Week)", date: "2026-05-27" },
-  { id: "2026-W21", name: "May 18 - May 24, 2026 (Previous Week)", date: "2026-05-20" },
-  { id: "2026-W20", name: "May 11 - May 17, 2026", date: "2026-05-13" },
-  { id: "2026-W19", name: "May 04 - May 10, 2026", date: "2026-05-06" },
-  { id: "2026-W18", name: "Apr 27 - May 03, 2026", date: "2026-04-29" },
-];
+// Must stay in sync with getWeekRange/getWeekIdentifier in server/src/controllers/payoutController.ts —
+// if that backend formula ever changes, this needs to change identically.
+function getWeekRange(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  monday.setHours(0, 0, 0, 0);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23, 59, 59, 999);
+  return { monday, sunday };
+}
+
+function getWeekIdentifier(startDate: Date) {
+  const year = startDate.getFullYear();
+  const oneJan = new Date(year, 0, 1);
+  const numberOfDays = Math.floor((startDate.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
+  const weekNumber = Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7);
+  return `${year}-W${String(weekNumber).padStart(2, "0")}`;
+}
+
+function generateWeekOptions(count = 8) {
+  const options = [];
+  const now = new Date();
+  for (let i = 0; i < count; i++) {
+    const targetDate = new Date(now);
+    targetDate.setDate(now.getDate() - i * 7);
+    const { monday, sunday } = getWeekRange(targetDate);
+    const id = getWeekIdentifier(monday);
+    const label = `${monday.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} - ${sunday.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}${i === 0 ? " (Current Week)" : i === 1 ? " (Previous Week)" : ""}`;
+    options.push({ id, name: label, date: monday.toISOString().split("T")[0] });
+  }
+  return options;
+}
+
+const WEEK_OPTIONS = generateWeekOptions();
 
 export default function FinanceAdminPage() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
