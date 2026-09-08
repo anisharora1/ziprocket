@@ -484,6 +484,7 @@ export default function SellerMenuPage() {
                       <option value="Starters">Starters</option>
                       <option value="Mains">Mains</option>
                       <option value="Desserts">Desserts</option>
+                      <option value="Cake">Cake</option>
                       <option value="Beverages">Beverages</option>
                       <option value="Pizza">Pizza</option>
                       <option value="Burger">Burger</option>

@@ -401,10 +401,6 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 await redisService.deletePattern(`order:user_recent:${user.toString()}*`);
             }
 
-            // Increment total orders count for the restaurant (Food only)
-            if (orderType === "food" && restaurant) {
-                await Restaurant.findByIdAndUpdate(restaurant, { $inc: { totalOrders: 1 } });
-            }
 
             // Record coupon usage if successfully placed
             if (couponDoc) {
@@ -754,6 +750,12 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                     } else if (cancelledBy === "restaurant") {
                         await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { cancellationCount: 1 } });
                     }
+                }
+
+                // Increment total orders count for the restaurant only upon successful delivery
+                if (orderStatus === "delivered" && order.orderType === "food" && order.restaurant) {
+                    await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { totalOrders: 1 } });
+                    await restaurantCacheService.invalidateRestaurantCache(order.restaurant.toString());
                 }
 
                 // --- Socket.IO: Notify relevant parties of order status change ---
