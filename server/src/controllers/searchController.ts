@@ -414,6 +414,20 @@ export const searchRestaurants = async (req: Request, res: Response): Promise<vo
 };
 
 /**
+ * @desc Get Distinct Food Categories
+ * @route GET /api/search/menu-categories
+ * @access Public
+ */
+export const getMenuCategories = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const categories = await MenuItem.distinct("category", { isAvailable: true });
+        res.status(200).json({ success: true, categories: categories.filter(Boolean).sort() });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
  * @desc Search Menu Items
  * @route GET /api/search/menu-items
  * @access Public
@@ -428,11 +442,8 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
         const skip = (page - 1) * limit;
 
         const filter: any = {};
-
-        let isTextSearch = false;
         if (query) {
-            filter.$text = { $search: query };
-            isTextSearch = true;
+            filter.name = { $regex: query, $options: "i" };
         }
 
         if (restaurant && mongoose.Types.ObjectId.isValid(restaurant as string)) {
@@ -446,18 +457,12 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
             filter.isVeg = isVeg === "true";
         }
 
-        let sortOption: any = { createdAt: -1 };
-        if (isTextSearch) {
-            sortOption = { score: { $meta: "textScore" } };
-        }
+        let sortOption: any = { isFeatured: -1, createdAt: -1 };
         if (req.query.sort === "priceAsc") sortOption = { price: 1 };
         if (req.query.sort === "priceDesc") sortOption = { price: -1 };
 
-        let [menuItems, total] = await Promise.all([
-            MenuItem.find(
-                filter,
-                isTextSearch ? { score: { $meta: "textScore" } } : {}
-            )
+        const [menuItems, total] = await Promise.all([
+            MenuItem.find(filter)
                 .sort(sortOption)
                 .skip(skip)
                 .limit(limit)
@@ -465,22 +470,6 @@ export const searchMenuItems = async (req: Request, res: Response): Promise<void
                 .lean(),
             MenuItem.countDocuments(filter)
         ]);
-
-        // Fallback for partial matching
-        if (query && menuItems.length === 0) {
-            delete filter.$text;
-            filter.name = { $regex: query, $options: "i" };
-
-            [menuItems, total] = await Promise.all([
-                MenuItem.find(filter)
-                    .sort(req.query.sort === "priceAsc" ? { price: 1 } : req.query.sort === "priceDesc" ? { price: -1 } : { createdAt: -1 })
-                    .skip(skip)
-                    .limit(limit)
-                    .populate("restaurant", "name location phone")
-                    .lean(),
-                MenuItem.countDocuments(filter)
-            ]);
-        }
 
         const normalizedMenuItems = menuItems.map((item: any) => ({
             ...item,
