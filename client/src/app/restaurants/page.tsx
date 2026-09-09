@@ -42,12 +42,19 @@ interface MenuItemType {
 export default function FoodDiscoveryPage() {
   const { cart, addToCart, updateQuantity } = useCart();
 
-  const [items, setItems] = useState<MenuItemType[]>([]);
+  // Search, categories & filter states
   const [categories, setCategories] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [vegOnly, setVegOnly] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+
+  // Popular Dishes Feed (Random sampling across all restaurants, batches of 20)
+  const [allPopularItems, setAllPopularItems] = useState<MenuItemType[]>([]);
+  const [visibleCount, setVisibleCount] = useState<number>(20);
+
+  // Filtered/Search Menu Items
+  const [filteredItems, setFilteredItems] = useState<MenuItemType[]>([]);
 
   // Selected item for the Detail Modal
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
@@ -80,43 +87,71 @@ export default function FoodDiscoveryPage() {
     fetchCategories();
   }, []);
 
-  // Fetch food items based on search query, category, and veg filter
+  // Fetch items based on view mode (Random Popular Feed vs Filtered Search)
   useEffect(() => {
-    const fetchMenuItems = async () => {
+    const isDefaultFeed = activeCategory === "All" && !searchQuery.trim();
+
+    if (isDefaultFeed) {
+      // Default view: fetch 80 true random dishes across all restaurants once
       setLoading(true);
-      try {
-        const params = new URLSearchParams();
-        if (searchQuery.trim()) {
-          params.set("q", searchQuery.trim());
-        }
-        if (activeCategory && activeCategory !== "All") {
-          params.set("category", activeCategory);
-        }
-        if (vegOnly) {
-          params.set("isVeg", "true");
-        }
-        params.set("limit", "20");
+      setVisibleCount(20);
+      apiClient
+        .get("/search/popular-dishes")
+        .then((res) => {
+          if (res.data.success && Array.isArray(res.data.items)) {
+            setAllPopularItems(res.data.items);
+          } else {
+            setAllPopularItems([]);
+          }
+        })
+        .catch((err) => {
+          console.error("Failed to fetch popular dishes feed:", err);
+          setAllPopularItems([]);
+        })
+        .finally(() => {
+          setLoading(false);
+        });
+    } else {
+      // Filtered or search view: query regular search endpoint
+      setLoading(true);
+      const timer = setTimeout(async () => {
+        try {
+          const params = new URLSearchParams();
+          if (searchQuery.trim()) {
+            params.set("q", searchQuery.trim());
+          }
+          if (activeCategory && activeCategory !== "All") {
+            params.set("category", activeCategory);
+          }
+          if (vegOnly) {
+            params.set("isVeg", "true");
+          }
+          params.set("limit", "40");
 
-        const res = await apiClient.get(`/search/menu-items?${params.toString()}`);
-        if (res.data.success) {
-          setItems(res.data.results || []);
-        } else {
-          setItems([]);
+          const res = await apiClient.get(`/search/menu-items?${params.toString()}`);
+          if (res.data.success) {
+            setFilteredItems(res.data.results || []);
+          } else {
+            setFilteredItems([]);
+          }
+        } catch (err) {
+          console.error("Failed to fetch menu items:", err);
+          setFilteredItems([]);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        console.error("Failed to fetch menu items:", err);
-        setItems([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+      }, 300);
 
-    const timer = setTimeout(() => {
-      fetchMenuItems();
-    }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [activeCategory, searchQuery, vegOnly]);
 
-    return () => clearTimeout(timer);
-  }, [searchQuery, activeCategory, vegOnly]);
+  // Compute displayed items
+  const isDefaultFeed = activeCategory === "All" && !searchQuery.trim();
+  const currentPopularPool = vegOnly ? allPopularItems.filter((i) => i.isVeg) : allPopularItems;
+  const displayedItems = isDefaultFeed
+    ? currentPopularPool.slice(0, visibleCount)
+    : filteredItems;
 
   // Fetch related items when detail modal item changes
   useEffect(() => {
@@ -206,23 +241,40 @@ export default function FoodDiscoveryPage() {
     });
   };
 
+  const handleAddFromModal = (item: MenuItemType) => {
+    handleAddItem(item);
+    setSelectedItem(null); // Auto-close modal after adding so View Cart bar is immediately accessible
+  };
+
   return (
     <div className="bg-[#fcfcfc] text-on-surface pb-28 min-h-screen w-full font-sans">
       <div className="max-w-7xl mx-auto w-full">
-        {/* Top Header & Search Bar */}
-        <header className="bg-[#fcfcfc] sticky top-0 z-40 pt-4 pb-2 px-4 sm:px-6 lg:px-8 border-b border-slate-100 flex items-center justify-between gap-3 sm:gap-4">
-          <Link href="/" className="font-bold text-base sm:text-xl text-primary tracking-tight shrink-0">
-            ZipRocket
-          </Link>
-
-          <div className="flex items-center gap-2 flex-1 max-w-lg bg-slate-100 rounded-full px-3.5 py-2 border border-slate-200/80 focus-within:border-[#FF5C00]/50 focus-within:ring-2 focus-within:ring-[#FF5C00]/10 transition-all">
-            <MdSearch className="text-slate-400 text-xl shrink-0" />
+        {/* Redesigned Header: Brand + Veg Only on top row, Search Bar below */}
+        <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-8 pt-3 pb-2.5">
+          <div className="flex items-center justify-between mb-2.5">
+            <Link href="/" className="font-black text-lg sm:text-xl text-[#FF5C00] tracking-tight">
+              ZipRocket
+            </Link>
+            <button
+              onClick={() => setVegOnly(!vegOnly)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[12px] font-bold transition-all active:scale-95 cursor-pointer ${
+                vegOnly
+                  ? "border-green-600 bg-green-50 text-green-700 shadow-xs"
+                  : "border-slate-300 text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              <span className={`w-2 h-2 rounded-full ${vegOnly ? "bg-green-600" : "bg-slate-300"}`} />
+              Veg Only
+            </button>
+          </div>
+          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2 border border-slate-200/60 focus-within:border-[#FF5C00]/50 focus-within:ring-2 focus-within:ring-[#FF5C00]/10 transition-all">
+            <MdSearch className="text-slate-400 text-lg shrink-0" />
             <input
               type="text"
               placeholder="Search dishes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent border-none outline-none text-sm w-full placeholder-slate-400 text-slate-800 font-medium"
+              className="bg-transparent outline-none text-sm w-full placeholder-slate-400 text-slate-800 font-medium"
               suppressHydrationWarning={true}
             />
             {searchQuery && (
@@ -236,8 +288,8 @@ export default function FoodDiscoveryPage() {
           </div>
         </header>
 
-        {/* Dynamic Category Pills Row */}
-        <div className="flex gap-2 justify-start items-center overflow-x-auto no-scrollbar px-4 sm:px-6 lg:px-8 py-3.5 border-b border-slate-50">
+        {/* Categories: wrapping flex layout allowing multiple rows */}
+        <div className="flex flex-wrap gap-2 px-4 sm:px-6 lg:px-8 py-3 border-b border-slate-50">
           {/* "All" Pill */}
           <button
             onClick={() => setActiveCategory("All")}
@@ -264,20 +316,6 @@ export default function FoodDiscoveryPage() {
               {cat}
             </button>
           ))}
-
-          {/* Veg Only Filter Pill */}
-          <div className="h-5 w-px bg-slate-200 mx-1 shrink-0" />
-          <button
-            onClick={() => setVegOnly(!vegOnly)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border text-[13px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shrink-0 ${
-              vegOnly
-                ? "border-green-600 bg-green-50 text-green-800"
-                : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${vegOnly ? "bg-green-600" : "bg-slate-300"}`} />
-            <span>Veg Only</span>
-          </button>
         </div>
 
         {/* Food Items Discovery Grid */}
@@ -291,7 +329,11 @@ export default function FoodDiscoveryPage() {
                 : "Popular & Featured Dishes"}
             </h2>
             <span className="text-[11px] font-semibold text-slate-400">
-              {loading ? "Finding dishes..." : `${items.length} dishes available`}
+              {loading
+                ? "Finding dishes..."
+                : isDefaultFeed
+                ? `Showing ${displayedItems.length} of ${currentPopularPool.length} dishes`
+                : `${displayedItems.length} dishes found`}
             </span>
           </div>
 
@@ -312,7 +354,7 @@ export default function FoodDiscoveryPage() {
                 </div>
               ))}
             </div>
-          ) : items.length === 0 ? (
+          ) : displayedItems.length === 0 ? (
             /* Empty State */
             <div className="text-center py-20 flex flex-col items-center">
               <div className="w-16 h-16 bg-orange-50 text-[#FF5C00] rounded-full flex items-center justify-center mb-3">
@@ -331,140 +373,156 @@ export default function FoodDiscoveryPage() {
                     setActiveCategory("All");
                     setVegOnly(false);
                   }}
-                  className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all"
+                  className="mt-4 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
                 >
                   Clear all filters
                 </button>
               )}
             </div>
           ) : (
-            /* Responsive 2-Col Mobile Grid Scaling to 3-5 Columns */
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-              {items.map((item) => {
-                const qty = getCartQuantity(item._id);
-                const currentPrice = getEffectivePrice(item);
-                const restInfo = getRestaurantInfo(item);
+            <>
+              {/* Responsive 2-Col Mobile Grid Scaling to 3-5 Columns */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                {displayedItems.map((item) => {
+                  const qty = getCartQuantity(item._id);
+                  const currentPrice = getEffectivePrice(item);
+                  const restInfo = getRestaurantInfo(item);
 
-                return (
-                  <div
-                    key={item._id}
-                    onClick={() => setSelectedItem(item)}
-                    className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,92,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col relative group cursor-pointer"
-                  >
-                    {/* Bestseller Badge */}
-                    {item.isFeatured && (
-                      <span className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-amber-500 text-white font-black text-[9px] rounded-md shadow-sm">
-                        🔥 Bestseller
-                      </span>
-                    )}
+                  return (
+                    <div
+                      key={item._id}
+                      onClick={() => setSelectedItem(item)}
+                      className="bg-white rounded-2xl overflow-hidden border border-slate-100 shadow-[0_2px_12px_rgba(0,0,0,0.03)] hover:shadow-[0_8px_24px_rgba(255,92,0,0.08)] hover:-translate-y-0.5 transition-all duration-300 flex flex-col relative group cursor-pointer"
+                    >
+                      {/* Top image container — Clean image and bestseller badge only */}
+                      <div className="relative rounded-t-2xl overflow-hidden h-28 sm:h-36 md:h-40 bg-slate-50 shrink-0">
+                        {item.isFeatured && (
+                          <span className="absolute top-2 left-2 z-10 px-2 py-0.5 bg-amber-500 text-white font-black text-[9px] rounded-md shadow-sm">
+                            🔥 Bestseller
+                          </span>
+                        )}
 
-                    {/* Image box */}
-                    <div className="p-2 sm:p-3 bg-white relative flex justify-center items-center h-28 sm:h-36 md:h-40 border-b border-slate-50 shrink-0 overflow-hidden">
-                      {item.images && item.images[0] ? (
-                        <OptimizedImage
-                          src={item.images[0]}
-                          alt={item.name}
-                          preset="card"
-                          className="h-full w-full object-cover rounded-xl group-hover:scale-105 transition-transform duration-300"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-slate-50 rounded-xl">
-                          <MdImage className="text-slate-300 text-3xl" />
-                        </div>
-                      )}
-
-                      {/* Add to Cart / Quantity Stepper Overlay */}
-                      <div className="absolute -bottom-3 right-2 sm:right-3 shrink-0 z-10">
-                        {qty > 0 ? (
-                          <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-md overflow-hidden font-black text-xs">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateQuantity(`food-${item._id}`, qty - 1);
-                              }}
-                              className="px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="px-2 text-slate-800 font-bold">{qty}</span>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updateQuantity(`food-${item._id}`, qty + 1);
-                              }}
-                              className="px-2 py-1.5 hover:bg-slate-50 text-[#FF5C00] transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
+                        {item.images && item.images[0] ? (
+                          <OptimizedImage
+                            src={item.images[0]}
+                            alt={item.name}
+                            preset="card"
+                            className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          />
                         ) : (
-                          <button
-                            disabled={item.isAvailable === false}
-                            onClick={(e) => handleAddItem(item, e)}
-                            className={`bg-white border font-black text-[11px] px-3.5 py-1.5 rounded-xl shadow-md uppercase tracking-wider transition-all duration-200 active:scale-95 ${
-                              item.isAvailable === false
-                                ? "border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none"
-                                : "border-[#FF5C00] text-[#FF5C00] hover:bg-[#FF5C00]/5"
-                            }`}
-                          >
-                            {item.isAvailable === false ? "Unavailable" : "Add"}
-                          </button>
+                          <div className="w-full h-full flex items-center justify-center bg-slate-50">
+                            <MdImage className="text-slate-300 text-3xl" />
+                          </div>
                         )}
                       </div>
-                    </div>
 
-                    {/* Details Box */}
-                    <div className="p-3 pt-5 flex-1 flex flex-col justify-between bg-white">
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <div
-                            className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center border ${
-                              item.isVeg ? "border-green-600" : "border-red-600"
-                            } bg-white rounded-[3px]`}
-                          >
+                      {/* Card Content Section */}
+                      <div className="p-3 flex-1 flex flex-col justify-between bg-white">
+                        <div>
+                          <div className="flex items-center gap-1.5 mb-1">
                             <div
-                              className={`w-1.5 h-1.5 rounded-full ${
-                                item.isVeg ? "bg-green-600" : "bg-red-600"
-                              }`}
-                            />
+                              className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center border ${
+                                item.isVeg ? "border-green-600" : "border-red-600"
+                              } bg-white rounded-[3px]`}
+                            >
+                              <div
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  item.isVeg ? "bg-green-600" : "bg-red-600"
+                                }`}
+                              />
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-semibold truncate">
+                              {item.category || "Dish"}
+                            </span>
                           </div>
-                          <span className="text-[10px] text-slate-400 font-semibold truncate">
-                            {item.category || "Dish"}
-                          </span>
+
+                          <h4 className="text-[13px] font-bold text-slate-800 leading-snug line-clamp-1 group-hover:text-[#FF5C00] transition-colors">
+                            {item.name}
+                          </h4>
+
+                          <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
+                            from {restInfo.name}
+                          </p>
                         </div>
 
-                        <h4 className="text-[13px] font-bold text-slate-800 leading-snug line-clamp-1 group-hover:text-[#FF5C00] transition-colors">
-                          {item.name}
-                        </h4>
+                        {/* Price & Add button in normal flow (no overlapping / clipping) */}
+                        <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-50">
+                          <div className="flex items-baseline gap-1">
+                            <span className="font-black text-slate-900 text-sm">₹{currentPrice}</span>
+                            {item.discountedPrice &&
+                              Number(item.discountedPrice) > 0 &&
+                              item.price > item.discountedPrice && (
+                                <span className="text-[11px] font-semibold text-slate-400 line-through">
+                                  ₹{item.price}
+                                </span>
+                              )}
+                          </div>
 
-                        <p className="text-[10px] text-slate-500 font-medium truncate mt-0.5">
-                          from {restInfo.name}
-                        </p>
-                      </div>
-
-                      <div className="mt-3 flex items-baseline gap-1.5">
-                        <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
-                        {item.discountedPrice &&
-                          Number(item.discountedPrice) > 0 &&
-                          item.price > item.discountedPrice && (
-                            <span className="text-xs font-semibold text-slate-400 line-through">
-                              ₹{item.price}
-                            </span>
+                          {qty > 0 ? (
+                            <div className="flex items-center bg-white border border-[#FF5C00] rounded-xl shadow-xs overflow-hidden font-black text-xs">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateQuantity(`food-${item._id}`, qty - 1);
+                                }}
+                                className="px-2 py-1 hover:bg-slate-50 text-[#FF5C00] transition-colors active:scale-90"
+                              >
+                                -
+                              </button>
+                              <span className="px-1.5 text-slate-800 font-bold text-xs">{qty}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateQuantity(`food-${item._id}`, qty + 1);
+                                }}
+                                className="px-2 py-1 hover:bg-slate-50 text-[#FF5C00] transition-colors active:scale-90"
+                              >
+                                +
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              disabled={item.isAvailable === false}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddItem(item);
+                              }}
+                              className={`h-7 sm:h-8 px-3.5 bg-white border border-[#FF5C00] text-[#FF5C00] font-black text-xs uppercase rounded-xl transition-all active:scale-95 shadow-xs ${
+                                item.isAvailable === false
+                                  ? "border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none"
+                                  : "hover:bg-[#FF5C00]/5"
+                              }`}
+                            >
+                              {item.isAvailable === false ? "OOS" : "Add"}
+                            </button>
                           )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+
+              {/* Load More Pagination for Random Popular Feed */}
+              {isDefaultFeed && visibleCount < currentPopularPool.length && (
+                <div className="pt-2 pb-4 flex justify-center">
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 20)}
+                    className="w-full sm:max-w-md py-3.5 bg-white border-2 border-[#FF5C00] hover:bg-[#FF5C00]/5 text-[#FF5C00] font-black text-sm rounded-2xl active:scale-[0.98] transition-all cursor-pointer shadow-xs text-center"
+                  >
+                    Load More Dishes ({currentPopularPool.length - visibleCount} remaining)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </main>
       </div>
 
-      {/* Food Item Detail Modal */}
+      {/* Food Item Detail Modal with z-[9999] */}
       {selectedItem && (
         <div
-          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200"
           onClick={() => setSelectedItem(null)}
         >
           <div
@@ -623,7 +681,7 @@ export default function FoodDiscoveryPage() {
                     return (
                       <button
                         disabled={selectedItem.isAvailable === false}
-                        onClick={() => handleAddItem(selectedItem)}
+                        onClick={() => handleAddFromModal(selectedItem)}
                         className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 ${
                           selectedItem.isAvailable === false
                             ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"

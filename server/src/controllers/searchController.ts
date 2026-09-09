@@ -428,6 +428,60 @@ export const getMenuCategories = async (req: Request, res: Response): Promise<vo
 };
 
 /**
+ * @desc Get Popular Dishes Feed (Random sampling across all active/approved restaurants)
+ * @route GET /api/search/popular-dishes
+ * @access Public
+ */
+export const getPopularDishesFeed = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const sampleSize = 80; // fetched once, revealed to the user 20 at a time client-side
+        const items = await MenuItem.aggregate([
+            { $match: { isAvailable: true } },
+            { $sample: { size: sampleSize } }, // true random selection — guarantees cross-restaurant diversity regardless of how many items any one restaurant has
+            {
+                $lookup: {
+                    from: "restaurants",
+                    localField: "restaurant",
+                    foreignField: "_id",
+                    as: "restaurant"
+                }
+            },
+            { $unwind: "$restaurant" },
+            { $match: { "restaurant.status": "approved", "restaurant.isActive": true } },
+            {
+                $project: {
+                    name: 1,
+                    price: 1,
+                    discountedPrice: 1,
+                    images: 1,
+                    isVeg: 1,
+                    isFeatured: 1,
+                    category: 1,
+                    isAvailable: 1,
+                    description: 1,
+                    prepTimeMinutes: 1,
+                    spiceLevel: 1,
+                    "restaurant._id": 1,
+                    "restaurant.name": 1,
+                    "restaurant.availabilityStatus": 1,
+                    "restaurant.operatingHours": 1
+                }
+            }
+        ]);
+
+        const normalizedItems = items.map((item: any) => ({
+            ...item,
+            images: Array.isArray(item.images) ? item.images.map((img: any) => img.url || img) : []
+        }));
+
+        res.status(200).json({ success: true, count: normalizedItems.length, items: normalizedItems });
+    } catch (error: any) {
+        console.error("Get popular dishes feed error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
  * @desc Search Menu Items
  * @route GET /api/search/menu-items
  * @access Public

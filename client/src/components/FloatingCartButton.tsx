@@ -12,7 +12,7 @@ export default function FloatingCartButton() {
   const totalPrice = cart.items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
 
   return (
-    <div className="fixed bottom-[90px] left-4 right-4 md:left-auto md:right-4 md:w-96 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300">
+    <div className="fixed bottom-[90px] left-4 right-4 md:left-auto md:right-4 md:w-96 z-[9000] animate-in slide-in-from-bottom-5 fade-in duration-300">
       <Link 
         href="/cart"
         className="bg-[#FF5C00] text-white p-3 rounded-xl shadow-2xl flex items-center justify-between cursor-pointer hover:bg-[#e05200] transition-colors border border-[#FF5C00]/20"
