@@ -7,256 +7,315 @@ import User from "../models/User";
 import Payout from "../models/Payout";
 import GroceryProduct from "../models/GroceryProduct";
 
-// Helper: Calculate Monday (00:00) and Sunday (23:59) for a given date
-const getWeekRange = (date: Date) => {
-    const d = new Date(date);
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Adjust when day is Sunday
-    
-    const monday = new Date(d.setDate(diff));
-    monday.setHours(0, 0, 0, 0);
-    
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    sunday.setHours(23, 59, 59, 999);
-    
-    return { monday, sunday };
-};
+// Helper: Calculate 3-day rolling settlement period anchored to fixed epoch
+export function getSettlementPeriod(referenceDate: Date) {
+    // Anchor 3-day cycles to a fixed epoch so periods are consistent and non-overlapping regardless of when this runs
+    const epoch = new Date("2026-01-01T00:00:00Z");
+    const msPerCycle = 3 * 24 * 60 * 60 * 1000;
+    const cyclesSinceEpoch = Math.floor((referenceDate.getTime() - epoch.getTime()) / msPerCycle);
+    const periodStart = new Date(epoch.getTime() + cyclesSinceEpoch * msPerCycle);
+    const periodEnd = new Date(periodStart.getTime() + msPerCycle - 1);
+    const identifier = `${periodStart.toISOString().split("T")[0]}_${periodEnd.toISOString().split("T")[0]}`;
+    return { periodStart, periodEnd, identifier };
+}
 
-// Helper: Generate a week identifier (e.g. "2026-W21")
-const getWeekIdentifier = (startDate: Date) => {
-    const year = startDate.getFullYear();
-    const oneJan = new Date(year, 0, 1);
-    const numberOfDays = Math.floor((startDate.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
-    const weekNumber = Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7);
-    return `${year}-W${String(weekNumber).padStart(2, "0")}`;
-};
+// --- CORE SETTLEMENT CALCULATION ENGINE ---
+// Callable by both the scheduled job and manual admin triggers
+export async function runSettlementCalculation(targetDate?: Date): Promise<{
+    identifier: string;
+    periodStart: Date;
+    periodEnd: Date;
+    restaurantPayoutsCount: number;
+    riderPayoutsCount: number;
+    groceryProcessed: boolean;
+}> {
+    // Default to the previous 3-day cycle if not explicitly specified
+    const refDate = targetDate || new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const { periodStart, periodEnd, identifier } = getSettlementPeriod(refDate);
 
-// --- CALCULATE WEEKLY SETTLEMENTS ---
-export const calculateWeeklyPayouts = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const { date } = req.body; // Can pass any date inside target week
-        const targetDate = date ? new Date(date) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // Defaults to previous week
-        
-        const { monday, sunday } = getWeekRange(targetDate);
-        const weekIdentifier = getWeekIdentifier(monday);
+    console.log(`[Settlement Engine] Calculating settlements for period ${identifier} (${periodStart.toISOString()} to ${periodEnd.toISOString()})`);
 
-        console.log(`Calculating Payouts for ${weekIdentifier} (${monday.toISOString()} to ${sunday.toISOString()})`);
+    // 1. Fetch delivered orders within the 3-day settlement period using deliveredAt (with createdAt fallback for legacy orders)
+    const periodOrders = await Order.find({
+        orderStatus: "delivered",
+        $or: [
+            { deliveredAt: { $gte: periodStart, $lte: periodEnd } },
+            { deliveredAt: { $exists: false }, createdAt: { $gte: periodStart, $lte: periodEnd } },
+            { deliveredAt: null, createdAt: { $gte: periodStart, $lte: periodEnd } }
+        ]
+    }).populate("restaurant");
 
-        // 1. Fetch delivered orders in target week
-        const weeklyOrders = await Order.find({
-            orderStatus: "delivered",
-            createdAt: { $gte: monday, $lte: sunday }
-        }).populate("restaurant");
-
-        // --- A. RESTAURANT SETTLEMENTS ---
-        const restaurantOrdersMap = new Map<string, any[]>();
-        weeklyOrders.forEach(order => {
-            if (order.orderType === "food" && order.restaurant) {
-                const restId = order.restaurant._id.toString();
-                const list = restaurantOrdersMap.get(restId) || [];
-                list.push(order);
-                restaurantOrdersMap.set(restId, list);
-            }
-        });
-
-        // Resolve all approved restaurants to create payouts even if they had 0 orders (optional, let's create for active ones)
-        const allRestaurants = await Restaurant.find();
-        
-        for (const rest of allRestaurants) {
-            const restId = rest._id.toString();
-            const orders = restaurantOrdersMap.get(restId) || [];
-            
-            const totalOrders = orders.length;
-            let totalRevenue = 0;
-            let codCollected = 0;
-            let onlinePayments = 0;
-
-            orders.forEach(o => {
-                totalRevenue += o.totalAmount || 0;
-                if (o.paymentMethod === "COD") {
-                    codCollected += o.totalAmount || 0;
-                } else {
-                    onlinePayments += o.totalAmount || 0;
-                }
-            });
-
-            const commissionRate = rest.commission !== undefined ? rest.commission : 10;
-            const platformCommission = Math.round((totalRevenue * commissionRate) / 100);
-            const finalPayoutAmount = totalRevenue - platformCommission; // owed to restaurant
-
-            const existingPayout = await Payout.findOne({ recipientType: "restaurant", restaurant: rest._id, weekIdentifier });
-            if (existingPayout && existingPayout.status === "paid") {
-                // Don't touch a settled payout's figures — log a warning instead so admin can investigate if numbers would have changed.
-                if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
-                    console.warn(`[Payout Mismatch] Restaurant ${rest._id}, week ${weekIdentifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
-                }
-                continue; // skip to next restaurant, don't overwrite
-            }
-
-            // Upsert Payout document
-            await Payout.findOneAndUpdate(
-                { recipientType: "restaurant", restaurant: rest._id, weekIdentifier },
-                {
-                    weekStartDate: monday,
-                    weekEndDate: sunday,
-                    totalOrders,
-                    totalRevenue,
-                    platformCommission,
-                    codCollected,
-                    onlinePayments,
-                    finalPayoutAmount,
-                    // keep status paid if it was already marked as paid, otherwise pending
-                    $setOnInsert: { status: "pending", auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }] }
-                },
-                { upsert: true, new: true }
-            );
+    // --- A. RESTAURANT SETTLEMENTS ---
+    const restaurantOrdersMap = new Map<string, any[]>();
+    periodOrders.forEach(order => {
+        if (order.orderType === "food" && order.restaurant) {
+            const restId = order.restaurant._id ? order.restaurant._id.toString() : order.restaurant.toString();
+            const list = restaurantOrdersMap.get(restId) || [];
+            list.push(order);
+            restaurantOrdersMap.set(restId, list);
         }
+    });
 
-        // --- B. DELIVERY PERSONNEL SETTLEMENTS ---
-        // Fetch delivered items in Delivery model
-        const weeklyDeliveries = await Delivery.find({
-            status: "delivered",
-            createdAt: { $gte: monday, $lte: sunday }
-        }).populate("order");
+    const allRestaurants = await Restaurant.find();
+    let restaurantPayoutsCount = 0;
 
-        const riderDeliveriesMap = new Map<string, any[]>();
-        weeklyDeliveries.forEach(delivery => {
-            if (delivery.deliveryBoy) {
-                const riderId = delivery.deliveryBoy.toString();
-                const list = riderDeliveriesMap.get(riderId) || [];
-                list.push(delivery);
-                riderDeliveriesMap.set(riderId, list);
-            }
-        });
+    for (const rest of allRestaurants) {
+        const restId = rest._id.toString();
+        const orders = restaurantOrdersMap.get(restId) || [];
+        const totalOrders = orders.length;
 
-        const allRiders = await User.find({ role: "delivery" });
-        for (const rider of allRiders) {
-            const riderId = rider._id.toString();
-            const deliveries = riderDeliveriesMap.get(riderId) || [];
-            
-            const totalOrders = deliveries.length;
-            let totalRevenue = 0; // Total delivery boy earnings
-            let codCollected = 0; // Cash collected from COD deliveries
+        let totalItemRevenue = 0;
+        let codCollected = 0;
+        let onlinePayments = 0;
 
-            deliveries.forEach(d => {
-                totalRevenue += d.earnings || 0;
-                const orderDoc = d.order as any;
-                if (orderDoc && orderDoc.paymentMethod === "COD") {
-                    codCollected += orderDoc.totalAmount || 0;
-                }
-            });
+        // CRITICAL FIX: Sum pure item value (price * quantity), not totalAmount (which includes delivery, platform fee, GST, packaging)
+        orders.forEach(o => {
+            const orderItemValue = (o.items || []).reduce((sum: number, item: any) => {
+                return sum + ((item.price || 0) * (item.quantity || 1));
+            }, 0);
+            totalItemRevenue += orderItemValue;
 
-            // For riders, the payout is their total delivery earnings. Cash in hand is tracked separately.
-            const finalPayoutAmount = totalRevenue;
-
-            const existingPayout = await Payout.findOne({ recipientType: "delivery", deliveryBoy: rider._id, weekIdentifier });
-            if (existingPayout && existingPayout.status === "paid") {
-                if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
-                    console.warn(`[Payout Mismatch] Delivery ${rider._id}, week ${weekIdentifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
-                }
-                continue;
-            }
-
-            await Payout.findOneAndUpdate(
-                { recipientType: "delivery", deliveryBoy: rider._id, weekIdentifier },
-                {
-                    weekStartDate: monday,
-                    weekEndDate: sunday,
-                    totalOrders,
-                    totalRevenue,
-                    platformCommission: 0,
-                    codCollected,
-                    onlinePayments: 0,
-                    finalPayoutAmount,
-                    $setOnInsert: { status: "pending", auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }] }
-                },
-                { upsert: true, new: true }
-            );
-        }
-
-        // --- C. GROCERY PLATFORM SALES REVENUE ---
-        const groceryOrders = weeklyOrders.filter(o => o.orderType === "grocery");
-        const totalGroceryOrders = groceryOrders.length;
-        let totalGrocerySales = 0;
-        let groceryCodCollected = 0;
-        let groceryOnlinePayments = 0;
-
-        groceryOrders.forEach(o => {
-            totalGrocerySales += o.totalAmount || 0;
             if (o.paymentMethod === "COD") {
-                groceryCodCollected += o.totalAmount || 0;
+                codCollected += orderItemValue;
             } else {
-                groceryOnlinePayments += o.totalAmount || 0;
+                onlinePayments += orderItemValue;
             }
         });
 
-        // Grocery margin estimated as standard 20% quick commerce margin
-        const groceryProfit = Math.round(totalGrocerySales * 0.20);
-        const finalGroceryPayout = totalGrocerySales - groceryProfit;
+        const commissionRate = rest.commission !== undefined ? rest.commission : 10;
+        const platformCommission = Math.round((totalItemRevenue * commissionRate) / 100);
+        const refundsAndAdjustments = 0; // Populate from real refund/dispute source once available
+        const finalPayoutAmount = totalItemRevenue - platformCommission - refundsAndAdjustments;
 
-        const existingGroceryPayout = await Payout.findOne({ recipientType: "grocery", weekIdentifier });
-        if (existingGroceryPayout && existingGroceryPayout.status === "paid") {
-            if (existingGroceryPayout.finalPayoutAmount !== finalGroceryPayout) {
-                console.warn(`[Payout Mismatch] Grocery, week ${weekIdentifier}: recalculated amount (₹${finalGroceryPayout}) differs from already-paid amount (₹${existingGroceryPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+        const existingPayout = await Payout.findOne({
+            recipientType: "restaurant",
+            restaurant: rest._id,
+            periodIdentifier: identifier
+        });
+
+        if (existingPayout && existingPayout.status === "paid") {
+            // Do NOT touch already-"paid" payouts — skip and warn if amounts differ
+            if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
+                console.warn(`[Payout Mismatch] Restaurant ${rest._id}, period ${identifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
             }
-        } else {
-            await Payout.findOneAndUpdate(
-                { recipientType: "grocery", weekIdentifier },
-                {
-                    weekStartDate: monday,
-                    weekEndDate: sunday,
-                    totalOrders: totalGroceryOrders,
-                    totalRevenue: totalGrocerySales,
-                    platformCommission: groceryProfit, // We store grocery profits under platform commission
-                    codCollected: groceryCodCollected,
-                    onlinePayments: groceryOnlinePayments,
-                    finalPayoutAmount: finalGroceryPayout,
-                    isEstimatedMargin: true,
-                    $setOnInsert: { status: "pending", auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }] }
-                },
-                { upsert: true, new: true }
-            );
+            continue;
         }
+
+        // Upsert pending/processing payout document with accurate item total
+        await Payout.findOneAndUpdate(
+            { recipientType: "restaurant", restaurant: rest._id, periodIdentifier: identifier },
+            {
+                periodStartDate: periodStart,
+                periodEndDate: periodEnd,
+                periodIdentifier: identifier,
+                totalOrders,
+                totalRevenue: totalItemRevenue,
+                platformCommission,
+                refundsAndAdjustments,
+                codCollected,
+                onlinePayments,
+                finalPayoutAmount,
+                $setOnInsert: {
+                    status: "pending",
+                    auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }]
+                }
+            },
+            { upsert: true, new: true }
+        );
+        restaurantPayoutsCount++;
+    }
+
+    // --- B. DELIVERY PERSONNEL SETTLEMENTS ---
+    const periodDeliveries = await Delivery.find({
+        status: "delivered",
+        $or: [
+            { updatedAt: { $gte: periodStart, $lte: periodEnd } },
+            { createdAt: { $gte: periodStart, $lte: periodEnd } }
+        ]
+    }).populate("order");
+
+    const riderDeliveriesMap = new Map<string, any[]>();
+    periodDeliveries.forEach(delivery => {
+        if (delivery.deliveryBoy) {
+            const riderId = delivery.deliveryBoy.toString();
+            const list = riderDeliveriesMap.get(riderId) || [];
+            list.push(delivery);
+            riderDeliveriesMap.set(riderId, list);
+        }
+    });
+
+    const allRiders = await User.find({ role: "delivery" });
+    let riderPayoutsCount = 0;
+
+    for (const rider of allRiders) {
+        const riderId = rider._id.toString();
+        const deliveries = riderDeliveriesMap.get(riderId) || [];
+        const totalOrders = deliveries.length;
+        let totalEarnings = 0;
+        let codCollected = 0;
+
+        deliveries.forEach(d => {
+            totalEarnings += d.earnings || 0;
+            const orderDoc = d.order as any;
+            if (orderDoc && orderDoc.paymentMethod === "COD") {
+                codCollected += orderDoc.totalAmount || 0;
+            }
+        });
+
+        const finalPayoutAmount = totalEarnings;
+
+        const existingPayout = await Payout.findOne({
+            recipientType: "delivery",
+            deliveryBoy: rider._id,
+            periodIdentifier: identifier
+        });
+
+        if (existingPayout && existingPayout.status === "paid") {
+            if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
+                console.warn(`[Payout Mismatch] Delivery ${rider._id}, period ${identifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+            }
+            continue;
+        }
+
+        await Payout.findOneAndUpdate(
+            { recipientType: "delivery", deliveryBoy: rider._id, periodIdentifier: identifier },
+            {
+                periodStartDate: periodStart,
+                periodEndDate: periodEnd,
+                periodIdentifier: identifier,
+                totalOrders,
+                totalRevenue: totalEarnings,
+                platformCommission: 0,
+                refundsAndAdjustments: 0,
+                codCollected,
+                onlinePayments: 0,
+                finalPayoutAmount,
+                $setOnInsert: {
+                    status: "pending",
+                    auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }]
+                }
+            },
+            { upsert: true, new: true }
+        );
+        riderPayoutsCount++;
+    }
+
+    // --- C. GROCERY PLATFORM SALES REVENUE ---
+    const groceryOrders = periodOrders.filter(o => o.orderType === "grocery");
+    const totalGroceryOrders = groceryOrders.length;
+    let totalGrocerySales = 0;
+    let groceryCodCollected = 0;
+    let groceryOnlinePayments = 0;
+
+    groceryOrders.forEach(o => {
+        const orderItemValue = (o.items || []).reduce((sum: number, item: any) => {
+            return sum + ((item.price || 0) * (item.quantity || 1));
+        }, 0);
+        totalGrocerySales += orderItemValue;
+
+        if (o.paymentMethod === "COD") {
+            groceryCodCollected += orderItemValue;
+        } else {
+            groceryOnlinePayments += orderItemValue;
+        }
+    });
+
+    const groceryProfit = Math.round(totalGrocerySales * 0.20);
+    const finalGroceryPayout = totalGrocerySales - groceryProfit;
+
+    const existingGroceryPayout = await Payout.findOne({ recipientType: "grocery", periodIdentifier: identifier });
+    let groceryProcessed = false;
+
+    if (existingGroceryPayout && existingGroceryPayout.status === "paid") {
+        if (existingGroceryPayout.finalPayoutAmount !== finalGroceryPayout) {
+            console.warn(`[Payout Mismatch] Grocery, period ${identifier}: recalculated amount (₹${finalGroceryPayout}) differs from already-paid amount (₹${existingGroceryPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+        }
+    } else {
+        await Payout.findOneAndUpdate(
+            { recipientType: "grocery", periodIdentifier: identifier },
+            {
+                periodStartDate: periodStart,
+                periodEndDate: periodEnd,
+                periodIdentifier: identifier,
+                totalOrders: totalGroceryOrders,
+                totalRevenue: totalGrocerySales,
+                platformCommission: groceryProfit,
+                refundsAndAdjustments: 0,
+                codCollected: groceryCodCollected,
+                onlinePayments: groceryOnlinePayments,
+                finalPayoutAmount: finalGroceryPayout,
+                isEstimatedMargin: true,
+                $setOnInsert: {
+                    status: "pending",
+                    auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }]
+                }
+            },
+            { upsert: true, new: true }
+        );
+        groceryProcessed = true;
+    }
+
+    return {
+        identifier,
+        periodStart,
+        periodEnd,
+        restaurantPayoutsCount,
+        riderPayoutsCount,
+        groceryProcessed
+    };
+}
+
+// --- CONTROLLER: CALCULATE SETTLEMENTS (Admin Endpoint) ---
+export const calculateSettlements = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { date } = req.body;
+        const targetDate = date ? new Date(date) : undefined;
+        const result = await runSettlementCalculation(targetDate);
 
         res.status(200).json({
             success: true,
-            message: `Weekly payouts for cycle ${weekIdentifier} calculated successfully!`,
-            weekIdentifier,
-            period: { start: monday, end: sunday }
+            message: `3-day settlements for cycle ${result.identifier} calculated successfully!`,
+            periodIdentifier: result.identifier,
+            period: { start: result.periodStart, end: result.periodEnd },
+            summary: {
+                restaurants: result.restaurantPayoutsCount,
+                riders: result.riderPayoutsCount,
+                grocery: result.groceryProcessed
+            }
         });
-
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// --- GET PAYOUTS SUMMARY WITH FILTERS & KPIS ---
+// Aliased for backwards compatibility
+export const calculateWeeklyPayouts = calculateSettlements;
+
+// --- CONTROLLER: GET PAYOUTS SUMMARY (Admin Dashboard) ---
 export const getPayoutsSummary = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { week, recipientType, status, search } = req.query;
+        const { period, week, recipientType, status, search } = req.query;
 
-        // Default to current or previous week if not provided
         let filter: any = {};
-        if (week) filter.weekIdentifier = week as string;
+        const periodId = period || week;
+        if (periodId) filter.periodIdentifier = periodId as string;
         if (recipientType) filter.recipientType = recipientType as string;
         if (status) filter.status = status as string;
 
-        // Fetch payouts populated with recipients
         let payouts = await Payout.find(filter)
             .populate("restaurant", "name phone owner cuisines commission")
-            .populate("deliveryBoy", "name phone email");
+            .populate("deliveryBoy", "name phone email")
+            .sort({ createdAt: -1 });
 
-        // Filter by search text if provided
         if (search) {
             const query = (search as string).toLowerCase();
             payouts = payouts.filter(p => {
                 if (p.recipientType === "restaurant" && p.restaurant) {
                     const r = p.restaurant as any;
-                    return r.name.toLowerCase().includes(query) || r.phone.includes(query);
+                    return r.name.toLowerCase().includes(query) || (r.phone && r.phone.includes(query));
                 } else if (p.recipientType === "delivery" && p.deliveryBoy) {
                     const d = p.deliveryBoy as any;
-                    return d.name.toLowerCase().includes(query) || d.phone.includes(query);
+                    return d.name.toLowerCase().includes(query) || (d.phone && d.phone.includes(query));
                 } else if (p.recipientType === "grocery") {
                     return "grocery".includes(query);
                 }
@@ -264,7 +323,6 @@ export const getPayoutsSummary = async (req: Request, res: Response): Promise<vo
             });
         }
 
-        // Calculate dynamic platform-wide KPIs for the fetched set
         let totalRevenue = 0;
         let platformCommission = 0;
         let pendingSettlement = 0;
@@ -293,13 +351,12 @@ export const getPayoutsSummary = async (req: Request, res: Response): Promise<vo
                 codCashToCollect
             }
         });
-
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// --- UPDATE PAYOUT STATUS & LOG TRANSACTION ---
+// --- CONTROLLER: UPDATE PAYOUT STATUS & LOG AUDIT TRAIL ---
 export const updatePayoutStatus = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
@@ -310,6 +367,15 @@ export const updatePayoutStatus = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        // PHASE 3: Mandatory transaction ID when marking as paid
+        if (status === "paid" && !transactionId?.trim()) {
+            res.status(400).json({
+                success: false,
+                message: "A Transaction ID / UTR number is required to mark a payout as paid."
+            });
+            return;
+        }
+
         const payout = await Payout.findById(id);
         if (!payout) {
             res.status(404).json({ success: false, message: "Payout record not found" });
@@ -317,23 +383,32 @@ export const updatePayoutStatus = async (req: Request, res: Response): Promise<v
         }
 
         const oldStatus = payout.status;
+        const adminUser = (req as any).user;
+        const updatedByName = adminUser?.name || adminUser?._id?.toString() || "Unknown Admin";
+
+        // PHASE 4: Explicit correction trail for post-paid changes
+        if (payout.status === "paid" && transactionId && transactionId.trim() !== payout.paymentDetails?.transactionId) {
+            payout.auditLogs.push({
+                status: "correction",
+                updatedBy: updatedByName,
+                updatedAt: new Date(),
+                notes: `UTR corrected from "${payout.paymentDetails?.transactionId || "none"}" to "${transactionId.trim()}". Reason: ${notes || "not specified"}`
+            });
+        } else if (oldStatus !== status) {
+            payout.auditLogs.push({
+                status,
+                updatedBy: updatedByName,
+                updatedAt: new Date(),
+                notes: `Status transitioned from ${oldStatus} to ${status}. ${notes || ""}`
+            });
+        }
+
         payout.status = status;
         payout.paymentDetails = {
-            transactionId: transactionId || payout.paymentDetails?.transactionId,
-            paidAt: status === "paid" ? new Date() : payout.paymentDetails?.paidAt,
-            notes: notes || payout.paymentDetails?.notes
+            transactionId: transactionId ? transactionId.trim() : payout.paymentDetails?.transactionId,
+            paidAt: status === "paid" ? (payout.paymentDetails?.paidAt || new Date()) : payout.paymentDetails?.paidAt,
+            notes: notes !== undefined ? notes : payout.paymentDetails?.notes
         };
-
-        // Append audit log with real admin identity
-        const adminUser = (req as any).user;
-        const updatedBy = adminUser?.name || adminUser?._id?.toString() || "Unknown Admin";
-
-        payout.auditLogs.push({
-            status,
-            updatedBy,
-            updatedAt: new Date(),
-            notes: `Status transitioned from ${oldStatus} to ${status}. ${notes || ""}`
-        });
 
         await payout.save();
 
@@ -342,41 +417,60 @@ export const updatePayoutStatus = async (req: Request, res: Response): Promise<v
             message: "Payout status updated successfully!",
             payout
         });
-
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
 };
 
-// --- GET GROCERY WEEKLY ANALYTICS ---
-export const getGroceryFinancialAnalytics = async (req: Request, res: Response): Promise<void> => {
+// --- CONTROLLER: RESTAURANT-FACING PAYOUT HISTORY ---
+export const getMyPayouts = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { week } = req.query;
-        if (!week) {
-            res.status(400).json({ success: false, message: "Week identifier query parameter is required." });
+        const restaurant = await Restaurant.findOne({ owner: req.user?._id });
+        if (!restaurant) {
+            res.status(404).json({ success: false, message: "No restaurant found." });
             return;
         }
 
-        const weekStr = week as string;
-        // Parse date from week identifier or locate Payout start/end dates
-        const payout = await Payout.findOne({ recipientType: "grocery", weekIdentifier: weekStr });
+        const payouts = await Payout.find({ recipientType: "restaurant", restaurant: restaurant._id })
+            .sort({ periodStartDate: -1 })
+            .select("periodStartDate periodEndDate periodIdentifier totalOrders totalRevenue platformCommission refundsAndAdjustments adjustmentNotes finalPayoutAmount status paymentDetails createdAt");
+
+        res.status(200).json({
+            success: true,
+            payouts
+        });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// --- CONTROLLER: GROCERY ANALYTICS ---
+export const getGroceryFinancialAnalytics = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const { period, week } = req.query;
+        const targetPeriod = (period || week) as string;
+
+        if (!targetPeriod) {
+            res.status(400).json({ success: false, message: "Period identifier query parameter is required." });
+            return;
+        }
+
+        const payout = await Payout.findOne({ recipientType: "grocery", periodIdentifier: targetPeriod });
         if (!payout) {
             res.status(200).json({
                 success: true,
-                message: "No grocery revenue logs found for this week.",
+                message: "No grocery revenue logs found for this period.",
                 analytics: { totalSales: 0, profit: 0, itemsCount: 0, categories: [] }
             });
             return;
         }
 
-        // Fetch grocery orders delivered in the week range
         const groceryOrders = await Order.find({
             orderType: "grocery",
             orderStatus: "delivered",
-            createdAt: { $gte: payout.weekStartDate, $lte: payout.weekEndDate }
+            createdAt: { $gte: payout.periodStartDate, $lte: payout.periodEndDate }
         });
 
-        // Dynamic category sales grouping
         const categorySalesMap = new Map<string, { revenue: number, quantity: number }>();
         let totalItemsCount = 0;
 
@@ -414,7 +508,6 @@ export const getGroceryFinancialAnalytics = async (req: Request, res: Response):
                 categories: categoriesBreakdown
             }
         });
-
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }

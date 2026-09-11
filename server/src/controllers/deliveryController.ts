@@ -469,6 +469,7 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
 
         // Fulfill Mongoose Order
         order.orderStatus = "delivered";
+        order.deliveredAt = new Date();
         if (order.paymentMethod === "COD") {
             order.paymentStatus = "paid"; // cash collected on doorstep
         }

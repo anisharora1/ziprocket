@@ -11,6 +11,7 @@ import {
   MdReceiptLong,
   MdRestaurantMenu,
   MdPayments,
+  MdAccountBalanceWallet,
 } from 'react-icons/md';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -18,6 +19,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   receipt_long: MdReceiptLong,
   restaurant_menu: MdRestaurantMenu,
   payments: MdPayments,
+  account_balance_wallet: MdAccountBalanceWallet,
 };
 
 export default function SellerSidebar() {
@@ -43,6 +45,7 @@ export default function SellerSidebar() {
     { name: 'Orders', href: '/seller/orders', iconKey: 'receipt_long' },
     { name: 'Menu', href: '/seller/menu', iconKey: 'restaurant_menu' },
     { name: 'Finance', href: '/seller/finance', iconKey: 'payments' },
+    { name: 'Payouts', href: '/seller/payouts', iconKey: 'account_balance_wallet' },
   ];
 
   return (

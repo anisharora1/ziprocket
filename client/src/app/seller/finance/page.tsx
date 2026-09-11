@@ -90,19 +90,18 @@ export default function SellerFinancePage() {
       {/* KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         
-        {/* Total Earnings */}
+        {/* Food Sales Value */}
         <div className="bg-gradient-to-br from-emerald-500 to-emerald-700 rounded-2xl p-6 shadow-lg shadow-emerald-500/20 text-white relative overflow-hidden">
           <MdAccountBalance className="absolute right-[-10px] bottom-[-20px] text-[120px] opacity-20 pointer-events-none transform -rotate-12" />
-          <div className="flex justify-between items-start relative z-10 mb-6">
-            <p className="text-[11px] font-bold tracking-widest uppercase opacity-80">Overall Income</p>
+          <div className="flex justify-between items-start relative z-10 mb-4">
+            <p className="text-[11px] font-bold tracking-widest uppercase opacity-80">Food Sales Value</p>
             <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
               <MdAccountBalanceWallet className="text-[18px]" />
             </div>
           </div>
-          <h2 className="text-[36px] font-black tracking-tight leading-none mb-3 relative z-10">₹{totalRevenue.toLocaleString()}</h2>
-          <p className="text-[12px] font-medium flex items-center gap-1 relative z-10 opacity-90">
-            <MdAllInclusive className="text-[14px]" />
-            Delivered orders only
+          <h2 className="text-[36px] font-black tracking-tight leading-none mb-2 relative z-10">₹{totalRevenue.toLocaleString()}</h2>
+          <p className="text-[11px] font-medium opacity-85 relative z-10 leading-tight">
+            Value of items sold — excludes delivery, platform &amp; other customer-side fees
           </p>
         </div>
 
@@ -131,7 +130,7 @@ export default function SellerFinancePage() {
           </div>
           <h2 className="text-[32px] font-bold text-slate-900 tracking-tight leading-none mb-2">₹{averageOrderValue.toLocaleString()}</h2>
           <p className="text-[12px] text-slate-500 flex items-center gap-1 font-medium">
-             Revenue ÷ completed
+             Food sales ÷ completed
           </p>
         </div>
 

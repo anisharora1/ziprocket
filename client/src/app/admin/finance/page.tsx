@@ -12,13 +12,10 @@ import {
   MdDownloadForOffline, 
   MdAccountBalanceWallet, 
   MdAccountBalance, 
-  MdClose 
+  MdClose,
+  MdCheckCircle,
+  MdHistory
 } from "react-icons/md";
-
-interface BankDetails {
-  accountNumber: string;
-  ifscCode: string;
-}
 
 interface Restaurant {
   _id: string;
@@ -38,13 +35,15 @@ interface Payout {
   recipientType: "restaurant" | "delivery" | "grocery";
   restaurant?: Restaurant;
   deliveryBoy?: UserOwner;
-  weekStartDate: string;
-  weekEndDate: string;
-  weekIdentifier: string;
+  periodStartDate: string;
+  periodEndDate: string;
+  periodIdentifier: string;
   
   totalOrders: number;
   totalRevenue: number;
   platformCommission: number;
+  refundsAndAdjustments: number;
+  adjustmentNotes?: string;
   codCollected: number;
   onlinePayments: number;
   finalPayoutAmount: number;
@@ -56,6 +55,12 @@ interface Payout {
     paidAt?: string;
     notes?: string;
   };
+  auditLogs?: {
+    status: string;
+    updatedBy: string;
+    updatedAt: string;
+    notes?: string;
+  }[];
   createdAt: string;
 }
 
@@ -70,43 +75,32 @@ interface GroceryAnalytics {
   }[];
 }
 
-// Must stay in sync with getWeekRange/getWeekIdentifier in server/src/controllers/payoutController.ts —
-// if that backend formula ever changes, this needs to change identically.
-function getWeekRange(date: Date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
-  monday.setHours(0, 0, 0, 0);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
-  return { monday, sunday };
+// 3-day rolling cycle anchor helper
+function getSettlementPeriod(referenceDate: Date) {
+  const epoch = new Date("2026-01-01T00:00:00Z");
+  const msPerCycle = 3 * 24 * 60 * 60 * 1000;
+  const cyclesSinceEpoch = Math.floor((referenceDate.getTime() - epoch.getTime()) / msPerCycle);
+  const periodStart = new Date(epoch.getTime() + cyclesSinceEpoch * msPerCycle);
+  const periodEnd = new Date(periodStart.getTime() + msPerCycle - 1);
+  const identifier = `${periodStart.toISOString().split("T")[0]}_${periodEnd.toISOString().split("T")[0]}`;
+  return { periodStart, periodEnd, identifier };
 }
 
-function getWeekIdentifier(startDate: Date) {
-  const year = startDate.getFullYear();
-  const oneJan = new Date(year, 0, 1);
-  const numberOfDays = Math.floor((startDate.getTime() - oneJan.getTime()) / (24 * 60 * 60 * 1000));
-  const weekNumber = Math.ceil((numberOfDays + oneJan.getDay() + 1) / 7);
-  return `${year}-W${String(weekNumber).padStart(2, "0")}`;
-}
-
-function generateWeekOptions(count = 8) {
-  const options = [];
+function generatePeriodOptions(count = 12) {
+  const options: { id: string; name: string; date: string; periodStart: Date; periodEnd: Date }[] = [];
   const now = new Date();
   for (let i = 0; i < count; i++) {
-    const targetDate = new Date(now);
-    targetDate.setDate(now.getDate() - i * 7);
-    const { monday, sunday } = getWeekRange(targetDate);
-    const id = getWeekIdentifier(monday);
-    const label = `${monday.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} - ${sunday.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}${i === 0 ? " (Current Week)" : i === 1 ? " (Previous Week)" : ""}`;
-    options.push({ id, name: label, date: monday.toISOString().split("T")[0] });
+    const targetDate = new Date(now.getTime() - i * 3 * 24 * 60 * 60 * 1000);
+    const { periodStart, periodEnd, identifier } = getSettlementPeriod(targetDate);
+    if (!options.some(o => o.id === identifier)) {
+      const label = `${periodStart.toLocaleDateString("en-IN", { month: "short", day: "numeric" })} - ${periodEnd.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}${i === 0 ? " (Current 3-Day Cycle)" : i === 1 ? " (Previous Cycle)" : ""}`;
+      options.push({ id: identifier, name: label, date: periodStart.toISOString().split("T")[0], periodStart, periodEnd });
+    }
   }
   return options;
 }
 
-const WEEK_OPTIONS = generateWeekOptions();
+const PERIOD_OPTIONS = generatePeriodOptions();
 
 export default function FinanceAdminPage() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
@@ -120,23 +114,23 @@ export default function FinanceAdminPage() {
   const [loading, setLoading] = useState(true);
   
   // Filters
-  const [selectedWeek, setSelectedWeek] = useState(WEEK_OPTIONS[0].id); // Defaults to current week
+  const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[0].id);
   const [activeTab, setActiveTab] = useState<"restaurant" | "delivery" | "grocery">("restaurant");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
 
-  // Inline Payout Modal States
+  // Confirmation Modal States
   const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
   const [settleStatus, setSettleStatus] = useState<"paid" | "failed" | "processing">("paid");
   const [transactionId, setTransactionId] = useState("");
   const [settleNotes, setSettleNotes] = useState("");
   const [savingPayout, setSavingPayout] = useState(false);
+  const [showAuditLogs, setShowAuditLogs] = useState<Payout | null>(null);
 
   const fetchPayoutsAndAnalytics = async () => {
     try {
       setLoading(true);
-      // Fetch payout roster & stats
-      let url = `/admin/payouts?week=${selectedWeek}`;
+      let url = `/admin/payouts?period=${selectedPeriod}`;
       if (statusFilter !== "all") {
         url += `&status=${statusFilter}`;
       }
@@ -151,7 +145,7 @@ export default function FinanceAdminPage() {
       }
 
       // Fetch grocery analytics
-      const groceryRes = await apiClient.get(`/admin/payouts/grocery-analytics?week=${selectedWeek}`);
+      const groceryRes = await apiClient.get(`/admin/payouts/grocery-analytics?period=${selectedPeriod}`);
       if (groceryRes.data.success) {
         setGroceryAnalytics(groceryRes.data.analytics || null);
       }
@@ -165,14 +159,14 @@ export default function FinanceAdminPage() {
 
   useEffect(() => {
     fetchPayoutsAndAnalytics();
-  }, [selectedWeek, statusFilter, searchQuery]);
+  }, [selectedPeriod, statusFilter, searchQuery]);
 
   // Recalculate settlement parameters
   const handleCalculateSettlements = async () => {
-    const selectedOpt = WEEK_OPTIONS.find(w => w.id === selectedWeek);
+    const selectedOpt = PERIOD_OPTIONS.find(w => w.id === selectedPeriod);
     if (!selectedOpt) return;
 
-    if (!confirm(`Are you sure you want to calculate/re-sync settlements for cycle ${selectedWeek}?`)) {
+    if (!confirm(`Are you sure you want to calculate/re-sync settlements for 3-day cycle ${selectedPeriod}?`)) {
       return;
     }
 
@@ -187,29 +181,34 @@ export default function FinanceAdminPage() {
       }
     } catch (err: any) {
       console.error("Calculation failed:", err);
-      alert("Failed to calculate weekly payouts: " + (err.response?.data?.message || err.message));
+      alert("Failed to calculate settlements: " + (err.response?.data?.message || err.message));
       setLoading(false);
     }
   };
 
-  // Settle Modal Trigger
+  // Open Settle / Payment Confirmation Modal
   const openSettleModal = (payout: Payout) => {
     setSelectedPayout(payout);
-    setSettleStatus("paid");
-    setTransactionId("");
-    setSettleNotes("");
+    setSettleStatus(payout.status === "paid" ? "paid" : "paid");
+    setTransactionId(payout.paymentDetails?.transactionId || "");
+    setSettleNotes(payout.paymentDetails?.notes || "");
   };
 
-  // Submit settlement status change
+  // Submit payment confirmation or correction
   const handleSaveSettlement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPayout) return;
+
+    if (settleStatus === "paid" && !transactionId.trim()) {
+      alert("A Transaction ID / UTR number is required to mark a payout as paid.");
+      return;
+    }
 
     try {
       setSavingPayout(true);
       const res = await apiClient.patch(`/admin/payouts/${selectedPayout._id}/status`, {
         status: settleStatus,
-        transactionId,
+        transactionId: transactionId.trim(),
         notes: settleNotes
       });
       if (res.data.success) {
@@ -217,15 +216,22 @@ export default function FinanceAdminPage() {
         setSelectedPayout(null);
         fetchPayoutsAndAnalytics();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to save payout:", err);
-      alert("Failed to save payout.");
+      alert("Failed to save payout: " + (err.response?.data?.message || err.message));
     } finally {
       setSavingPayout(false);
     }
   };
 
-  // Client-Side CSV report exporting
+  const formatPeriod = (p: Payout) => {
+    if (!p.periodStartDate || !p.periodEndDate) return p.periodIdentifier || "3-Day Cycle";
+    const start = new Date(p.periodStartDate).toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+    const end = new Date(p.periodEndDate).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" });
+    return `${start} – ${end}`;
+  };
+
+  // Export CSV report
   const handleExportCSV = () => {
     if (payouts.length === 0) {
       alert("No payout data available to export.");
@@ -233,7 +239,7 @@ export default function FinanceAdminPage() {
     }
 
     let csvContent = "data:text/csv;charset=utf-8,";
-    csvContent += "Payout ID,Recipient Type,Recipient Name,Phone,Week Cycle,Orders,Total Revenue,Commission,COD Collected,Final Payout,Status,Transaction ID,Settlement Date\n";
+    csvContent += "Payout ID,Recipient Type,Recipient Name,Phone,Period Cycle,Orders,Food Sales / Revenue,Commission,Adjustments,COD Collected,Net Payout,Status,Transaction ID / UTR,Settlement Date\n";
 
     payouts.forEach(p => {
       const name = p.recipientType === "restaurant" ? p.restaurant?.name : p.deliveryBoy?.name || "Grocery Platform";
@@ -241,23 +247,20 @@ export default function FinanceAdminPage() {
       const transId = p.paymentDetails?.transactionId || "N/A";
       const paidDate = p.paymentDetails?.paidAt ? new Date(p.paymentDetails.paidAt).toLocaleDateString() : "N/A";
 
-      const row = `"${p._id}","${p.recipientType}","${name}","${phone}","${p.weekIdentifier}",${p.totalOrders},${p.totalRevenue},${p.platformCommission},${p.codCollected},${p.finalPayoutAmount},"${p.status}","${transId}","${paidDate}"`;
+      const row = `"${p._id}","${p.recipientType}","${name}","${phone}","${p.periodIdentifier}",${p.totalOrders},${p.totalRevenue},${p.platformCommission},${p.refundsAndAdjustments || 0},${p.codCollected},${p.finalPayoutAmount},"${p.status}","${transId}","${paidDate}"`;
       csvContent += row + "\n";
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `ZipRocket_Payout_Report_${selectedWeek}.csv`);
+    link.setAttribute("download", `ZipRocket_Settlement_Report_${selectedPeriod}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  // Filter rosters by active tab
   const filteredPayouts = payouts.filter(p => p.recipientType === activeTab);
-
-  // Dynamic calculations for grocery profits
   const platformProfitTotal = stats.platformCommission + (groceryAnalytics?.profit || 0);
 
   return (
@@ -266,19 +269,19 @@ export default function FinanceAdminPage() {
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="max-w-2xl">
-          <h2 className="text-[28px] font-black text-slate-800 tracking-tight leading-none mb-3">Settlements & Weekly Payouts</h2>
+          <h2 className="text-[28px] font-black text-slate-800 tracking-tight leading-none mb-3">3-Day Settlements &amp; Payouts</h2>
           <p className="text-[13px] font-semibold text-slate-400 uppercase tracking-widest leading-none mt-2">
-            Audit weekly platform profits, reconcile courier COD cash, and process restaurant settlements
+            Automated 3-day partner settlement cycles, item-value reconciliation &amp; payout audit trails
           </p>
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
           <select
-            value={selectedWeek}
-            onChange={(e) => setSelectedWeek(e.target.value)}
+            value={selectedPeriod}
+            onChange={(e) => setSelectedPeriod(e.target.value)}
             className="px-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[12px] font-bold text-slate-700 focus:outline-none focus:border-slate-850 shadow-sm transition-colors cursor-pointer"
           >
-            {WEEK_OPTIONS.map(opt => (
+            {PERIOD_OPTIONS.map(opt => (
               <option key={opt.id} value={opt.id}>{opt.name}</option>
             ))}
           </select>
@@ -295,12 +298,12 @@ export default function FinanceAdminPage() {
 
       {/* KPI Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {/* Gross Sales */}
+        {/* Gross Food / Item Sales */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3">Weekly Gross Sales</p>
+          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3">Cycle Food Sales Value</p>
           <div className="flex items-center justify-between">
             <h3 className="text-3xl font-black text-slate-800 leading-none">₹{stats.totalRevenue.toLocaleString()}</h3>
-            <span className="w-9 h-9 bg-primary-container/10 text-primary-container rounded-xl flex items-center justify-center">
+            <span className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
               <MdPayments className="text-[20px]" />
             </span>
           </div>
@@ -309,7 +312,7 @@ export default function FinanceAdminPage() {
         {/* Platform Profit */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm relative overflow-hidden">
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 pl-1">Weekly Platform Profit</p>
+          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 pl-1">Platform Commission</p>
           <div className="flex items-center justify-between pl-1">
             <h3 className="text-3xl font-black text-slate-800 leading-none">₹{platformProfitTotal.toLocaleString()}</h3>
             <span className="w-9 h-9 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
@@ -333,7 +336,7 @@ export default function FinanceAdminPage() {
         {/* COD Cash to Collect */}
         <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm relative overflow-hidden">
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
-          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 pl-1">COD Cash to Collect</p>
+          <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase mb-3 pl-1">COD Cash Held</p>
           <div className="flex items-center justify-between pl-1">
             <h3 className={`text-3xl font-black leading-none ${stats.codCashToCollect > 2000 ? "text-rose-600" : "text-slate-800"}`}>
               ₹{stats.codCashToCollect.toLocaleString()}
@@ -435,7 +438,6 @@ export default function FinanceAdminPage() {
             <div className="p-6 space-y-8 animate-in fade-in duration-200">
               {groceryAnalytics ? (
                 <>
-                  {/* Grocery summary metrics */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 shadow-inner">
                       <p className="text-[11px] font-bold text-slate-400 uppercase mb-1">Total Grocery Sales</p>
@@ -456,11 +458,10 @@ export default function FinanceAdminPage() {
                     </div>
                   </div>
 
-                  {/* Category-wise breakdown list */}
                   <div className="space-y-4 pt-4">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Category-wise Sales Metrics</h4>
                     {groceryAnalytics.categories.length === 0 ? (
-                      <p className="text-xs text-slate-400 font-bold py-6">No category-wise sales logged for this week.</p>
+                      <p className="text-xs text-slate-400 font-bold py-6">No category-wise sales logged for this 3-day cycle.</p>
                     ) : (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {groceryAnalytics.categories.map((cat, idx) => (
@@ -480,14 +481,14 @@ export default function FinanceAdminPage() {
                 </>
               ) : (
                 <div className="py-20 text-center text-slate-400 font-bold text-xs">
-                  No grocery revenue metrics available for week {selectedWeek}.
+                  No grocery revenue metrics available for cycle {selectedPeriod}.
                 </div>
               )}
             </div>
           ) : filteredPayouts.length === 0 ? (
             <div className="py-20 text-center text-slate-400 font-bold text-xs flex flex-col items-center justify-center">
               <MdAccountBalanceWallet className="text-[40px] text-slate-200 mb-2" />
-              No weekly payout logs found for this cycle.
+              No settlement records found for this 3-day cycle.
             </div>
           ) : (
             /* --- RESTAURANT & DELIVERY TABLE VIEW --- */
@@ -496,19 +497,27 @@ export default function FinanceAdminPage() {
                 <tr className="bg-slate-50/20 border-b border-slate-100">
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Partner/Rider Details</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-center">Delivered Orders</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Gross Revenue</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                    {activeTab === "restaurant" ? "Platform Commission" : "COD Cash Held"}
+                    {activeTab === "restaurant" ? "Food Sales Value" : "Gross Revenue"}
                   </th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Net Payables</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                    {activeTab === "restaurant" ? "Commission" : "COD Cash Held"}
+                  </th>
+                  {activeTab === "restaurant" && (
+                    <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                      Adjustments
+                    </th>
+                  )}
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Net Payout</th>
                   <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">Payout Status</th>
-                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">Settlement Actions</th>
+                  <th className="py-4 px-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {filteredPayouts.map((p) => {
                   const name = p.recipientType === "restaurant" ? p.restaurant?.name : p.deliveryBoy?.name;
                   const phone = p.recipientType === "restaurant" ? p.restaurant?.phone : p.deliveryBoy?.phone;
+                  const hasAudit = p.auditLogs && p.auditLogs.length > 0;
                   
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/30 transition-colors">
@@ -528,7 +537,7 @@ export default function FinanceAdminPage() {
                         {p.totalOrders}
                       </td>
 
-                      {/* Gross Revenue */}
+                      {/* Food Sales / Gross Revenue */}
                       <td className="py-4 px-6 font-bold text-slate-700">
                         ₹{p.totalRevenue.toLocaleString()}
                       </td>
@@ -536,29 +545,36 @@ export default function FinanceAdminPage() {
                       {/* Commission/COD */}
                       <td className="py-4 px-6 font-bold">
                         {activeTab === "restaurant" ? (
-                          <span className="text-slate-650">₹{p.platformCommission.toLocaleString()}</span>
+                          <span className="text-slate-600">−₹{p.platformCommission.toLocaleString()}</span>
                         ) : (
-                          <span className={`${p.codCollected > 2000 ? "text-rose-600" : "text-slate-650"}`}>
+                          <span className={`${p.codCollected > 2000 ? "text-rose-600" : "text-slate-600"}`}>
                             ₹{p.codCollected.toLocaleString()}
                           </span>
                         )}
                       </td>
 
+                      {/* Adjustments */}
+                      {activeTab === "restaurant" && (
+                        <td className="py-4 px-6 font-bold text-slate-500">
+                          {p.refundsAndAdjustments ? `−₹${p.refundsAndAdjustments.toLocaleString()}` : "₹0"}
+                        </td>
+                      )}
+
                       {/* Net Payables */}
-                      <td className="py-4 px-6 font-black text-slate-850">
+                      <td className="py-4 px-6 font-black text-slate-900 text-base">
                         ₹{p.finalPayoutAmount.toLocaleString()}
                       </td>
 
-                      {/* Status */}
+                      {/* Status & UTR */}
                       <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase ${
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase ${
                           p.status === "paid"
-                            ? "bg-emerald-50 text-emerald-700"
+                            ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : p.status === "processing"
-                            ? "bg-blue-50 text-blue-700"
+                            ? "bg-blue-50 text-blue-700 border border-blue-200"
                             : p.status === "failed"
-                            ? "bg-rose-50 text-rose-700"
-                            : "bg-amber-50 text-amber-700"
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : "bg-amber-50 text-amber-700 border border-amber-200"
                         }`}>
                           <span className={`w-1.5 h-1.5 rounded-full ${
                             p.status === "paid"
@@ -572,9 +588,17 @@ export default function FinanceAdminPage() {
                           {p.status}
                         </span>
                         {p.paymentDetails?.transactionId && (
-                          <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase">
-                            TXN: {p.paymentDetails.transactionId}
+                          <p className="text-[10px] font-mono font-bold text-slate-600 mt-1">
+                            UTR: {p.paymentDetails.transactionId}
                           </p>
+                        )}
+                        {hasAudit && (
+                          <button
+                            onClick={() => setShowAuditLogs(p)}
+                            className="mt-1 flex items-center gap-1 text-[9px] font-bold text-slate-400 hover:text-slate-600 underline"
+                          >
+                            <MdHistory /> View History
+                          </button>
                         )}
                       </td>
 
@@ -582,10 +606,14 @@ export default function FinanceAdminPage() {
                       <td className="py-4 px-6 text-right">
                         <button
                           onClick={() => openSettleModal(p)}
-                          className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1"
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1 ${
+                            p.status === "paid"
+                              ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                              : "bg-[#FF5C00] hover:bg-[#e05200] text-white shadow-sm"
+                          }`}
                         >
                           <MdAccountBalance className="text-[14px]" />
-                          Update Payout
+                          {p.status === "paid" ? "Edit / Correct UTR" : "Mark as Paid"}
                         </button>
                       </td>
 
@@ -598,84 +626,157 @@ export default function FinanceAdminPage() {
         </div>
       </div>
 
-      {/* Settle Modal Drawer */}
+      {/* PHASE 3 & 4: MANDATORY UTR PAYMENT CONFIRMATION MODAL */}
       {selectedPayout && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-          <div 
-            className="bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-100 flex flex-col"
-            style={{ width: "450px", maxWidth: "95%", minHeight: "380px" }}
-          >
-            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/30">
-              <div>
-                <h3 className="font-black text-base text-slate-800">Process Weekly Settlement</h3>
-                <p className="text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">
-                  Recipient ID: #{selectedPayout._id.substring(selectedPayout._id.length - 8).toUpperCase()}
-                </p>
-              </div>
+        <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between mb-3 pb-3 border-b border-slate-100">
+              <h3 className="font-black text-lg text-slate-900">
+                {selectedPayout.status === "paid" ? "Update / Correct Payment" : "Confirm Settlement Payment"}
+              </h3>
               <button 
                 onClick={() => setSelectedPayout(null)}
-                className="p-1.5 hover:bg-slate-100 rounded-xl text-slate-400 transition-colors"
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
               >
                 <MdClose className="text-xl" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveSettlement} className="p-6 space-y-4 flex-1 flex flex-col justify-between">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Settlement Status</label>
-                  <select 
-                    value={settleStatus}
-                    onChange={(e) => setSettleStatus(e.target.value as any)}
-                    className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[13px] font-bold text-slate-700 focus:outline-none focus:border-slate-800 shadow-sm cursor-pointer"
-                  >
-                    <option value="paid">Paid (Mark Completed)</option>
-                    <option value="processing">Processing (On Hold)</option>
-                    <option value="failed">Failed (Error / Cancelled)</option>
-                  </select>
-                </div>
+            <p className="text-sm font-semibold text-slate-600 mb-1">
+              {selectedPayout.recipientType === "restaurant" ? selectedPayout.restaurant?.name : selectedPayout.deliveryBoy?.name}
+            </p>
+            <p className="text-xs text-slate-400 mb-4">
+              Cycle: {formatPeriod(selectedPayout)}
+            </p>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Transaction ID / Bank Reference</label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. TXN90281234912" 
-                    value={transactionId}
-                    onChange={(e) => setTransactionId(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[13px] font-bold text-slate-800 focus:outline-none focus:border-slate-800 transition-colors shadow-sm" 
-                    required={settleStatus === "paid"}
-                  />
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-5">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-slate-500 font-medium">Food Sales / Gross:</span>
+                <span className="text-xs font-bold text-slate-700">₹{selectedPayout.totalRevenue}</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs text-slate-500 font-medium">Platform Commission:</span>
+                <span className="text-xs font-bold text-rose-600">−₹{selectedPayout.platformCommission}</span>
+              </div>
+              {selectedPayout.refundsAndAdjustments > 0 && (
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-xs text-slate-500 font-medium">Adjustments:</span>
+                  <span className="text-xs font-bold text-rose-600">−₹{selectedPayout.refundsAndAdjustments}</span>
                 </div>
+              )}
+              <div className="pt-2 border-t border-slate-200 mt-2 flex justify-between items-center">
+                <span className="text-xs font-black uppercase text-slate-700">Net Payable:</span>
+                <span className="text-2xl font-black text-[#FF5C00]">₹{selectedPayout.finalPayoutAmount}</span>
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Internal Settlement Notes</label>
-                  <textarea 
-                    placeholder="Describe bank settlements, transfers, or cash reconciliations..." 
-                    value={settleNotes}
-                    onChange={(e) => setSettleNotes(e.target.value)}
-                    rows={3}
-                    className="w-full px-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[13px] font-bold text-slate-800 focus:outline-none focus:border-slate-800 transition-colors shadow-sm" 
-                  />
-                </div>
+            <form onSubmit={handleSaveSettlement} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Status</label>
+                <select
+                  value={settleStatus}
+                  onChange={(e) => setSettleStatus(e.target.value as any)}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:border-slate-800"
+                >
+                  <option value="paid">Paid (Confirmed Transfer)</option>
+                  <option value="processing">Processing (On Hold)</option>
+                  <option value="failed">Failed (Cancelled)</option>
+                </select>
               </div>
 
-              <div className="pt-2 flex gap-3 mt-auto">
-                <button 
-                  type="button" 
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Transaction ID / UTR Number {settleStatus === "paid" && <span className="text-rose-500">*</span>}
+                </label>
+                <input
+                  type="text"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  placeholder="e.g. 123456789012"
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-slate-800"
+                  required={settleStatus === "paid"}
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Bank transfer UTR or payment reference ID. Required for audit proof.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                  Notes / Correction Reason (Optional)
+                </label>
+                <textarea
+                  value={settleNotes}
+                  onChange={(e) => setSettleNotes(e.target.value)}
+                  placeholder="e.g. Settled via NEFT / corrected UTR typo"
+                  rows={2}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-slate-800"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
                   onClick={() => setSelectedPayout(null)}
-                  className="flex-1 py-3 bg-white border-2 border-slate-200 text-slate-700 rounded-2xl text-[13px] font-bold hover:bg-slate-50 transition-colors active:scale-95"
+                  className="flex-1 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl text-sm hover:bg-slate-50"
                 >
-                  Close
+                  Cancel
                 </button>
-                <button 
-                  type="submit" 
-                  disabled={savingPayout}
-                  className="flex-1 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-[13px] font-black uppercase tracking-wider transition-colors disabled:opacity-50 active:scale-95"
+                <button
+                  type="submit"
+                  disabled={savingPayout || (settleStatus === "paid" && !transactionId.trim())}
+                  className="flex-1 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white font-black rounded-xl text-sm disabled:opacity-40 transition-colors shadow-md shadow-orange-500/20"
                 >
-                  {savingPayout ? "Saving..." : "Commit Settlement"}
+                  {savingPayout ? "Saving..." : `Confirm Payment of ₹${selectedPayout.finalPayoutAmount}`}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* AUDIT LOG MODAL */}
+      {showAuditLogs && (
+        <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border border-slate-100">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="font-black text-base text-slate-900">Settlement Audit Trail</h3>
+                <p className="text-xs text-slate-400">
+                  Payout #{showAuditLogs._id.slice(-6).toUpperCase()} · {formatPeriod(showAuditLogs)}
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowAuditLogs(null)}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
+              >
+                <MdClose className="text-xl" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+              {(showAuditLogs.auditLogs || []).map((log, i) => (
+                <div key={i} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-slate-800 uppercase tracking-wider text-[10px] px-2 py-0.5 bg-white rounded border border-slate-200">
+                      {log.status}
+                    </span>
+                    <span className="text-slate-400 text-[10px]">
+                      {new Date(log.updatedAt).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+                  <p className="text-slate-600 font-medium mt-1">{log.notes || "No notes provided."}</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Updated by: {log.updatedBy}</p>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={() => setShowAuditLogs(null)}
+              className="w-full mt-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+            >
+              Close
+            </button>
           </div>
         </div>
       )}

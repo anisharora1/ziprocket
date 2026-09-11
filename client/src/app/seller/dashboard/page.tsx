@@ -187,19 +187,18 @@ export default function SellerDashboardPage() {
         {/* Top KPI Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
           
-          {/* Revenue */}
+          {/* Food Sales */}
           <div className="bg-white rounded-2xl p-6 shadow-[0_2px_10px_rgba(0,0,0,0.02)] border border-slate-100 relative overflow-hidden">
             <MdAttachMoneyIcon className="absolute right-[-10px] bottom-[-20px] text-[140px] text-slate-50 opacity-50 pointer-events-none transform -rotate-12" />
-            <div className="flex justify-between items-start relative z-10 mb-6">
-              <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">Today's Revenue</p>
+            <div className="flex justify-between items-start relative z-10 mb-4">
+              <p className="text-[11px] font-bold tracking-widest text-slate-500 uppercase">Today's Food Sales</p>
               <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
                 <MdPaymentsIcon className="text-[18px]" />
               </div>
             </div>
-            <h2 className="text-[40px] font-light text-slate-900 tracking-tight leading-none mb-3 relative z-10">₹{todayRevenue.toLocaleString()}</h2>
-            <p className="text-[12px] font-medium text-emerald-600 flex items-center gap-1 relative z-10">
-              <MdTrendingUpIcon className="text-[14px]" />
-              Income generated today
+            <h2 className="text-[40px] font-light text-slate-900 tracking-tight leading-none mb-2 relative z-10">₹{todayRevenue.toLocaleString()}</h2>
+            <p className="text-[11px] text-slate-400 font-medium relative z-10 leading-tight">
+              Value of items sold — excludes delivery, platform &amp; other customer-side fees
             </p>
           </div>
 

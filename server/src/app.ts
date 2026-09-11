@@ -92,6 +92,7 @@ app.use(globalLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/payouts", payoutRoutes);
+app.use("/api/payouts", payoutRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use("/api/restaurants", restaurantRoutes);
 app.use("/api/orders", orderRoutes);

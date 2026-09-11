@@ -364,6 +364,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 restaurant: orderType === "food" ? restaurant : undefined,
                 orderType,
                 items: verifiedItems, // server-verified prices, not client-submitted
+                itemTotal: verifiedItemTotal, // pure item total before delivery/platform fees & taxes
                 totalAmount: finalTotal, // server-computed total
                 deliveryCharge: verifiedBill.deliveryFee, // server-computed delivery fee
                 paymentMethod,
@@ -712,8 +713,11 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
         }
 
         const updateData: any = { orderStatus };
-        if (orderStatus === "delivered" && orderToCheck.paymentMethod === "COD") {
-            updateData.paymentStatus = "paid";
+        if (orderStatus === "delivered") {
+            updateData.deliveredAt = new Date();
+            if (orderToCheck.paymentMethod === "COD") {
+                updateData.paymentStatus = "paid";
+            }
         }
 
         const order = await Order.findByIdAndUpdate(
@@ -935,9 +939,22 @@ export const getSellerDashboardStats = async (req: Request, res: Response): Prom
         const [overall, todayStats] = await Promise.all([
             Order.aggregate([
                 { $match: { restaurant: restaurant._id } },
+                {
+                    $addFields: {
+                        itemValueTotal: {
+                            $sum: {
+                                $map: {
+                                    input: "$items",
+                                    as: "item",
+                                    in: { $multiply: ["$$item.price", "$$item.quantity"] }
+                                }
+                            }
+                        }
+                    }
+                },
                 { $group: {
                     _id: null,
-                    totalRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$totalAmount", 0] } },
+                    totalItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
                     completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, 1, 0] } },
                     preparingOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "preparing"] }, 1, 0] } },
                     cancelledOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] } },
@@ -946,26 +963,33 @@ export const getSellerDashboardStats = async (req: Request, res: Response): Prom
             ]),
             Order.aggregate([
                 { $match: { restaurant: restaurant._id, createdAt: { $gte: today } } },
+                {
+                    $addFields: {
+                        itemValueTotal: {
+                            $sum: { $map: { input: "$items", as: "item", in: { $multiply: ["$$item.price", "$$item.quantity"] } } }
+                        }
+                    }
+                },
                 { $group: {
                     _id: null,
-                    todayRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$totalAmount", 0] } },
+                    todayItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
                     todayOrdersCount: { $sum: 1 }
                 }}
             ])
         ]);
 
-        const o = overall[0] || { totalRevenue: 0, completedOrders: 0, preparingOrders: 0, cancelledOrders: 0, totalOrders: 0 };
-        const t = todayStats[0] || { todayRevenue: 0, todayOrdersCount: 0 };
+        const o = overall[0] || { totalItemRevenue: 0, completedOrders: 0, preparingOrders: 0, cancelledOrders: 0, totalOrders: 0 };
+        const t = todayStats[0] || { todayItemRevenue: 0, todayOrdersCount: 0 };
 
         res.status(200).json({
             success: true,
-            totalRevenue: o.totalRevenue,
+            totalRevenue: o.totalItemRevenue, // now: pure item value, not the customer's full bill
             completedOrdersCount: o.completedOrders,
             preparingOrdersCount: o.preparingOrders,
             cancelledOrdersCount: o.cancelledOrders,
             totalOrdersCount: o.totalOrders,
-            averageOrderValue: o.completedOrders > 0 ? Math.round(o.totalRevenue / o.completedOrders) : 0,
-            todayRevenue: t.todayRevenue,
+            averageOrderValue: o.completedOrders > 0 ? Math.round(o.totalItemRevenue / o.completedOrders) : 0,
+            todayRevenue: t.todayItemRevenue,
             todayOrdersCount: t.todayOrdersCount,
         });
     } catch (error: any) {

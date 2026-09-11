@@ -24,6 +24,7 @@ export interface IOrder extends BaseDocument {
         price: number;
     }[];
 
+    itemTotal?: number;
     totalAmount: number;
     deliveryCharge: number;
 
@@ -60,6 +61,7 @@ export interface IOrder extends BaseDocument {
     razorpayOrderId?: string;
     deliveryOtp?: string;
     rating?: number; // 1-5, set once by the customer after delivery
+    deliveredAt?: Date;
 }
 
 const orderSchema = new Schema<IOrder>({
@@ -82,6 +84,7 @@ const orderSchema = new Schema<IOrder>({
         }
     ],
 
+    itemTotal: Number,
     totalAmount: Number,
 
     deliveryCharge: Number,
@@ -132,6 +135,7 @@ const orderSchema = new Schema<IOrder>({
     whatsappOrder: { type: Boolean, default: false },
     cancellationReason: { type: String, default: null },
     cancelledAt: { type: Date, default: null },
+    deliveredAt: { type: Date, default: null },
 
     rejectedBy: [{ type: Schema.Types.ObjectId, ref: "User", default: [] }],
     deliveryZone: { type: Schema.Types.ObjectId, ref: "DeliveryZone" },
