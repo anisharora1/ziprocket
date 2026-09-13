@@ -6,6 +6,7 @@ import { uploadToCloudinary } from "../services/cloudinaryService";
 import { DELIVERY_CONSTANTS } from "../constants";
 import { emitToRooms } from "../services/socketService";
 import * as redisService from "../services/redisService";
+import { handleOrderDelivered } from "../utils/orderCompletion";
 
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
@@ -475,6 +476,9 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
         }
         order.deliveryOtp = undefined; // clear it after successful use, no reason to keep it around
         await order.save();
+
+        // Increment total orders count for the restaurant and invalidate cache
+        await handleOrderDelivered(order);
 
         // Invalidate Redis caches so fresh data is returned on refetch
         await redisService.del(`order:detail:${orderId}`);

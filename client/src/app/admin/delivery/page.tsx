@@ -2,23 +2,23 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
-import { 
-  MdRefresh, 
-  MdDirectionsBike, 
-  MdSensors, 
-  MdLocalShipping, 
-  MdPendingActions, 
-  MdSearch, 
-  MdStar, 
-  MdVisibilityOff, 
-  MdVerifiedUser, 
-  MdDone, 
-  MdClose, 
-  MdLockOpen, 
-  MdLock, 
-  MdSportsMotorsports, 
-  MdBadge, 
-  MdAccountBalance 
+import {
+  MdRefresh,
+  MdDirectionsBike,
+  MdSensors,
+  MdLocalShipping,
+  MdPendingActions,
+  MdSearch,
+  MdStar,
+  MdVisibilityOff,
+  MdVerifiedUser,
+  MdDone,
+  MdClose,
+  MdLockOpen,
+  MdLock,
+  MdSportsMotorsports,
+  MdBadge,
+  MdAccountBalance
 } from "react-icons/md";
 
 interface BankDetails {
@@ -134,7 +134,7 @@ export default function DeliveryAdminPage() {
   const getWorkload = (p: DeliveryProfile) => {
     if (p.isBlocked || p.status !== "approved") return { text: "N/A", pct: 0, color: "bg-slate-200" };
     if (!p.isActive) return { text: "Offline", pct: 0, color: "bg-slate-100" };
-    
+
     const count = p.activeOrdersCount || 0;
     if (count === 0) return { text: "Idle (0/3)", pct: 0, color: "bg-slate-200" };
     if (count === 1) return { text: "Active (1/3)", pct: 33, color: "bg-blue-400" };
@@ -171,7 +171,7 @@ export default function DeliveryAdminPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 bg-slate-50/30 flex flex-col min-w-0">
-      
+
       {/* Dashboard Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="max-w-2xl">
@@ -180,7 +180,7 @@ export default function DeliveryAdminPage() {
             Verify rider compliance, manage delivery couriers, and monitor live workloads
           </p>
         </div>
-        <button 
+        <button
           onClick={fetchProfiles}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
         >
@@ -240,7 +240,7 @@ export default function DeliveryAdminPage() {
 
       {/* Main Table Area */}
       <div className="bg-white min-h-[450px] rounded-3xl border border-slate-100 shadow-sm flex flex-col overflow-hidden mb-8">
-        
+
         {/* Toolbar */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
           <div className="relative w-full md:w-96">
@@ -253,7 +253,7 @@ export default function DeliveryAdminPage() {
               className="w-full pl-11 pr-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[13px] font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 transition-colors shadow-sm"
             />
           </div>
-          
+
           <div className="flex items-center gap-3">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status Mode:</label>
             <select
@@ -305,7 +305,7 @@ export default function DeliveryAdminPage() {
                 filteredProfiles.map((p, index) => {
                   const isExpanded = expandedId === p._id;
                   const workload = getWorkload(p);
-                  
+
                   return (
                     <React.Fragment key={p._id}>
                       <tr className="hover:bg-slate-50/40 transition-colors group">
@@ -313,10 +313,10 @@ export default function DeliveryAdminPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-4">
                             <div className="w-11 h-11 rounded-full overflow-hidden bg-slate-100 border border-slate-200/50 flex-shrink-0">
-                              <img 
-                                src={getAvatarUrl(index)} 
-                                alt={p.fullName} 
-                                className="w-full h-full object-cover" 
+                              <img
+                                src={getAvatarUrl(index)}
+                                alt={p.fullName}
+                                className="w-full h-full object-cover"
                               />
                             </div>
                             <div>
@@ -359,7 +359,7 @@ export default function DeliveryAdminPage() {
                         <td className="py-4 px-6">
                           <div className="flex items-center gap-2.5 w-44">
                             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <div 
+                              <div
                                 className={`h-full rounded-full transition-all duration-500 ${workload.color}`}
                                 style={{ width: `${workload.pct}%` }}
                               ></div>
@@ -382,22 +382,20 @@ export default function DeliveryAdminPage() {
                                 Suspended
                               </span>
                             ) : (
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase w-fit ${
-                                p.status === "approved"
-                                  ? p.isActive 
-                                    ? "bg-emerald-50 text-emerald-700" 
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase w-fit ${p.status === "approved"
+                                  ? p.isActive
+                                    ? "bg-emerald-50 text-emerald-700"
                                     : "bg-slate-100 text-slate-600"
                                   : p.status === "rejected"
-                                  ? "bg-rose-50 text-rose-700"
-                                  : "bg-amber-50 text-amber-700 animate-pulse"
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                  p.status === "approved"
+                                    ? "bg-rose-50 text-rose-700"
+                                    : "bg-amber-50 text-amber-700 animate-pulse"
+                                }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${p.status === "approved"
                                     ? p.isActive ? "bg-emerald-500" : "bg-slate-400"
                                     : p.status === "rejected"
-                                    ? "bg-rose-500"
-                                    : "bg-amber-500"
-                                }`}></span>
+                                      ? "bg-rose-500"
+                                      : "bg-amber-500"
+                                  }`}></span>
                                 {p.status === "approved" ? (p.isActive ? "Online" : "Offline") : p.status}
                               </span>
                             )}
@@ -411,9 +409,8 @@ export default function DeliveryAdminPage() {
                         <td className="py-4 px-6 text-center">
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : p._id)}
-                            className={`px-3 py-1 bg-slate-50 border border-slate-200/60 hover:border-slate-800 text-slate-600 font-extrabold text-[11px] rounded-xl transition-all inline-flex items-center gap-1 ${
-                              isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
-                            }`}
+                            className={`px-3 py-1 bg-slate-50 border border-slate-200/60 hover:border-slate-800 text-slate-600 font-extrabold text-[11px] rounded-xl transition-all inline-flex items-center gap-1 ${isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
+                              }`}
                           >
                             {isExpanded ? <MdVisibilityOff className="text-[14px]" /> : <MdVerifiedUser className="text-[14px]" />}
                             {isExpanded ? "Hide" : "Verify Courier"}
@@ -448,11 +445,10 @@ export default function DeliveryAdminPage() {
                             {/* Suspend / Reactivate action */}
                             <button
                               onClick={() => handleToggleBlock(p._id, p.isBlocked)}
-                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[11px] transition-colors border inline-flex items-center gap-1 ${
-                                p.isBlocked
+                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[11px] transition-colors border inline-flex items-center gap-1 ${p.isBlocked
                                   ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-100"
                                   : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100"
-                              }`}
+                                }`}
                             >
                               {p.isBlocked ? <MdLockOpen className="text-[14px]" /> : <MdLock className="text-[14px]" />}
                               {p.isBlocked ? "Reactivate" : "Suspend"}
@@ -466,7 +462,7 @@ export default function DeliveryAdminPage() {
                         <tr className="bg-slate-50/50">
                           <td colSpan={7} className="p-6 border-b border-slate-100">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in slide-in-from-top-2 duration-200">
-                              
+
                               {/* Left box: Rider Profile & Vehicle details */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
@@ -566,14 +562,14 @@ export default function DeliveryAdminPage() {
               Showing {filteredProfiles.length} of {profiles.length} total personnel
             </span>
             <div className="flex gap-2">
-              <button 
-                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed" 
+              <button
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed"
                 disabled
               >
                 Previous
               </button>
-              <button 
-                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed" 
+              <button
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed"
                 disabled
               >
                 Next

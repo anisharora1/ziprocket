@@ -205,6 +205,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
     const payload = {
       label: addressLabel,
       location: tempCoords,
+      locationSource: "manual",
       deliveryAddress: {
         houseNumber: houseNumber.trim(),
         street: street.trim(),
@@ -239,6 +240,7 @@ export default function LocationSelectorModal({ isOpen, onClose }: LocationSelec
         _id: "guest-manual-coords",
         label: addressLabel,
         location: tempCoords,
+        locationSource: "manual",
         deliveryAddress: payload.deliveryAddress,
         fullAddress,
         pincode: pincode || "000000",

@@ -18,6 +18,7 @@ interface SavedAddress {
   state: string;
   country?: string;
   location: Location;
+  locationSource?: "gps" | "manual";
   deliveryZone?: string;
   isDefault: boolean;
   deliveryAddress?: {

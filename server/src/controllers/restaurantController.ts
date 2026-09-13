@@ -678,3 +678,13 @@ export const deleteMenuItem = async (req: Request, res: Response): Promise<void>
     }
 };
 
+// Get all restaurants for Admin (including full compliance, KYC, and bankDetails)
+export const getAllRestaurantsAdmin = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const restaurants = await Restaurant.find({}).sort({ createdAt: -1 }).lean();
+        res.status(200).json({ success: true, count: restaurants.length, restaurants });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+

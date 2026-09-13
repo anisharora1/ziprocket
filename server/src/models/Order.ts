@@ -40,6 +40,7 @@ export interface IOrder extends BaseDocument {
         fullAddress: string;
         lat: number;
         lng: number;
+        locationSource?: "gps" | "manual";
         deliveryAddress?: {
             houseNumber: string;
             street?: string;
@@ -121,6 +122,7 @@ const orderSchema = new Schema<IOrder>({
         fullAddress: { type: String, required: true },
         lat: { type: Number, required: true },
         lng: { type: Number, required: true },
+        locationSource: { type: String, enum: ["gps", "manual"], default: "manual" },
         deliveryAddress: {
             houseNumber: { type: String },
             street: { type: String, default: "" },

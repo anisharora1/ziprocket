@@ -53,9 +53,30 @@ interface Order {
     fullAddress: string;
     lat?: number;
     lng?: number;
+    locationSource?: "gps" | "manual";
+    landmark?: string;
+    deliveryAddress?: {
+      landmark?: string;
+      houseNumber?: string;
+      locality?: string;
+      village?: string;
+    };
   };
   createdAt: string;
 }
+
+const getNavigationUrl = (address: any) => {
+  if (!address) return "#";
+  if (address.locationSource === "gps" && address.lat && address.lng) {
+    // GPS-captured — coordinate is genuinely reliable, use it directly
+    return `https://www.google.com/maps/dir/?api=1&destination=${address.lat},${address.lng}&travelmode=driving`;
+  }
+  // Manually entered — let Google Maps resolve the real-world address + landmark itself,
+  // which is typically more forgiving of imprecise underlying coordinates than trusting a raw pin
+  const landmark = address.landmark || address.deliveryAddress?.landmark || "";
+  const query = encodeURIComponent(`${address.fullAddress || ""}${landmark ? ", Near " + landmark : ""}`);
+  return `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
+};
 
 interface DeliveryRecord {
   _id: string;
@@ -338,9 +359,9 @@ export default function DeliveryOrdersPage() {
                         >
                           <MdContentCopy className="text-[16px]" />
                         </button>
-                        {order.address?.lat !== undefined && (
+                        {(order.address?.lat !== undefined || order.address?.fullAddress) && (
                           <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.address.lat},${order.address.lng}&travelmode=driving`}
+                            href={getNavigationUrl(order.address)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-1"
@@ -455,9 +476,9 @@ export default function DeliveryOrdersPage() {
                         >
                           <MdContentCopy className="text-[16px]" />
                         </button>
-                        {order.address?.lat !== undefined && (
+                        {(order.address?.lat !== undefined || order.address?.fullAddress) && (
                           <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.address.lat},${order.address.lng}&travelmode=driving`}
+                            href={getNavigationUrl(order.address)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-1"

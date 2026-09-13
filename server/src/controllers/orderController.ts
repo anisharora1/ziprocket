@@ -17,6 +17,7 @@ import { emitToRooms } from "../services/socketService";
 import { computeBillFromZone } from "../utils/billCalculator";
 import { isWithinOperatingHours } from "../utils/restaurantHours";
 import { verifyItemPrices } from "../utils/itemVerification";
+import { handleOrderDelivered } from "../utils/orderCompletion";
 
 // Create a new order
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -374,6 +375,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                     fullAddress: address.fullAddress,
                     lat: address.lat,
                     lng: address.lng,
+                    locationSource: address.locationSource === "gps" ? "gps" : "manual",
                     deliveryAddress: formattedDeliveryAddress
                 },
                 whatsappOrder,
@@ -757,9 +759,8 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                 }
 
                 // Increment total orders count for the restaurant only upon successful delivery
-                if (orderStatus === "delivered" && order.orderType === "food" && order.restaurant) {
-                    await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { totalOrders: 1 } });
-                    await restaurantCacheService.invalidateRestaurantCache(order.restaurant.toString());
+                if (orderStatus === "delivered") {
+                    await handleOrderDelivered(order);
                 }
 
                 // --- Socket.IO: Notify relevant parties of order status change ---

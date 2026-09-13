@@ -647,12 +647,11 @@ export default function CheckoutPage() {
         }
 
         // When ziprocket_location exists in localStorage, LocationContext skips fetching
-        // savedAddresses on init (validStoredLocation=true). savedAddresses=[] so find() returns
-        // undefined. Always fall back to userDeliveryAddress (hydrated from localStorage via
-        // context) to prevent the "Add Address Details" modal firing on every order.
-        const savedDeliveryAddr = selectedAddressId
-            ? savedAddresses.find(a => a._id === selectedAddressId)?.deliveryAddress
+        const savedAddressObj = selectedAddressId
+            ? savedAddresses.find(a => a._id === selectedAddressId)
             : null;
+        const savedDeliveryAddr = savedAddressObj?.deliveryAddress || null;
+        const targetLocationSource = savedAddressObj?.locationSource || "manual";
         const targetDeliveryAddress = customDeliveryAddress || savedDeliveryAddr || userDeliveryAddress || undefined;
 
         if (!targetDeliveryAddress || !targetDeliveryAddress.houseNumber || !targetDeliveryAddress.landmark) {
@@ -689,6 +688,7 @@ export default function CheckoutPage() {
                     fullAddress: targetAddress,
                     lat: targetCoords.lat,
                     lng: targetCoords.lng,
+                    locationSource: targetLocationSource,
                     deliveryAddress: targetDeliveryAddress
                 },
                 phone: customPhone || user?.phone || "",

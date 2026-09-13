@@ -2,25 +2,25 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
-import { 
-  MdRefresh, 
-  MdStorefront, 
-  MdCheckCircle, 
-  MdPending, 
-  MdBlock, 
-  MdSearch, 
-  MdRestaurant, 
-  MdCheck, 
-  MdClose, 
-  MdEdit, 
-  MdStar, 
-  MdVisibilityOff, 
-  MdVerifiedUser, 
-  MdDone, 
-  MdLockOpen, 
-  MdLock, 
-  MdAssignment, 
-  MdAccountBalance, 
+import {
+  MdRefresh,
+  MdStorefront,
+  MdCheckCircle,
+  MdPending,
+  MdBlock,
+  MdSearch,
+  MdRestaurant,
+  MdCheck,
+  MdClose,
+  MdEdit,
+  MdStar,
+  MdVisibilityOff,
+  MdVerifiedUser,
+  MdDone,
+  MdLockOpen,
+  MdLock,
+  MdAssignment,
+  MdAccountBalance,
   MdAnalytics,
   MdLocationOn,
   MdPinDrop,
@@ -71,7 +71,7 @@ export default function RestaurantsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected" | "blocked">("all");
-  
+
   // Commission editing states
   const [editingCommissionId, setEditingCommissionId] = useState<string | null>(null);
   const [tempCommission, setTempCommission] = useState<number>(5);
@@ -82,7 +82,7 @@ export default function RestaurantsAdminPage() {
   const fetchRestaurants = async () => {
     try {
       setLoading(true);
-      const res = await apiClient.get("/restaurants");
+      const res = await apiClient.get("/restaurants/admin/all");
       if (res.data.success) {
         setRestaurants(res.data.restaurants || []);
       }
@@ -136,8 +136,8 @@ export default function RestaurantsAdminPage() {
         }
       });
       if (res.data.success) {
-        setRestaurants(restaurants.map(r => 
-          r._id === editingLocationRes._id 
+        setRestaurants(restaurants.map(r =>
+          r._id === editingLocationRes._id
             ? { ...r, location: { address: locationForm.address, lat: Number(locationForm.lat), lng: Number(locationForm.lng) } }
             : r
         ));
@@ -184,7 +184,7 @@ export default function RestaurantsAdminPage() {
   // Filter restaurants
   const filteredRestaurants = restaurants.filter(r => {
     // Search filter
-    const matchesSearch = 
+    const matchesSearch =
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       getOwnerName(r).toLowerCase().includes(searchQuery.toLowerCase()) ||
       r.phone.includes(searchQuery) ||
@@ -209,7 +209,7 @@ export default function RestaurantsAdminPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 bg-slate-50/30 flex flex-col min-w-0">
-      
+
       {/* Dashboard Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="max-w-2xl">
@@ -218,7 +218,7 @@ export default function RestaurantsAdminPage() {
             Verify compliance, manage commission rates, and audit partner credentials
           </p>
         </div>
-        <button 
+        <button
           onClick={fetchRestaurants}
           className="px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[13px] font-bold hover:bg-slate-50 active:scale-95 transition-all flex items-center gap-2 shadow-sm"
         >
@@ -276,7 +276,7 @@ export default function RestaurantsAdminPage() {
 
       {/* Main Table Area */}
       <div className="bg-white min-h-[450px] rounded-3xl border border-slate-100 shadow-sm flex flex-col overflow-hidden mb-8">
-        
+
         {/* Toolbar */}
         <div className="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/30">
           <div className="relative w-full md:w-96">
@@ -289,7 +289,7 @@ export default function RestaurantsAdminPage() {
               className="w-full pl-11 pr-4 py-2.5 bg-white border-2 border-slate-200 rounded-2xl text-[13px] font-bold text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-slate-800 transition-colors shadow-sm"
             />
           </div>
-          
+
           <div className="flex items-center gap-3">
             <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Filter Status:</label>
             <select
@@ -337,7 +337,7 @@ export default function RestaurantsAdminPage() {
               ) : (
                 filteredRestaurants.map((res) => {
                   const isExpanded = expandedId === res._id;
-                  
+
                   return (
                     <React.Fragment key={res._id}>
                       <tr className="hover:bg-slate-50/40 transition-colors group">
@@ -441,24 +441,22 @@ export default function RestaurantsAdminPage() {
                               </span>
                             ) : (
                               /* Verification Status Badge */
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase w-fit ${
-                                res.status === "approved"
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black tracking-widest uppercase w-fit ${res.status === "approved"
                                   ? "bg-emerald-50 text-emerald-700"
                                   : res.status === "rejected"
-                                  ? "bg-slate-100 text-slate-600"
-                                  : "bg-amber-50 text-amber-700 animate-pulse"
-                              }`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${
-                                  res.status === "approved"
+                                    ? "bg-slate-100 text-slate-600"
+                                    : "bg-amber-50 text-amber-700 animate-pulse"
+                                }`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${res.status === "approved"
                                     ? "bg-emerald-500"
                                     : res.status === "rejected"
-                                    ? "bg-slate-400"
-                                    : "bg-amber-500"
-                                }`}></span>
+                                      ? "bg-slate-400"
+                                      : "bg-amber-500"
+                                  }`}></span>
                                 {res.status}
                               </span>
                             )}
-                            
+
                             {/* Rating / Orders */}
                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
                               <span className="flex items-center text-amber-500 gap-0.5">
@@ -475,9 +473,8 @@ export default function RestaurantsAdminPage() {
                         <td className="py-4 px-6 text-center">
                           <button
                             onClick={() => setExpandedId(isExpanded ? null : res._id)}
-                            className={`px-3 py-1 bg-slate-50 border border-slate-200/60 hover:border-slate-800 text-slate-600 font-extrabold text-[11px] rounded-xl transition-all inline-flex items-center gap-1 ${
-                              isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
-                            }`}
+                            className={`px-3 py-1 bg-slate-50 border border-slate-200/60 hover:border-slate-800 text-slate-600 font-extrabold text-[11px] rounded-xl transition-all inline-flex items-center gap-1 ${isExpanded ? "bg-slate-800 text-white border-slate-800" : ""
+                              }`}
                           >
                             {isExpanded ? <MdVisibilityOff className="text-[14px]" /> : <MdVerifiedUser className="text-[14px]" />}
                             {isExpanded ? "Hide" : "Verify Compliance"}
@@ -500,11 +497,10 @@ export default function RestaurantsAdminPage() {
                             {/* Suspend / Reactivate action */}
                             <button
                               onClick={() => handleToggleBlock(res._id, res.isBlocked)}
-                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[11px] transition-colors border inline-flex items-center gap-1 ${
-                                res.isBlocked
+                              className={`px-3 py-1.5 rounded-xl font-extrabold text-[11px] transition-colors border inline-flex items-center gap-1 ${res.isBlocked
                                   ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-100"
                                   : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100"
-                              }`}
+                                }`}
                             >
                               {res.isBlocked ? <MdLockOpen className="text-[14px]" /> : <MdLock className="text-[14px]" />}
                               {res.isBlocked ? "Reactivate" : "Suspend"}
@@ -518,7 +514,7 @@ export default function RestaurantsAdminPage() {
                         <tr className="bg-slate-50/50">
                           <td colSpan={6} className="p-6 border-b border-slate-100">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in slide-in-from-top-2 duration-200">
-                              
+
                               {/* Box 1: FSSAI and Licenses */}
                               <div className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm">
                                 <h5 className="text-[11px] font-extrabold text-slate-800 uppercase tracking-widest mb-3 flex items-center gap-1.5">
@@ -657,14 +653,14 @@ export default function RestaurantsAdminPage() {
               Showing {filteredRestaurants.length} of {restaurants.length} total partners
             </span>
             <div className="flex gap-2">
-              <button 
-                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed" 
+              <button
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed"
                 disabled
               >
                 Previous
               </button>
-              <button 
-                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed" 
+              <button
+                className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-400 cursor-not-allowed"
                 disabled
               >
                 Next
@@ -694,7 +690,7 @@ export default function RestaurantsAdminPage() {
                 <h3 className="text-lg font-bold text-slate-900">Edit Location & Pin</h3>
                 <p className="text-xs text-slate-500">{editingLocationRes.name}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setEditingLocationRes(null)}
                 className="text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100"
               >

@@ -2,6 +2,7 @@ import express from "express";
 import {
     createRestaurant,
     getAllRestaurants,
+    getAllRestaurantsAdmin,
     getRestaurantById,
     updateRestaurant,
     updateRestaurantStatus,
@@ -23,6 +24,7 @@ router.get("/my-restaurant", protect, authorize("seller", "admin"), getMyRestaur
 // Restaurant Routes
 router.post("/", protect, authorize("admin"), createRestaurant);
 router.get("/", getAllRestaurants);
+router.get("/admin/all", protect, authorize("admin"), getAllRestaurantsAdmin);
 router.get("/:id", getRestaurantById);
 router.put("/:id", protect, authorize("seller", "admin"), uploadRestaurantImages, updateRestaurant);
 router.patch("/:id/status", protect, authorize("admin"), updateRestaurantStatus);
@@ -35,3 +37,4 @@ router.put("/menu/:menuItemId", protect, authorize("seller", "admin"), uploadMen
 router.delete("/menu/:menuItemId", protect, authorize("seller", "admin"), deleteMenuItem);
 
 export default router;
+

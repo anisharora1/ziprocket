@@ -38,6 +38,7 @@ interface AddressData {
     lat: number;
     lng: number;
   };
+  locationSource?: "gps" | "manual";
   isDefault: boolean;
   deliveryZone?: string;
   deliveryAddress?: {
@@ -59,6 +60,7 @@ const emptyAddress: AddressData = {
   state: "",
   country: "India",
   location: { lat: 28.7041, lng: 77.1025 },
+  locationSource: "manual",
   isDefault: false
 };
 
@@ -210,6 +212,7 @@ export default function AddressesPage() {
       setCurrentAddress(prev => ({
         ...prev,
         fullAddress,
+        locationSource: "gps",
         location: { lat: latitude, lng: longitude }
       }));
 
@@ -236,6 +239,7 @@ export default function AddressesPage() {
         setCurrentAddress(prev => ({
           ...prev,
           fullAddress,
+          locationSource: "manual",
           pincode: pincode || "",
           city: city || "",
           state: state || "",
@@ -329,6 +333,7 @@ export default function AddressesPage() {
       const payload = {
         label: currentAddress.label,
         location: currentAddress.location,
+        locationSource: currentAddress.locationSource || "manual",
         deliveryAddress: {
           houseNumber: houseNumber.trim(),
           street: street.trim(),

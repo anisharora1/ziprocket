@@ -23,6 +23,7 @@ export interface IAddress extends BaseDocument {
         lat: number;
         lng: number;
     };
+    locationSource: "gps" | "manual";
     deliveryAddress: IDeliveryAddress;
     deliveryZone?: Types.ObjectId;
     isDefault: boolean;
@@ -50,6 +51,7 @@ const addressSchema = new Schema<IAddress>({
         lat: { type: Number, required: true },
         lng: { type: Number, required: true }
     },
+    locationSource: { type: String, enum: ["gps", "manual"], default: "manual" },
     deliveryAddress: { type: deliveryAddressSchema, required: true },
     deliveryZone: { type: Schema.Types.ObjectId, ref: "DeliveryZone" },
     isDefault: { type: Boolean, default: false }
