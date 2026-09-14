@@ -84,9 +84,20 @@ const payoutSchema = new Schema<IPayout>({
 }, { timestamps: true });
 
 // Prevent duplicate settlements for the same recipient type, restaurant/rider, and 3-day cycle.
-// Splitting the compound index avoids prefix gaps and skip scans since restaurant and deliveryBoy are mutually exclusive.
-payoutSchema.index({ recipientType: 1, restaurant: 1, periodIdentifier: 1 }, { unique: true, sparse: true });
-payoutSchema.index({ recipientType: 1, deliveryBoy: 1, periodIdentifier: 1 }, { unique: true, sparse: true });
-payoutSchema.index({ recipientType: 1, periodIdentifier: 1 }, { unique: true, sparse: true });
+// Using partialFilterExpression ensures mutually exclusive fields (restaurant vs deliveryBoy vs grocery) never collide on null.
+payoutSchema.index(
+    { recipientType: 1, restaurant: 1, periodIdentifier: 1 },
+    { unique: true, partialFilterExpression: { recipientType: "restaurant", restaurant: { $exists: true }, periodIdentifier: { $type: "string" } } }
+);
+payoutSchema.index(
+    { recipientType: 1, deliveryBoy: 1, periodIdentifier: 1 },
+    { unique: true, partialFilterExpression: { recipientType: "delivery", deliveryBoy: { $exists: true }, periodIdentifier: { $type: "string" } } }
+);
+payoutSchema.index(
+    { recipientType: 1, periodIdentifier: 1 },
+    { unique: true, partialFilterExpression: { recipientType: "grocery", periodIdentifier: { $type: "string" } } }
+);
 
 export default mongoose.model<IPayout>("Payout", payoutSchema);
+
+

@@ -93,11 +93,20 @@ export async function runSettlementCalculation(targetDate?: Date): Promise<{
             periodIdentifier: identifier
         });
 
+        // Only process and show restaurants with revenue above 0
+        if (totalItemRevenue <= 0) {
+            if (existingPayout && existingPayout.status !== "paid") {
+                await Payout.deleteOne({ _id: existingPayout._id });
+            }
+            continue;
+        }
+
         if (existingPayout && existingPayout.status === "paid") {
             // Do NOT touch already-"paid" payouts — skip and warn if amounts differ
             if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
                 console.warn(`[Payout Mismatch] Restaurant ${rest._id}, period ${identifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
             }
+            restaurantPayoutsCount++;
             continue;
         }
 
@@ -170,10 +179,19 @@ export async function runSettlementCalculation(targetDate?: Date): Promise<{
             periodIdentifier: identifier
         });
 
+        // Only process and show couriers with revenue/earnings above 0
+        if (totalEarnings <= 0) {
+            if (existingPayout && existingPayout.status !== "paid") {
+                await Payout.deleteOne({ _id: existingPayout._id });
+            }
+            continue;
+        }
+
         if (existingPayout && existingPayout.status === "paid") {
             if (existingPayout.finalPayoutAmount !== finalPayoutAmount) {
                 console.warn(`[Payout Mismatch] Delivery ${rider._id}, period ${identifier}: recalculated amount (₹${finalPayoutAmount}) differs from already-paid amount (₹${existingPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
             }
+            riderPayoutsCount++;
             continue;
         }
 
@@ -226,34 +244,40 @@ export async function runSettlementCalculation(targetDate?: Date): Promise<{
     const existingGroceryPayout = await Payout.findOne({ recipientType: "grocery", periodIdentifier: identifier });
     let groceryProcessed = false;
 
-    if (existingGroceryPayout && existingGroceryPayout.status === "paid") {
-        if (existingGroceryPayout.finalPayoutAmount !== finalGroceryPayout) {
-            console.warn(`[Payout Mismatch] Grocery, period ${identifier}: recalculated amount (₹${finalGroceryPayout}) differs from already-paid amount (₹${existingGroceryPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+    if (totalGrocerySales > 0) {
+        if (existingGroceryPayout && existingGroceryPayout.status === "paid") {
+            if (existingGroceryPayout.finalPayoutAmount !== finalGroceryPayout) {
+                console.warn(`[Payout Mismatch] Grocery, period ${identifier}: recalculated amount (₹${finalGroceryPayout}) differs from already-paid amount (₹${existingGroceryPayout.finalPayoutAmount}). Skipped update — investigate manually.`);
+            }
+            groceryProcessed = true;
+        } else {
+            await Payout.findOneAndUpdate(
+                { recipientType: "grocery", periodIdentifier: identifier },
+                {
+                    periodStartDate: periodStart,
+                    periodEndDate: periodEnd,
+                    periodIdentifier: identifier,
+                    totalOrders: totalGroceryOrders,
+                    totalRevenue: totalGrocerySales,
+                    platformCommission: groceryProfit,
+                    refundsAndAdjustments: 0,
+                    codCollected: groceryCodCollected,
+                    onlinePayments: groceryOnlinePayments,
+                    finalPayoutAmount: finalGroceryPayout,
+                    isEstimatedMargin: true,
+                    $setOnInsert: {
+                        status: "pending",
+                        auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }]
+                    }
+                },
+                { upsert: true, new: true }
+            );
+            groceryProcessed = true;
         }
-    } else {
-        await Payout.findOneAndUpdate(
-            { recipientType: "grocery", periodIdentifier: identifier },
-            {
-                periodStartDate: periodStart,
-                periodEndDate: periodEnd,
-                periodIdentifier: identifier,
-                totalOrders: totalGroceryOrders,
-                totalRevenue: totalGrocerySales,
-                platformCommission: groceryProfit,
-                refundsAndAdjustments: 0,
-                codCollected: groceryCodCollected,
-                onlinePayments: groceryOnlinePayments,
-                finalPayoutAmount: finalGroceryPayout,
-                isEstimatedMargin: true,
-                $setOnInsert: {
-                    status: "pending",
-                    auditLogs: [{ status: "pending", updatedBy: "System", notes: "Settlement calculated." }]
-                }
-            },
-            { upsert: true, new: true }
-        );
-        groceryProcessed = true;
+    } else if (existingGroceryPayout && existingGroceryPayout.status !== "paid") {
+        await Payout.deleteOne({ _id: existingGroceryPayout._id });
     }
+
 
     return {
         identifier,
@@ -284,6 +308,7 @@ export const calculateSettlements = async (req: Request, res: Response): Promise
             }
         });
     } catch (error: any) {
+        console.error("[Settlement Calculation Error]", error); // log the REAL error server-side, always
         res.status(500).json({ success: false, message: error.message });
     }
 };
@@ -296,7 +321,9 @@ export const getPayoutsSummary = async (req: Request, res: Response): Promise<vo
     try {
         const { period, week, recipientType, status, search } = req.query;
 
-        let filter: any = {};
+        let filter: any = {
+            totalRevenue: { $gt: 0 }
+        };
         const periodId = period || week;
         if (periodId) filter.periodIdentifier = periodId as string;
         if (recipientType) filter.recipientType = recipientType as string;

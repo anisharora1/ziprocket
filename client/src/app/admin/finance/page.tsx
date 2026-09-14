@@ -260,7 +260,7 @@ export default function FinanceAdminPage() {
     document.body.removeChild(link);
   };
 
-  const filteredPayouts = payouts.filter(p => p.recipientType === activeTab);
+  const filteredPayouts = payouts.filter(p => p.recipientType === activeTab && (p.totalRevenue > 0 || p.status === "paid"));
   const platformProfitTotal = stats.platformCommission + (groceryAnalytics?.profit || 0);
 
   return (
