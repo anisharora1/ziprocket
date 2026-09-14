@@ -5,7 +5,7 @@ import MenuItem from "../models/MenuItem";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import { emitToRooms } from "../services/socketService";
-import { isWithinOperatingHours } from "../utils/restaurantHours";
+import { isWithinOperatingHours, isRestaurantAcceptingOrders } from "../utils/restaurantHours";
 
 // Helper to safely delete from Cloudinary without crashing the request pipeline
 async function safeDeleteCloudinary(publicId?: string): Promise<void> {
@@ -126,7 +126,7 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
 
         const normalizedRestaurants = restaurants.map((r: any) => {
             const operatingHours = r.operatingHours || { open: "09:00", close: "22:00" };
-            const isCurrentlyOpen = (r.isActive !== false) && r.availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+            const isCurrentlyOpen = isRestaurantAcceptingOrders(r);
             return {
                 ...r,
                 operatingHours,
@@ -165,7 +165,7 @@ export const getMyRestaurant = async (req: Request, res: Response): Promise<void
 
         const restObj = restaurant.toObject();
         const operatingHours = restObj.operatingHours || { open: "09:00", close: "22:00" };
-        const isCurrentlyOpen = (restObj.isActive !== false) && restObj.availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+        const isCurrentlyOpen = isRestaurantAcceptingOrders(restObj);
 
         res.status(200).json({
             success: true,
@@ -201,7 +201,7 @@ export const getRestaurantById = async (req: Request, res: Response): Promise<vo
         }
 
         const operatingHours = (restaurant as any).operatingHours || { open: "09:00", close: "22:00" };
-        const isCurrentlyOpen = ((restaurant as any).isActive !== false) && (restaurant as any).availabilityStatus === "open" && isWithinOperatingHours(operatingHours.open, operatingHours.close);
+        const isCurrentlyOpen = isRestaurantAcceptingOrders(restaurant);
 
         const restaurantWithOpenState = {
             ...restaurant,

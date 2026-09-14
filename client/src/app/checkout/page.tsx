@@ -8,6 +8,7 @@ import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
 import { getHighAccuracyGPSFix } from "@/utils/geolocation";
 import { usePlatform } from "@/context/PlatformContext";
+import { useSocket } from "@/context/SocketContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import dynamic from "next/dynamic";
 import {
@@ -88,7 +89,25 @@ export default function CheckoutPage() {
         getGroceryStatusMessage
     } = usePlatform();
 
+    const { socket } = useSocket();
     const [vendorAvailability, setVendorAvailability] = useState<string>("open");
+
+    useEffect(() => {
+        if (!socket) return;
+        const handleStatusUpdate = (data: { restaurantId: string; availabilityStatus: string; isActive: boolean }) => {
+            if (cart.orderType === 'food' && cart.vendorId === data.restaurantId) {
+                if (data.isActive === false || data.availabilityStatus === "closed" || data.availabilityStatus === "disabled") {
+                    setVendorAvailability(data.availabilityStatus === "disabled" ? "disabled" : "closed");
+                } else {
+                    setVendorAvailability("open");
+                }
+            }
+        };
+        socket.on("restaurant_status_updated", handleStatusUpdate);
+        return () => {
+            socket.off("restaurant_status_updated", handleStatusUpdate);
+        };
+    }, [socket, cart.vendorId, cart.orderType]);
 
     useEffect(() => {
         const fetchVendorStatus = async () => {
@@ -96,7 +115,12 @@ export default function CheckoutPage() {
                 try {
                     const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
                     if (res.data.success && res.data.restaurant) {
-                        setVendorAvailability(res.data.restaurant.availabilityStatus || "open");
+                        const rest = res.data.restaurant;
+                        if (rest.isActive === false || rest.availabilityStatus === "closed" || rest.availabilityStatus === "disabled" || rest.isCurrentlyOpen === false) {
+                            setVendorAvailability(rest.availabilityStatus === "disabled" ? "disabled" : "closed");
+                        } else {
+                            setVendorAvailability("open");
+                        }
                     }
                 } catch (err) {
                     console.error("Failed to check restaurant status in checkout:", err);
@@ -120,7 +144,9 @@ export default function CheckoutPage() {
             return "Grocery ordering is currently unavailable. Please try again later.";
         }
         if (cart.orderType === "food" && vendorAvailability !== "open") {
-            return "Ordering from this restaurant is currently unavailable.";
+            return vendorAvailability === "disabled"
+                ? "This restaurant is temporarily disabled."
+                : "This restaurant is currently closed.";
         }
         return null;
     })();

@@ -57,10 +57,10 @@ export default function CartPage() {
                     const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
                     if (res.data.success && res.data.restaurant) {
                         const rest = res.data.restaurant;
-                        if (rest.isActive === false || rest.availabilityStatus === "closed" || rest.availabilityStatus === "disabled") {
-                            setVendorAvailability(rest.availabilityStatus || "closed");
+                        if (rest.isActive === false || rest.availabilityStatus === "closed" || rest.availabilityStatus === "disabled" || rest.isCurrentlyOpen === false) {
+                            setVendorAvailability(rest.availabilityStatus === "disabled" ? "disabled" : "closed");
                         } else {
-                            setVendorAvailability(rest.availabilityStatus || "open");
+                            setVendorAvailability("open");
                         }
                     }
                 } catch (err) {

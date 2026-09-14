@@ -15,7 +15,7 @@ import PlatformSettings from "../models/PlatformSettings";
 import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
 import { computeBillFromZone } from "../utils/billCalculator";
-import { isWithinOperatingHours } from "../utils/restaurantHours";
+import { isWithinOperatingHours, checkRestaurantAcceptingOrders } from "../utils/restaurantHours";
 import { verifyItemPrices } from "../utils/itemVerification";
 import { handleOrderDelivered } from "../utils/orderCompletion";
 
@@ -112,25 +112,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         let fetchedRestaurant: any = null;
         if (orderType === "food" && restaurant) {
             fetchedRestaurant = await Restaurant.findById(restaurant);
-            if (!fetchedRestaurant || fetchedRestaurant.availabilityStatus !== "open") {
-                const restMsg = fetchedRestaurant && fetchedRestaurant.availabilityStatus === "disabled"
-                    ? "This restaurant is temporarily disabled."
-                    : "This restaurant is currently closed.";
+            const availability = checkRestaurantAcceptingOrders(fetchedRestaurant);
+            if (!availability.isAccepting) {
                 res.status(400).json({
                     success: false,
-                    message: restMsg
+                    message: availability.message
                 });
                 return;
-            }
-
-            if (fetchedRestaurant.operatingHours?.open && fetchedRestaurant.operatingHours?.close) {
-                if (!isWithinOperatingHours(fetchedRestaurant.operatingHours.open, fetchedRestaurant.operatingHours.close)) {
-                    res.status(400).json({
-                        success: false,
-                        message: `This restaurant is currently closed. It reopens at ${fetchedRestaurant.operatingHours.open}.`
-                    });
-                    return;
-                }
             }
         }
 

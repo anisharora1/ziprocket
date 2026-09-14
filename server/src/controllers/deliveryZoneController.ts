@@ -10,6 +10,7 @@ import * as redisService from "../services/redisService";
 import { computeBillFromZone } from "../utils/billCalculator";
 import PlatformSettings from "../models/PlatformSettings";
 import { verifyItemPrices } from "../utils/itemVerification";
+import { checkRestaurantAcceptingOrders } from "../utils/restaurantHours";
 
 // --- CRUD OPERATIONS (For Admin Panel) ---
 
@@ -332,6 +333,11 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
 
             if (orderType === "food" && vendorId && vendorId !== "grocery") {
                 const rest = await Restaurant.findById(vendorId);
+                const availability = checkRestaurantAcceptingOrders(rest);
+                if (!availability.isAccepting) {
+                    res.status(400).json({ success: false, message: availability.message });
+                    return;
+                }
                 if (rest && rest.location && rest.location.lat !== undefined && rest.location.lng !== undefined) {
                     originLat = rest.location.lat;
                     originLng = rest.location.lng;
