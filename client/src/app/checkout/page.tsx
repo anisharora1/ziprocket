@@ -161,7 +161,7 @@ export default function CheckoutPage() {
     // ── Out-of-Zone Overlay Card ───────────────────────────────────────────────
     const [showOutOfZoneOverlay, setShowOutOfZoneOverlay] = useState(false);
     const [activeZones, setActiveZones] = useState<string[]>([]);
-    const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('ONLINE');
+    const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
     const { user } = useAuth();
     const { 
         location: userCoords, 
@@ -1299,26 +1299,6 @@ export default function CheckoutPage() {
                 <section>
                     <h2 className="text-[14px] text-slate-600 mb-3 px-1">Payment Method</h2>
                     <div className="space-y-3">
-                        {/* ONLINE */}
-                        <div
-                            onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('ONLINE')}
-                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${(checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
-                                } ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
-                                    <MdAccountBalanceWallet className="text-[20px]" />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">UPI / Online Payment</h3>
-                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay instantly using Google Pay, PhonePe, Cards or NetBanking</p>
-                                </div>
-                            </div>
-                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
-                                {paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
-                            </div>
-                        </div>
-
                         {/* CASH ON DELIVERY (COD) */}
                         <div
                             onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('COD')}
@@ -1336,6 +1316,26 @@ export default function CheckoutPage() {
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
                                 {paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
+                            </div>
+                        </div>
+
+                        {/* ONLINE */}
+                        <div
+                            onClick={() => !checkoutError && !isCheckoutDisabled && setPaymentMethod('ONLINE')}
+                            className={`bg-white rounded-xl p-3.5 shadow-sm border transition-all flex items-center justify-between cursor-pointer ${(checkoutError || isCheckoutDisabled) ? 'opacity-50 cursor-not-allowed' : ''
+                                } ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/20' : 'border-slate-100 hover:border-slate-200'}`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-500'}`}>
+                                    <MdAccountBalanceWallet className="text-[20px]" />
+                                </div>
+                                <div>
+                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">UPI / Online Payment</h3>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay instantly using Google Pay, PhonePe, Cards or NetBanking</p>
+                                </div>
+                            </div>
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
+                                {paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
                             </div>
                         </div>
                     </div>
