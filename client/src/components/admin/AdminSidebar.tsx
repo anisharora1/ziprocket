@@ -17,6 +17,7 @@ import {
   MdLocalGroceryStore,
   MdAdminPanelSettings,
   MdAccountBalanceWallet,
+  MdAltRoute,
   MdClose,
   MdChevronLeft,
   MdChevronRight,
@@ -36,6 +37,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   local_grocery_store: MdLocalGroceryStore,
   shield_person: MdAdminPanelSettings,
   account_balance_wallet: MdAccountBalanceWallet,
+  alt_route: MdAltRoute,
 };
 
 export default function AdminSidebar() {
@@ -55,6 +57,7 @@ export default function AdminSidebar() {
     { name: 'Delivery Zones', href: '/admin/zones', iconKey: 'map' },
     { name: 'Restaurants', href: '/admin/restaurants', iconKey: 'storefront' },
     { name: 'Personnel', href: '/admin/delivery', iconKey: 'directions_bike' },
+    { name: 'Delivery Operations', href: '/admin/delivery-ops', iconKey: 'alt_route' },
     { name: 'Orders', href: '/admin/orders', iconKey: 'shopping_cart' },
     { name: 'Promotions', href: '/admin/promotions', iconKey: 'campaign' },
     { name: 'Coupons & Loyalty', href: '/admin/coupons', iconKey: 'payments' },
