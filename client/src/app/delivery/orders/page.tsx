@@ -66,14 +66,17 @@ interface Order {
 }
 
 const getNavigationUrl = (address: any) => {
-  if (!address) return "#";
-  if (address.locationSource === "gps" && address.lat && address.lng) {
-    // GPS-captured — coordinate is genuinely reliable, use it directly
-    return `https://www.google.com/maps/dir/?api=1&destination=${address.lat},${address.lng}&travelmode=driving`;
-  }
-  // Manually entered — let Google Maps resolve the real-world address + landmark itself,
-  // which is typically more forgiving of imprecise underlying coordinates than trusting a raw pin
-  const landmark = address.landmark || address.deliveryAddress?.landmark || "";
+  if (!address?.lat || !address?.lng) return "#";
+  // Always use the exact coordinate distance/fee was calculated from — this guarantees
+  // the courier's route matches what the customer was charged for, regardless of how the address was entered.
+  return `https://www.google.com/maps/dir/?api=1&destination=${address.lat},${address.lng}&travelmode=driving`;
+};
+
+const getAddressSearchFallbackUrl = (address: any) => {
+  // Secondary option — only for when the pin genuinely looks wrong on arrival
+  const rawLandmark = (address.landmark || address.deliveryAddress?.landmark || "").trim();
+  const PLACEHOLDER_VALUES = ["na", "n/a", "none", "nil", "-", "nothing", "no landmark"];
+  const landmark = PLACEHOLDER_VALUES.includes(rawLandmark.toLowerCase()) ? "" : rawLandmark;
   const query = encodeURIComponent(`${address.fullAddress || ""}${landmark ? ", Near " + landmark : ""}`);
   return `https://www.google.com/maps/dir/?api=1&destination=${query}&travelmode=driving`;
 };
@@ -345,6 +348,16 @@ export default function DeliveryOrdersPage() {
                         <div>
                           <p className="text-slate-800 font-bold">Delivery Destination</p>
                           <p className="text-slate-500 font-medium">{order.address?.fullAddress || "Address details hidden"}</p>
+                          {order.address?.locationSource === "manual" && (
+                            <a
+                              href={getAddressSearchFallbackUrl(order.address)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 underline mt-1 block"
+                            >
+                              Pin looks wrong? Try address search instead
+                            </a>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 self-center">
@@ -462,6 +475,16 @@ export default function DeliveryOrdersPage() {
                         <div>
                           <p className="text-slate-800 font-bold">Delivery Destination</p>
                           <p className="text-slate-500 font-medium">{order.address?.fullAddress || "Customer address details hidden"}</p>
+                          {order.address?.locationSource === "manual" && (
+                            <a
+                              href={getAddressSearchFallbackUrl(order.address)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[11px] font-semibold text-slate-400 hover:text-slate-600 underline mt-1 block"
+                            >
+                              Pin looks wrong? Try address search instead
+                            </a>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0 self-center">
