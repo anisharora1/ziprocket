@@ -5,6 +5,7 @@ import HeroCarousel from "@/components/HeroCarousel";
 import Categories from "@/components/Categories";
 import TopRated from "@/components/TopRated";
 import StaticRestaurantList from "@/components/RestaurantList";
+import PopularGroceries from "@/components/PopularGroceries";
 import StaticFloatingCartButton from "@/components/FloatingCartButton";
 import StaticBottomNavBar from "@/components/BottomNavBar";
 import StaticFirstVisitInstallModal from "@/components/FirstVisitInstallModal";
@@ -21,22 +22,31 @@ export const metadata: Metadata = {
 async function getHomepageData() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
   try {
-    const [bannersRes, topRatedRes] = await Promise.all([
+    const [bannersRes, topRatedRes, groceriesRes] = await Promise.all([
       fetch(`${apiUrl}/promotions`, { next: { revalidate: 300 } }),
       fetch(`${apiUrl}/restaurants?status=approved&isActive=true&limit=10`, { next: { revalidate: 300 } }),
+      fetch(`${apiUrl}/search/popular-groceries`, { next: { revalidate: 300 } }),
     ]);
 
     const bannersData = bannersRes.ok ? await bannersRes.json() : null;
     const topRatedData = topRatedRes.ok ? await topRatedRes.json() : null;
+    const groceriesData = groceriesRes.ok ? await groceriesRes.json() : null;
 
     const rawPromotions = bannersData?.promotions || bannersData?.data?.promotions || [];
     const activeBanners = rawPromotions.filter((p: any) => p.isActive);
     const restaurants = topRatedData?.restaurants || topRatedData?.data?.restaurants || [];
+    const popularGroceries =
+      groceriesData?.data?.items ||
+      groceriesData?.items ||
+      groceriesData?.products ||
+      groceriesData?.data?.products ||
+      [];
 
     return {
       banners: activeBanners,
       promotions: rawPromotions,
       topRated: restaurants,
+      popularGroceries,
     };
   } catch (error) {
     console.error("Failed to fetch homepage data server-side:", error);
@@ -44,12 +54,13 @@ async function getHomepageData() {
       banners: [],
       promotions: [],
       topRated: [],
+      popularGroceries: [],
     };
   }
 }
 
 export default async function Home() {
-  const { banners, promotions, topRated } = await getHomepageData();
+  const { banners, promotions, topRated, popularGroceries } = await getHomepageData();
 
   const localBusinessSchema = {
     "@context": "https://schema.org",
@@ -84,8 +95,8 @@ export default async function Home() {
         "Saturday",
         "Sunday"
       ],
-      "opens": "08:00",
-      "closes": "21:00"
+      "opens": "07:00",
+      "closes": "22:00"
     }
   };
 
@@ -138,6 +149,7 @@ export default async function Home() {
         <Categories />
         <TopRated initialRestaurants={topRated} initialPromotions={promotions} />
         <StaticRestaurantList />
+        <PopularGroceries initialItems={popularGroceries} />
       </main>
 
       <StaticBottomNavBar />

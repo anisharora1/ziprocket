@@ -8,6 +8,7 @@ import {
     searchMenuItems,
     getMenuCategories,
     getPopularDishesFeed,
+    getPopularGroceriesFeed,
     adminSearchUsers,
     adminSearchOrders
 } from "../controllers/searchController";
@@ -26,6 +27,7 @@ router.get("/grocery", searchLimiter, searchGrocery);
 router.get("/restaurants", searchLimiter, searchRestaurants);
 router.get("/menu-categories", searchLimiter, getMenuCategories);
 router.get("/popular-dishes", searchLimiter, getPopularDishesFeed);
+router.get("/popular-groceries", searchLimiter, getPopularGroceriesFeed);
 router.get("/menu-items", searchLimiter, searchMenuItems);
 
 // Admin / Moderator Search routes (Protected)

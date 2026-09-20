@@ -482,6 +482,38 @@ export const getPopularDishesFeed = async (req: Request, res: Response): Promise
 };
 
 /**
+ * @desc Get Popular Groceries Feed (Random sampling across available grocery products)
+ * @route GET /api/search/popular-groceries
+ * @access Public
+ */
+export const getPopularGroceriesFeed = async (req: Request, res: Response): Promise<void> => {
+    try {
+        const items = await GroceryProduct.aggregate([
+            { $match: { isAvailable: true, stockQuantity: { $gt: 0 } } },
+            { $sample: { size: 20 } },
+            { $project: { name: 1, price: 1, discountedPrice: 1, images: 1, category: 1, subcategory: 1, unit: 1, weightSize: 1, isFeatured: 1, stockQuantity: 1, brand: 1, isAvailable: 1, offerBadge: 1 } }
+        ]);
+        const normalized = items.map((item: any) => ({
+            ...item,
+            images: Array.isArray(item.images)
+                ? item.images.map((img: any) => (typeof img === "string" ? img : img?.url || "")).filter(Boolean)
+                : []
+        }));
+        res.status(200).json({
+            success: true,
+            message: "Popular groceries retrieved successfully",
+            data: {
+                count: normalized.length,
+                items: normalized
+            }
+        });
+    } catch (error: any) {
+        console.error("Get popular groceries feed error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
  * @desc Search Menu Items
  * @route GET /api/search/menu-items
  * @access Public
