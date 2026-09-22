@@ -1,5 +1,6 @@
 import express from "express";
 import {
+    createPaymentIntent,
     createRazorpayOrder,
     verifyPayment,
     logPaymentFailure
@@ -13,6 +14,7 @@ const router = express.Router();
 router.use(paymentLimiter);
 
 // All payment endpoints are protected and accessible by authenticated customers/admins
+router.post("/create-intent", protect, authorize("customer", "admin"), createPaymentIntent);
 router.post("/create", protect, authorize("customer", "admin"), createRazorpayOrder);
 router.post("/verify", protect, authorize("customer", "admin"), verifyPayment);
 router.post("/failure", protect, authorize("customer", "admin"), logPaymentFailure);

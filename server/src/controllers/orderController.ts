@@ -6,473 +6,93 @@ import User from "../models/User";
 import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
 import DeliveryModel from "../models/Delivery";
-import { getRouteDistanceAndDuration } from "../utils/googleMaps";
-import { validateCoupon } from "./couponController";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import PlatformSettings from "../models/PlatformSettings";
-import { calculateDistance } from "../services/distanceService";
 import { emitToRooms } from "../services/socketService";
-import { computeBillFromZone } from "../utils/billCalculator";
-import { isWithinOperatingHours, checkRestaurantAcceptingOrders } from "../utils/restaurantHours";
-import { verifyItemPrices } from "../utils/itemVerification";
 import { handleOrderDelivered } from "../utils/orderCompletion";
+import { validateAndPriceOrder, finalizeOrderPlacement } from "../utils/orderValidation";
 
-// Create a new order
+// Create a new order (primarily for COD flow; ONLINE orders are created upon verified payment)
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
     try {
         const {
             restaurant,
             items,
-            totalAmount,
-            deliveryCharge,
-            paymentMethod,
-            distance,
+            paymentMethod = "COD",
             address,
             whatsappOrder,
             orderType = "food",
-            couponCode
+            couponCode,
+            phone
         } = req.body;
 
-        // Check Platform Settings (cached in Redis for 60s to avoid repeated DB hits)
-        let settings = await redisService.getJson<any>("platform:settings");
-        if (!settings) {
-            settings = await PlatformSettings.findOne().lean();
-            if (settings) {
-                await redisService.setJson("platform:settings", settings, 60);
-            }
-        }
-        if (settings) {
-            // 1. Maintenance Mode Check
-            if (settings.maintenanceMode) {
-                res.status(400).json({
-                    success: false,
-                    message: "We are currently performing maintenance. Please check back soon."
-                });
-                return;
-            }
+        const userId = req.user ? req.user._id.toString() : req.body.user;
 
-            // 2. Global Platform Status Check
-            if (!settings.isPlatformOpen) {
-                res.status(400).json({
-                    success: false,
-                    message: "Ordering is currently unavailable. Please try again later."
-                });
-                return;
-            }
+        const validation = await validateAndPriceOrder({
+            items,
+            orderType,
+            restaurant,
+            address,
+            phone,
+            couponCode,
+            userId,
+            whatsappOrder
+        });
 
-            // 3. Operating Hours Check (Asia/Kolkata timezone)
-            const options = { timeZone: 'Asia/Kolkata', hour12: false, hour: '2-digit', minute: '2-digit' } as const;
-            const timeString = new Intl.DateTimeFormat('en-US', options).format(new Date());
-            const [currH, currM] = timeString.split(":").map(Number);
-            const [openH, openM] = settings.operatingHours.open.split(":").map(Number);
-            const [closeH, closeM] = settings.operatingHours.close.split(":").map(Number);
-
-            const currVal = currH * 60 + currM;
-            const openVal = openH * 60 + openM;
-            const closeVal = closeH * 60 + closeM;
-
-            let isWithinHours = false;
-            if (openVal <= closeVal) {
-                isWithinHours = currVal >= openVal && currVal < closeVal;
-            } else {
-                // overnight hours
-                isWithinHours = currVal >= openVal || currVal < closeVal;
-            }
-
-            if (!isWithinHours) {
-                const [h, m] = settings.operatingHours.open.split(":").map(Number);
-                const ampm = h >= 12 ? 'PM' : 'AM';
-                const displayH = h % 12 || 12;
-                const displayM = m.toString().padStart(2, '0');
-                const formattedOpenTime = `${displayH}:${displayM} ${ampm}`;
-
-                res.status(400).json({
-                    success: false,
-                    message: `Orders are closed for today. We will reopen at ${formattedOpenTime}.`
-                });
-                return;
-            }
-
-            // 4. Grocery Operations Check
-            if (orderType === "grocery" && settings.groceryStatus !== "open") {
-                const groceryMsg = settings.groceryStatus === "disabled"
-                    ? "Grocery ordering is temporarily disabled."
-                    : "Grocery operations are currently closed.";
-                res.status(400).json({
-                    success: false,
-                    message: groceryMsg
-                });
-                return;
-            }
-        }
-
-        // 5. Restaurant Availability Check (Food only)
-        let fetchedRestaurant: any = null;
-        if (orderType === "food" && restaurant) {
-            fetchedRestaurant = await Restaurant.findById(restaurant);
-            const availability = checkRestaurantAcceptingOrders(fetchedRestaurant);
-            if (!availability.isAccepting) {
-                res.status(400).json({
-                    success: false,
-                    message: availability.message
-                });
-                return;
-            }
-        }
-
-        // Securely override user from authenticated request session
-        const user = req.user ? req.user._id : req.body.user;
-
-        // Inventory Stock Validations for Grocery (Batch Query)
-        let productMap: Map<string, any> = new Map();
-        if (orderType === "grocery") {
-            const groceryItemIds = items.map((i: any) => i.groceryItem);
-            const products = await GroceryProduct.find({ _id: { $in: groceryItemIds } });
-            productMap = new Map(products.map(p => [p._id.toString(), p]));
-
-            for (const item of items) {
-                const product = productMap.get(item.groceryItem?.toString());
-                if (!product) {
-                    res.status(404).json({ success: false, message: "Grocery product not found" });
-                    return;
-                }
-                if (product.stockQuantity < item.quantity) {
-                    res.status(400).json({
-                        success: false,
-                        message: `Insufficient stock for product ${product.name}. Available: ${product.stockQuantity}, Requested: ${item.quantity}`
-                    });
-                    return;
-                }
-            }
-        }
-
-        // 1. Strict Geofence Delivery Zone Validation (API Level Protection)
-        if (!address || address.lat === undefined || address.lng === undefined) {
-            res.status(400).json({ success: false, message: "Valid delivery coordinates (lat/lng) are required." });
+        if (!validation.success) {
+            res.status(400).json({ success: false, message: validation.message });
             return;
         }
 
-        const DeliveryZone = mongoose.model("DeliveryZone");
-        const activeZones = await DeliveryZone.find({ isActive: true });
-        
-        if (activeZones.length === 0) {
-            res.status(400).json({ success: false, message: "No active delivery zones available right now." });
-            return;
-        }
+        const {
+            verifiedItems,
+            verifiedItemTotal,
+            verifiedTotal,
+            verifiedBill,
+            deliveryFee,
+            applicableZone,
+            calculatedDistance,
+            discountAmount,
+            assignedModerator,
+            formattedDeliveryAddress,
+            couponDoc
+        } = validation;
 
-        let applicableZone: any = null;
-        for (const zone of activeZones) {
-            const dist = calculateDistance(zone.center.lat, zone.center.lng, address.lat, address.lng);
-            if (dist <= zone.radiusKm) {
-                applicableZone = zone;
-                break; 
-            }
-            if (address.pincode && zone.pincodes && zone.pincodes.includes(address.pincode)) {
-                applicableZone = zone;
-                break;
-            }
-        }
+        const newOrder = await finalizeOrderPlacement({
+            user: userId,
+            restaurant: orderType === "food" ? restaurant : undefined,
+            orderType,
+            items: verifiedItems!,
+            itemTotal: verifiedItemTotal!,
+            totalAmount: verifiedTotal!,
+            deliveryCharge: deliveryFee!,
+            paymentMethod,
+            paymentStatus: paymentMethod === "ONLINE" ? "paid" : "pending",
+            orderStatus: "placed",
+            distance: calculatedDistance!,
+            address: {
+                fullAddress: address.fullAddress,
+                lat: address.lat,
+                lng: address.lng,
+                locationSource: address.locationSource === "gps" ? "gps" : "manual",
+                deliveryAddress: formattedDeliveryAddress
+            },
+            whatsappOrder: !!whatsappOrder,
+            deliveryZone: applicableZone?._id,
+            moderator: assignedModerator,
+            couponCode,
+            discountAmount,
+            couponDoc,
+            grandTotalBeforeDiscount: verifiedBill?.grandTotal
+        });
 
-        if (!applicableZone) {
-            res.status(400).json({ 
-                success: false, 
-                message: "Sorry, delivery is currently unavailable in your area." 
-            });
-            return;
-        }
-
-        const deliveryZone = applicableZone._id;
-
-        // 2. Dynamic Route-Based Distance Recalculation using Google Distance Matrix
-        let calculatedDistance = distance || 2.5;
-        let originLat = applicableZone.center.lat;
-        let originLng = applicableZone.center.lng;
-
-        if (orderType === "food" && fetchedRestaurant) {
-            if (fetchedRestaurant.location && fetchedRestaurant.location.lat !== undefined && fetchedRestaurant.location.lng !== undefined) {
-                originLat = fetchedRestaurant.location.lat;
-                originLng = fetchedRestaurant.location.lng;
-            }
-        }
-
-        const routeMetrics = await getRouteDistanceAndDuration(originLat, originLng, address.lat, address.lng);
-        calculatedDistance = routeMetrics.distanceKm;
-
-        // Strict limit check: route distance cannot exceed max radius * 1.5 (detour factor)
-        const maxRadius = applicableZone.radiusKm || 15;
-        if (calculatedDistance > maxRadius * 1.5) {
-            res.status(400).json({
-                success: false,
-                message: `Sorry, your resolved road distance of ${calculatedDistance}km exceeds our delivery limits.`
-            });
-            return;
-        }
-
-        // ── SERVER-SIDE PRICE VERIFICATION ──────────────────────────────
-        // Re-fetch real prices for every item using shared helper — never trust client-submitted item.price
-        let verifiedItemTotal = 0;
-        let verifiedItems: any[] = [];
-        try {
-            const verification = await verifyItemPrices(items, orderType, restaurant);
-            verifiedItemTotal = verification.verifiedItemTotal;
-            verifiedItems = verification.verifiedItems;
-        } catch (verifErr: any) {
-            res.status(400).json({
-                success: false,
-                message: verifErr.message || "Price verification failed"
-            });
-            return;
-        }
-
-        // ── MINIMUM ORDER VALUE ENFORCEMENT ──────────────────────────────
-        const minOrderValue = orderType === "food" ? (settings?.minOrderValueFood || 0) : (settings?.minOrderValueGrocery || 0);
-        if (verifiedItemTotal < minOrderValue) {
-            res.status(400).json({
-                success: false,
-                message: `Minimum order value is ₹${minOrderValue}. Please add more items to place this order.`
-            });
-            return;
-        }
-
-        // Reuse the shared bill calculation logic (single source of truth with checkout preview)
-        const verifiedBill = computeBillFromZone(applicableZone, verifiedItemTotal, calculatedDistance, orderType);
-
-        // Update user phone number if updated during checkout review
-        const { phone } = req.body;
-        if (phone && user) {
-            await User.findByIdAndUpdate(user, { phone });
-        }
-
-        // Auto Order Routing to least-busy moderator inside deliveryZone (Single Aggregation Query)
-        let assignedModerator = undefined;
-        if (orderType === "grocery") {
-            const moderators = await User.find({
-                role: "grocery_moderator",
-                assignedZones: deliveryZone,
-                isBlocked: false
-            });
-
-            if (moderators.length > 0) {
-                const modIds = moderators.map(m => m._id);
-                const activeCounts = await Order.aggregate([
-                    {
-                        $match: {
-                            moderator: { $in: modIds },
-                            orderType: "grocery",
-                            orderStatus: { $in: ["placed", "accepted", "preparing", "on_the_way"] }
-                        }
-                    },
-                    { $group: { _id: "$moderator", count: { $sum: 1 } } }
-                ]);
-
-                const countMap = new Map(activeCounts.map(a => [a._id.toString(), a.count]));
-                moderators.sort((a, b) => (countMap.get(a._id.toString()) || 0) - (countMap.get(b._id.toString()) || 0));
-                assignedModerator = moderators[0]._id;
-            }
-        }
-
-        // Secure Coupon Validation on placement (using server-verified subtotal, not client-submitted)
-        let calculatedDiscount = 0;
-        let couponDoc = null;
-
-        if (couponCode) {
-            const validation = await validateCoupon(
-                couponCode,
-                user,
-                verifiedItemTotal, // server-verified item subtotal
-                deliveryZone.toString(),
-                orderType === "food" ? restaurant : undefined,
-                orderType
-            );
-
-            if (!validation.success) {
-                res.status(400).json({ success: false, message: `Coupon validation failed: ${validation.message}` });
-                return;
-            }
-            
-            calculatedDiscount = validation.discountAmount;
-            couponDoc = validation.coupon;
-        }
-
-        // Final server-verified total (bill grand total minus any applicable coupon discount)
-        const finalTotal = Math.max(0, verifiedBill.grandTotal - calculatedDiscount);
-
-        // Perform atomic batch stock deduction using bulkWrite (single DB round trip)
-        if (orderType === "grocery") {
-            const bulkOps = items.map((item: any) => ({
-                updateOne: {
-                    filter: { _id: item.groceryItem, stockQuantity: { $gte: item.quantity } },
-                    update: { $inc: { stockQuantity: -item.quantity } }
-                }
-            }));
-            const bulkResult = await GroceryProduct.bulkWrite(bulkOps, { ordered: true });
-
-            if (bulkResult.modifiedCount !== items.length) {
-                // Some items failed the stock guard — rollback all successfully deducted items
-                const rollbackOps = items.slice(0, bulkResult.modifiedCount).map((item: any) => ({
-                    updateOne: {
-                        filter: { _id: item.groceryItem },
-                        update: { $inc: { stockQuantity: item.quantity } }
-                    }
-                }));
-                if (rollbackOps.length > 0) {
-                    await GroceryProduct.bulkWrite(rollbackOps);
-                }
-                res.status(400).json({
-                    success: false,
-                    message: "Stock availability changed while processing order. Please review your cart."
-                });
-                return;
-            }
-        }
-
-        let formattedDeliveryAddress = undefined;
-        if (address.deliveryAddress) {
-            if (typeof address.deliveryAddress === "object") {
-                formattedDeliveryAddress = address.deliveryAddress;
-            } else if (typeof address.deliveryAddress === "string") {
-                formattedDeliveryAddress = {
-                    houseNumber: address.deliveryAddress,
-                    landmark: address.deliveryAddress,
-                    street: "",
-                    locality: "",
-                    village: "",
-                    pincode: address.pincode || "",
-                    instructions: ""
-                };
-            }
-        }
-
-        try {
-            const deliveryOtp = paymentMethod === "ONLINE" ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
-
-            const newOrder = new Order({
-                user,
-                restaurant: orderType === "food" ? restaurant : undefined,
-                orderType,
-                items: verifiedItems, // server-verified prices, not client-submitted
-                itemTotal: verifiedItemTotal, // pure item total before delivery/platform fees & taxes
-                totalAmount: finalTotal, // server-computed total
-                deliveryCharge: verifiedBill.deliveryFee, // server-computed delivery fee
-                paymentMethod,
-                orderStatus: "pending", // true initial state — transitions to "placed" after verification
-                distance: calculatedDistance,
-                address: {
-                    fullAddress: address.fullAddress,
-                    lat: address.lat,
-                    lng: address.lng,
-                    locationSource: address.locationSource === "gps" ? "gps" : "manual",
-                    deliveryAddress: formattedDeliveryAddress
-                },
-                whatsappOrder,
-                deliveryZone,
-                moderator: assignedModerator,
-                couponCode,
-                discountAmount: calculatedDiscount,
-                deliveryOtp
-            });
-
-            await newOrder.save();
-
-            // For COD orders, immediately transition to "placed" — no payment to wait for.
-            // For ONLINE orders, stay "pending" until verifyRazorpayPayment confirms payment.
-            if (paymentMethod === "COD") {
-                newOrder.orderStatus = "placed";
-                await newOrder.save();
-            }
-
-            // Clear user's cached cart and recent orders list from Redis
-            if (user) {
-                await cartCacheService.deleteCachedCart(user.toString());
-                // Delete ALL paginated variants of the user's orders cache.
-                // Previously used del('order:user_recent:userId') which never matched
-                // the actual keys stored as 'order:user_recent:userId:p1:l20' etc.
-                await redisService.deletePattern(`order:user_recent:${user.toString()}*`);
-            }
-
-
-            // Record coupon usage if successfully placed
-            if (couponDoc) {
-                const CouponModel = mongoose.model("Coupon");
-                const CouponUsageModel = mongoose.model("CouponUsage");
-
-                // Atomically increment usedCount ONLY if still under the limit — this is the actual enforcement point, not the earlier validateCoupon check.
-                const updatedCoupon = await CouponModel.findOneAndUpdate(
-                    { _id: couponDoc._id, usedCount: { $lt: couponDoc.totalUsageLimit } },
-                    { $inc: { usedCount: 1 } },
-                    { new: true }
-                );
-
-                if (!updatedCoupon) {
-                    // Limit was hit by a concurrent request between validation and this point — roll back the discount, don't fail the whole order.
-                    newOrder.discountAmount = 0;
-                    newOrder.totalAmount = verifiedBill.grandTotal; // full server-verified amount, no discount
-                    newOrder.couponCode = undefined;
-                    await newOrder.save();
-                } else {
-                    // Re-check per-user limit atomically too, in case of a concurrent double-submit from the same user.
-                    const userUsageCount = await CouponUsageModel.countDocuments({ user, coupon: couponDoc._id });
-                    if (userUsageCount >= couponDoc.perUserUsageLimit) {
-                        // Roll back both the order discount AND the usedCount increment we just made.
-                        await CouponModel.findByIdAndUpdate(couponDoc._id, { $inc: { usedCount: -1 } });
-                        newOrder.discountAmount = 0;
-                        newOrder.totalAmount = verifiedBill.grandTotal;
-                        newOrder.couponCode = undefined;
-                        await newOrder.save();
-                    } else {
-                        const newUsage = new CouponUsageModel({ user, coupon: couponDoc._id, order: newOrder._id, discountApplied: calculatedDiscount });
-                        await newUsage.save();
-                    }
-                }
-            }
-
-            // --- Socket.IO: Notify seller/grocery moderator of new order ---
-            // Only emit new_order notifications once the order has transitioned to "placed".
-            // For ONLINE orders still in "pending", the notification fires from verifyRazorpayPayment instead.
-            if (newOrder.orderStatus === "placed") {
-                try {
-                    const rooms: string[] = ["admin"];
-                    if (orderType === "food" && restaurant) {
-                        rooms.push(`seller:${restaurant}`);
-                        if (deliveryZone) rooms.push(`grocery:${deliveryZone.toString()}`); // moderators now oversee food orders too
-                    } else if (orderType === "grocery" && deliveryZone) {
-                        rooms.push(`grocery:${deliveryZone.toString()}`);
-                    }
-                    // Also notify the customer so their orders list refreshes via socket
-                    if (user) {
-                        rooms.push(`user:${user.toString()}`);
-                    }
-                    emitToRooms(rooms, "new_order", {
-                        order: newOrder,
-                        orderType,
-                        restaurantId: orderType === "food" ? restaurant : undefined,
-                        zoneId: orderType === "grocery" ? deliveryZone?.toString() : undefined,
-                    });
-                } catch (emitErr: any) {
-                    console.error("[Socket] new_order emit error:", emitErr.message);
-                }
-            }
-
-            res.status(201).json({
-                success: true,
-                message: newOrder.orderStatus === "pending" ? "Order submitted — awaiting payment" : "Order placed successfully",
-                order: newOrder
-            });
-        } catch (saveError: any) {
-            // Revert deducted stock if order save fails (batch rollback)
-            if (orderType === "grocery" && items.length > 0) {
-                const rollbackOps = items.map((item: any) => ({
-                    updateOne: {
-                        filter: { _id: item.groceryItem },
-                        update: { $inc: { stockQuantity: item.quantity } }
-                    }
-                }));
-                await GroceryProduct.bulkWrite(rollbackOps);
-            }
-            throw saveError;
-        }
+        res.status(201).json({
+            success: true,
+            message: "Order placed successfully",
+            order: newOrder
+        });
     } catch (error: any) {
         console.error("Order creation failed:", error);
         res.status(500).json({ success: false, message: error.message });

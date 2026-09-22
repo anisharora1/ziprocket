@@ -10,17 +10,17 @@ import { usePlatform } from "@/context/PlatformContext";
 import { useSocket } from "@/context/SocketContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import {
-  MdArrowBack,
-  MdShoppingBasket,
-  MdStore,
-  MdRestaurant,
-  MdError,
-  MdShoppingBag,
-  MdFastfood,
-  MdRemove,
-  MdAdd,
-  MdLock,
-  MdArrowForward,
+    MdArrowBack,
+    MdShoppingBasket,
+    MdStore,
+    MdRestaurant,
+    MdError,
+    MdShoppingBag,
+    MdFastfood,
+    MdRemove,
+    MdAdd,
+    MdLock,
+    MdArrowForward,
 } from "react-icons/md";
 
 export default function CartPage() {
@@ -28,7 +28,7 @@ export default function CartPage() {
     const router = useRouter();
     const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage, isGroceryCurrentlyOpen, getGroceryStatusMessage } = usePlatform();
     const { socket } = useSocket();
-    
+
     const [recommendations, setRecommendations] = useState<any[]>([]);
     const [loadingRecs, setLoadingRecs] = useState(false);
     const [vendorAvailability, setVendorAvailability] = useState<string>("open");
@@ -87,9 +87,9 @@ export default function CartPage() {
             return getGroceryStatusMessage();
         }
         if (cart.orderType === "food" && vendorAvailability !== "open") {
-            return vendorAvailability === "disabled" 
-                ? "This restaurant is temporarily disabled." 
-                : "This restaurant is currently closed.";
+            return vendorAvailability === "disabled"
+                ? "Yeh restaurant abhi temporary band hai."
+                : "Yeh restaurant abhi band hai.";
         }
         return null;
     })();
@@ -126,7 +126,7 @@ export default function CartPage() {
     const handleAddRecommendedItem = (item: any) => {
         const isGrocery = cart.orderType === 'grocery';
         const itemId = isGrocery ? `groc-${item._id}` : `food-${item._id}`;
-        
+
         addToCart({
             item: {
                 id: itemId,
@@ -150,7 +150,7 @@ export default function CartPage() {
                 <button onClick={() => router.back()} className="w-8 h-8 flex items-center justify-center transition-transform active:scale-95">
                     <MdArrowBack className="text-slate-700 text-xl" />
                 </button>
-                <h1 className="font-bold text-[16px] text-slate-800 tracking-tight">Shopping Cart</h1>
+                <h1 className="font-bold text-[16px] text-slate-800 tracking-tight">Aapka Cart</h1>
                 {items.length > 0 ? (
                     <button
                         onClick={clearCart}
@@ -164,7 +164,7 @@ export default function CartPage() {
             </header>
 
             <main className="w-full max-w-md mx-auto px-4 pt-4 pb-20 space-y-5">
-                
+
                 {items.length === 0 ? (
                     /* Blinkit Style Empty State */
                     <div className="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center shadow-sm py-16">
@@ -173,7 +173,7 @@ export default function CartPage() {
                         </div>
                         <h2 className="text-[17px] font-extrabold text-slate-800 mb-1">Your cart is empty</h2>
                         <p className="text-[12px] text-slate-400 mb-6 max-w-[240px] leading-relaxed">
-                            No items in your basket. Fill it up with delicious food or fresh groceries!
+                            Cart me abhi koi samaan nahi hai. Mazedaar khana ya taaza grocery add karein!
                         </p>
                         <div className="flex gap-2 w-full">
                             <Link href="/restaurants" className="flex-1 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white font-extrabold text-xs uppercase tracking-wider rounded-xl transition-all shadow-sm flex justify-center items-center">
@@ -187,7 +187,7 @@ export default function CartPage() {
                 ) : (
                     /* Lightweight Cart Contents */
                     <div className="space-y-5">
-                        
+
                         {/* Ordering From Banner */}
                         <div className="bg-white rounded-xl border border-slate-100 p-3.5 shadow-sm flex items-center justify-between">
                             <div className="flex items-center gap-3">
@@ -210,7 +210,7 @@ export default function CartPage() {
                             <div className="bg-[#FFF5F5] border border-[#FFE2E2] rounded-2xl p-4 flex items-start gap-3 shadow-sm">
                                 <MdError className="text-rose-500 shrink-0 text-[20px]" />
                                 <div className="space-y-1">
-                                    <h4 className="text-[13px] font-bold text-rose-800">Checkout Closed</h4>
+                                    <h4 className="text-[13px] font-bold text-rose-800">Order Abhi Band Hai</h4>
                                     <p className="text-[12px] text-rose-605 leading-relaxed font-semibold">
                                         {cartServiceMessage}
                                     </p>
@@ -264,8 +264,8 @@ export default function CartPage() {
                                 ))}
                             </div>
 
-                            <Link 
-                                href={cart.orderType === 'grocery' ? '/grocery' : `/restaurants/${cart.vendorId}`} 
+                            <Link
+                                href={cart.orderType === 'grocery' ? '/grocery' : `/restaurants/${cart.vendorId}`}
                                 className="block text-center text-[11px] font-black text-[#FF5C00] hover:bg-[#FF5C00]/5 py-3 border-t border-slate-50 transition-colors uppercase tracking-wider"
                             >
                                 + Add more items
@@ -277,15 +277,15 @@ export default function CartPage() {
                             <div className="space-y-3 pt-2">
                                 <div className="flex items-center justify-between px-1">
                                     <div>
-                                        <h3 className="text-[13px] font-black text-slate-850">Tasted Best With / You Might Need</h3>
-                                        <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider mt-0.5">Recommendations based on your basket</p>
+                                        <h3 className="text-[13px] font-black text-slate-850">Iske Saath Yeh Bhi Try Karein</h3>
+                                        <p className="text-[10px] text-slate-450 font-bold uppercase tracking-wider mt-0.5">Aapke cart ke hisaab se sujhav</p>
                                     </div>
-                                    <span className="px-2 py-0.5 bg-[#FF5C00]/10 text-[#FF5C00] text-[8px] font-black uppercase rounded-full">Smart Recs</span>
+                                    <span className="px-2 py-0.5 bg-[#FF5C00]/10 text-[#FF5C00] text-[8px] font-black uppercase rounded-full">Sujhav</span>
                                 </div>
 
                                 <div className="flex overflow-x-auto gap-3.5 pb-2.5 scrollbar-thin select-none snap-x -mx-4 px-4">
                                     {recommendations.map((item) => (
-                                        <div 
+                                        <div
                                             key={item._id}
                                             className="w-[140px] bg-white border border-slate-100 rounded-2xl p-3 flex flex-col justify-between shrink-0 shadow-sm snap-start hover:border-slate-200 transition-colors"
                                         >
@@ -300,10 +300,10 @@ export default function CartPage() {
                                                         <MdFastfood className="text-slate-300 text-[24px]" />
                                                     )}
                                                 </div>
-                                                
+
                                                 {/* Name */}
                                                 <h4 className="text-[11px] font-extrabold text-slate-800 line-clamp-2 leading-snug min-h-[32px]">{item.name}</h4>
-                                                
+
                                                 {/* Size (Grocery Only) */}
                                                 {cart.orderType === 'grocery' && item.weightSize && (
                                                     <p className="text-[9px] text-slate-400 font-bold mt-0.5">{item.weightSize}</p>

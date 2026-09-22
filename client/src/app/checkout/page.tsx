@@ -12,40 +12,40 @@ import { useSocket } from "@/context/SocketContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import dynamic from "next/dynamic";
 import {
-  MdRemoveShoppingCart,
-  MdCheckCircle,
-  MdError,
-  MdWarning,
-  MdLocationOff,
-  MdClose,
-  MdArrowForward,
-  MdBlock,
-  MdTipsAndUpdates,
-  MdEditLocation,
-  MdArrowBack,
-  MdHome,
-  MdEdit,
-  MdSchedule,
-  MdCelebration,
-  MdLocalShipping,
-  MdShoppingBag,
-  MdFastfood,
-  MdSell,
-  MdChevronRight,
-  MdAccountBalanceWallet,
-  MdPayments,
-  MdThunderstorm,
-  MdWork,
-  MdHomeWork,
-  MdMyLocation,
-  MdMic,
-  MdMicOff,
-  MdSync,
-  MdSave,
-  MdInfo,
-  MdLocationOn,
-  MdDescription,
-  MdAdd,
+    MdRemoveShoppingCart,
+    MdCheckCircle,
+    MdError,
+    MdWarning,
+    MdLocationOff,
+    MdClose,
+    MdArrowForward,
+    MdBlock,
+    MdTipsAndUpdates,
+    MdEditLocation,
+    MdArrowBack,
+    MdHome,
+    MdEdit,
+    MdSchedule,
+    MdCelebration,
+    MdLocalShipping,
+    MdShoppingBag,
+    MdFastfood,
+    MdSell,
+    MdChevronRight,
+    MdAccountBalanceWallet,
+    MdPayments,
+    MdThunderstorm,
+    MdWork,
+    MdHomeWork,
+    MdMyLocation,
+    MdMic,
+    MdMicOff,
+    MdSync,
+    MdSave,
+    MdInfo,
+    MdLocationOn,
+    MdDescription,
+    MdAdd,
 } from "react-icons/md";
 
 const LocationSelectorModal = dynamic(() => import("@/components/LocationSelectorModal"), { ssr: false });
@@ -163,13 +163,13 @@ export default function CheckoutPage() {
     const [activeZones, setActiveZones] = useState<string[]>([]);
     const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE'>('COD');
     const { user } = useAuth();
-    const { 
-        location: userCoords, 
-        address: userAddress, 
-        pincode: userPincode, 
-        city: userCity, 
-        deliveryAddress: userDeliveryAddress, 
-        savedAddresses, 
+    const {
+        location: userCoords,
+        address: userAddress,
+        pincode: userPincode,
+        city: userCity,
+        deliveryAddress: userDeliveryAddress,
+        savedAddresses,
         selectedAddressId,
         setSelectedAddress,
         loadSavedAddresses
@@ -231,7 +231,7 @@ export default function CheckoutPage() {
     const handleVoiceInput = (fieldName: string, setter: (val: string) => void) => {
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) {
-            alert("Voice input is not supported in this browser. Please type manually. / आपके ब्राउज़र में वॉयस इनपुट समर्थित नहीं है।");
+            alert("Aapke browser mein voice typing support nahi hai. Kripya manually type karein.");
             return;
         }
 
@@ -243,7 +243,7 @@ export default function CheckoutPage() {
 
             setListeningField(fieldName);
 
-            recognition.onstart = () => {};
+            recognition.onstart = () => { };
 
             recognition.onresult = (event: any) => {
                 const speechToText = event.results[0][0].transcript;
@@ -254,7 +254,7 @@ export default function CheckoutPage() {
                 if (process.env.NODE_ENV !== "production") {
                     console.error("Speech recognition error:", err);
                 }
-                alert("Could not recognize voice. Please try again. / आवाज़ पहचानी नहीं जा सकी। पुनः प्रयास करें।");
+                alert("Awaaz samajh nahi aayi. Kripya dobara bolein.");
                 setListeningField(null);
             };
 
@@ -271,7 +271,7 @@ export default function CheckoutPage() {
 
     const handleDetectGPS = () => {
         if (!navigator.geolocation) {
-            return setEditError("GPS is not supported by your browser / आपके ब्राउज़र में जीपीएस काम नहीं कर रहा है।");
+            return setEditError("Aapke browser mein GPS kaam nahi kar raha hai.");
         }
 
         setDetectingGps(true);
@@ -326,7 +326,7 @@ export default function CheckoutPage() {
             },
             (error) => {
                 console.error("GPS error:", error);
-                setEditError("Could not access your GPS location. Please enable location services. / जीपीएस स्थान प्राप्त नहीं हो सका।");
+                setEditError("GPS location nahi mil saka. Kripya phone ki location permission on karein.");
                 setDetectingGps(false);
             },
             { enableHighAccuracy: true, timeout: 10000 }
@@ -342,7 +342,7 @@ export default function CheckoutPage() {
         // Prefill locality and village from context / active location
         setMohalla(userAddress || "");
         setVillage(userCity || "");
-        
+
         // Floor and House No
         setHouseNo("");
         setFloor("");
@@ -382,11 +382,11 @@ export default function CheckoutPage() {
     };
 
     const handleSaveAddressEdit = async () => {
-        if (!mohalla.trim()) return setEditError("Area/Locality is required. Click 'Change' to select location.");
-        if (!village.trim()) return setEditError("Village/City is required.");
-        if (!houseNo.trim()) return setEditError("Building / Floor is required.");
-        if (!editedPhone.trim()) return setEditError("Phone number is required.");
-        if (editedPhone.length < 10) return setEditError("Please enter a valid 10-digit mobile number.");
+        if (!mohalla.trim()) return setEditError("Area / Locality zaroori hai. Location select karne ke liye 'Change' par click karein.");
+        if (!village.trim()) return setEditError("Gaon / Shehar (Village/City) enter karein.");
+        if (!houseNo.trim()) return setEditError("Building / Floor / Makan No. enter karein.");
+        if (!editedPhone.trim()) return setEditError("Mobile number daalna zaroori hai.");
+        if (editedPhone.length < 10) return setEditError("Kripya sahi 10-digit mobile number enter karein.");
 
         // Landmark defaults to "N/A" if empty to satisfy backend validation
         const finalLandmark = landmark.trim() || "N/A";
@@ -409,7 +409,7 @@ export default function CheckoutPage() {
         const activeLng = gpsCoords?.lng ?? userCoords?.lng;
 
         if (activeLat === undefined || activeLng === undefined) {
-            setEditError("Location coordinates are missing.");
+            setEditError("Location coordinates missing hain. Kripya location dobara select karein.");
             setValidatingEdit(false);
             return;
         }
@@ -447,7 +447,7 @@ export default function CheckoutPage() {
                 }
             } catch (err: any) {
                 console.error("Failed to save address:", err);
-                setEditError(err.response?.data?.message || "Failed to save address details.");
+                setEditError(err.response?.data?.message || "Address save nahi ho paya. Kripya dobara try karein.");
             } finally {
                 setValidatingEdit(false);
             }
@@ -521,17 +521,17 @@ export default function CheckoutPage() {
                         setCouponSuccessMessage(null);
                         setAppliedCouponCode("");
                     } else if (appliedCouponCode && res.data.couponApplied) {
-                        setCouponSuccessMessage(`Coupon '${appliedCouponCode}' applied successfully!`);
+                        setCouponSuccessMessage(`Coupon '${appliedCouponCode}' lag gaya! Badi bachat 🎉`);
                         setCouponError(null);
                     }
                     setCheckoutError(null);
                 } else {
-                    setCheckoutError(res.data.message || "Selected location is outside our operational service geofence bounds.");
+                    setCheckoutError(res.data.message || "Aapka address hamare delivery service area se bahar hai.");
                     setBillDetails(null);
                 }
             } catch (err: any) {
                 console.error("Failed to calculate dynamic checkout fares:", err);
-                setCheckoutError(err.response?.data?.message || "Selected location is outside our operational service geofence bounds.");
+                setCheckoutError(err.response?.data?.message || "Aapka address hamare delivery service area se bahar hai.");
                 setBillDetails(null);
             } finally {
                 setLoadingBill(false);
@@ -641,17 +641,17 @@ export default function CheckoutPage() {
         if (isCheckoutDisabled) {
             showCard({
                 type: 'error',
-                title: 'Ordering Unavailable',
-                message: checkoutDisabledMessage || 'Checkout is currently disabled.'
+                title: 'Ordering Uplabdh Nahi Hai',
+                message: checkoutDisabledMessage || 'Ordering abhi ke liye band hai.'
             });
             return;
         }
         if (cart.items.length === 0) {
-            showCard({ type: 'warning', title: 'Cart is Empty', message: 'Please add items to your cart before placing an order.' });
+            showCard({ type: 'warning', title: 'Cart Khali Hai', message: 'Order place karne se pehle kripya cart mein items jodein.' });
             return;
         }
         if (!user) {
-            showCard({ type: 'error', title: 'Login Required', message: 'Please log in to place your order.', onAction: () => router.push('/auth/login'), actionLabel: 'Go to Login' });
+            showCard({ type: 'error', title: 'Login Zaroori Hai', message: 'Order karne ke liye kripya pehle login karein.', onAction: () => router.push('/auth/login'), actionLabel: 'Login Karein' });
             return;
         }
         if (checkoutError) {
@@ -668,7 +668,7 @@ export default function CheckoutPage() {
         const targetCoords = customCoords || userCoords;
 
         if (!targetAddress || !targetCoords) {
-            showCard({ type: 'warning', title: 'Address Required', message: 'Please select or enter a valid delivery address.' });
+            showCard({ type: 'warning', title: 'Address Zaroori Hai', message: 'Kripya delivery ke liye sahi address chunein ya naya address daalein.' });
             return;
         }
 
@@ -683,10 +683,10 @@ export default function CheckoutPage() {
         if (!targetDeliveryAddress || !targetDeliveryAddress.houseNumber || !targetDeliveryAddress.landmark) {
             showCard({
                 type: 'warning',
-                title: 'Detailed Address Required',
-                message: 'Please provide detailed delivery address details (House No, Landmark, etc.) to place your order.',
+                title: 'Pura Address Zaroori Hai',
+                message: 'Order place karne ke liye kripya apna pura delivery address (Makan No, Landmark, etc.) darj karein.',
                 onAction: () => handleOpenAddressEditModal(),
-                actionLabel: 'Add Address Details'
+                actionLabel: 'Address Details Daalein'
             });
             return;
         }
@@ -701,15 +701,55 @@ export default function CheckoutPage() {
                 price: c.price
             }));
 
-            // 1. Place the initial Order record on MongoDB
-            const orderRes = await apiClient.post("/orders", {
-                user: user._id,
-                restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
+            // Handle COD Path directly
+            if (paymentMethod === "COD") {
+                const orderRes = await apiClient.post("/orders", {
+                    user: user._id,
+                    restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
+                    items: orderItems,
+                    totalAmount: activeGrandTotal + (billDetails?.discountAmount || 0),
+                    deliveryCharge: activeDeliveryFee,
+                    paymentMethod: "COD",
+                    distance: activeDistance,
+                    address: {
+                        fullAddress: targetAddress,
+                        lat: targetCoords.lat,
+                        lng: targetCoords.lng,
+                        locationSource: targetLocationSource,
+                        deliveryAddress: targetDeliveryAddress
+                    },
+                    phone: customPhone || user?.phone || "",
+                    orderType: cart.orderType,
+                    couponCode: appliedCouponCode || undefined
+                });
+
+                setOrderPlaced(true);
+                clearCart();
+                showCard({
+                    type: 'success',
+                    title: '🎉 Order Confirm Ho Gaya!',
+                    message: 'Aapka Cash on Delivery order successfully place ho gaya hai. Aap ise Orders section mein live track kar sakte hain.',
+                    onAction: () => router.push('/orders'),
+                    actionLabel: 'Order Track Karein',
+                    redirectTo: '/orders',
+                    redirectDelay: 2500
+                });
+                return;
+            }
+
+            // Handle ONLINE Path - No Order document is created until payment is genuinely verified
+            const sdkLoaded = await loadRazorpayScript();
+            if (!sdkLoaded) {
+                showCard({ type: 'error', title: 'Payment Gateway Error', message: 'Payment gateway load nahi ho saka. Kripya apna internet connection check karein aur dobara try karein.' });
+                setPlacingOrder(false);
+                return;
+            }
+
+            // 1. Create a temporary PaymentIntent session on backend (0 Order docs created)
+            const intentRes = await apiClient.post("/payments/create-intent", {
                 items: orderItems,
-                totalAmount: activeGrandTotal + (billDetails?.discountAmount || 0), // raw grand total before coupon deduction
-                deliveryCharge: activeDeliveryFee,
-                paymentMethod: paymentMethod,
-                distance: activeDistance,
+                orderType: cart.orderType,
+                restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
                 address: {
                     fullAddress: targetAddress,
                     lat: targetCoords.lat,
@@ -718,48 +758,24 @@ export default function CheckoutPage() {
                     deliveryAddress: targetDeliveryAddress
                 },
                 phone: customPhone || user?.phone || "",
-                orderType: cart.orderType,
                 couponCode: appliedCouponCode || undefined
             });
 
-            const mongoOrder = orderRes.data.order;
-
-            // Handle COD Path directly
-            if (paymentMethod === "COD") {
-                setOrderPlaced(true);
-                clearCart();
-                showCard({ type: 'success', title: '🎉 ऑर्डर हो गया! / Order Placed!', message: 'Your order has been placed successfully via Cash on Delivery. You can track it in Orders.', onAction: () => router.push('/orders'), actionLabel: 'Track Order', redirectTo: '/orders', redirectDelay: 2500 });
-                return;
+            if (!intentRes.data.success) {
+                throw new Error(intentRes.data.message || "Payment session create nahi ho saka.");
             }
 
-            // Handle ONLINE Path - Load Razorpay Modal
-            const sdkLoaded = await loadRazorpayScript();
-            if (!sdkLoaded) {
-                showCard({ type: 'error', title: 'Payment SDK Failed', message: 'Failed to load payment gateway. Please check your internet connection and try again.' });
-                setPlacingOrder(false);
-                return;
-            }
+            const { razorpayOrderId, amount, currency, key } = intentRes.data;
 
-            // 2. Create Razorpay order session on backend
-            const rzpSessionRes = await apiClient.post("/payments/create", {
-                orderId: mongoOrder._id
-            });
-
-            if (!rzpSessionRes.data.success) {
-                throw new Error("Unable to create Razorpay payment order session");
-            }
-
-            const { order: rzpOrder, key } = rzpSessionRes.data;
-
-            // 3. Open Interactive Razorpay Checkout Modal
+            // 2. Open Interactive Razorpay Checkout Modal
             const options = {
                 key: key,
-                amount: rzpOrder.amount,
-                currency: rzpOrder.currency,
+                amount: amount,
+                currency: currency,
                 name: "ZipRocket",
                 description: cart.orderType === 'food' ? "Food Delivery Order" : "Grocery Basket Order",
-                image: "https://cdn-icons-png.flaticon.com/512/857/857681.png", // Premium meal container icon
-                order_id: rzpOrder.id,
+                image: "/icon-512x512.png",
+                order_id: razorpayOrderId,
                 config: {
                     display: {
                         blocks: {
@@ -790,24 +806,43 @@ export default function CheckoutPage() {
                     try {
                         setPlacingOrder(true);
 
-                        // 4. Secure cryptographic signature verification on server
+                        // 3. Cryptographic signature verification and atomic order creation
                         const verifyRes = await apiClient.post("/payments/verify", {
-                            orderId: mongoOrder._id,
-                            razorpayPaymentId: response.razorpay_payment_id,
                             razorpayOrderId: response.razorpay_order_id,
+                            razorpayPaymentId: response.razorpay_payment_id,
                             razorpaySignature: response.razorpay_signature
                         });
 
                         if (verifyRes.data.success) {
                             setOrderPlaced(true);
-                            clearCart();
-                            showCard({ type: 'success', title: '✅ Payment Successful!', message: 'Your payment was verified and your order is being prepared. You can track your delivery live.', onAction: () => router.push('/orders'), actionLabel: 'Track Order', redirectTo: '/orders', redirectDelay: 3000 });
+                            clearCart(); // ONLY place the cart clears — genuine confirmed success
+                            showCard({
+                                type: 'success',
+                                title: '✅ Payment Kamyab Rahi!',
+                                message: 'Aapka payment verify ho gaya hai aur order prepare kiya ja raha hai. Aap live delivery track kar sakte hain.',
+                                onAction: () => router.push('/orders'),
+                                actionLabel: 'Order Track Karein',
+                                redirectTo: '/orders',
+                                redirectDelay: 3000
+                            });
                         } else {
-                            showCard({ type: 'error', title: 'Verification Failed', message: 'Payment verification failed. Please contact our support team.', onAction: () => router.push('/orders'), actionLabel: 'View Orders' });
+                            showCard({
+                                type: 'error',
+                                title: 'Payment Verification Fail',
+                                message: 'Payment verify nahi ho paya. Kripya hamari support team se sampark karein.',
+                                onAction: () => router.push('/orders'),
+                                actionLabel: 'Orders Dekhein'
+                            });
                         }
                     } catch (err: any) {
                         console.error("Signature verification error:", err);
-                        showCard({ type: 'error', title: 'Verification Error', message: err.response?.data?.message || err.message || 'An error occurred during verification.', onAction: () => router.push('/orders'), actionLabel: 'View Orders' });
+                        showCard({
+                            type: 'error',
+                            title: 'Verification Mein Kharabi Aayi',
+                            message: err.response?.data?.message || err.message || 'Verification ke dauraan dikkat aayi.',
+                            onAction: () => router.push('/orders'),
+                            actionLabel: 'Orders Dekhein'
+                        });
                     } finally {
                         setPlacingOrder(false);
                     }
@@ -821,43 +856,30 @@ export default function CheckoutPage() {
                     color: "#FF5C00" // Branded warm orange-red
                 },
                 modal: {
-                    ondismiss: async function () {
-                        // User closed the modal/cancelled payment
-                        try {
-                            await apiClient.post("/payments/failure", {
-                                orderId: mongoOrder._id,
-                                errorDetails: { message: "Payment cancelled by user" }
-                            });
-                        } catch (e) {
-                            console.error("Cancellation logging failed:", e);
-                        }
-                        showCard({ type: 'warning', title: 'Payment Cancelled', message: 'Your payment was cancelled. You can retry payment anytime from the Orders page.', onAction: () => router.push('/orders'), actionLabel: 'View Orders', redirectTo: '/orders', redirectDelay: 3000 });
-                        clearCart(); // Cleared from active cart as it's now tracked under Orders
+                    ondismiss: function () {
+                        // User cancelled payment modal — nothing created in DB, cart remains intact
+                        showCard({
+                            type: 'warning',
+                            title: 'Payment Cancel Ho Gaya',
+                            message: 'Fikar na karein — aapke cart ke saare items bilkul safe hain. Dobara try karein ya Cash on Delivery select karein.'
+                        });
                     }
                 }
             };
 
             const paymentObject = new (window as any).Razorpay(options);
-            paymentObject.on("payment.failed", async function (response: any) {
-                // Razorpay core payment failure callback
-                try {
-                    await apiClient.post("/payments/failure", {
-                        orderId: mongoOrder._id,
-                        errorDetails: {
-                            payment_id: response.error.metadata.payment_id,
-                            code: response.error.code,
-                            description: response.error.description
-                        }
-                    });
-                } catch (e) {
-                    console.error("Failure logging failed:", e);
-                }
-                showCard({ type: 'error', title: 'Payment Failed', message: `${response.error.description}. You can retry payment from the Orders section.`, onAction: () => router.push('/orders'), actionLabel: 'View Orders', redirectTo: '/orders', redirectDelay: 3500 });
-                clearCart();
+            paymentObject.on("payment.failed", function (response: any) {
+                // Payment failure callback — cart remains intact
+                showCard({
+                    type: 'error',
+                    title: 'Payment Fail Ho Gaya',
+                    message: 'Aapka cart safe hai — kripya dobara payment try karein ya Cash on Delivery select karein.'
+                });
             });
 
             setPlacingOrder(false); // Stop button animation before modal overlays
             paymentObject.open();
+
 
         } catch (error: any) {
             console.error("Order completion failure:", error);
@@ -870,6 +892,7 @@ export default function CheckoutPage() {
                 errMsg.toLowerCase().includes('delivery zone') ||
                 errMsg.toLowerCase().includes('not serviceable') ||
                 errMsg.toLowerCase().includes('geofence') ||
+                errMsg.toLowerCase().includes('uplabdh nahi') ||
                 errMsg.toLowerCase().includes('service area');
 
             if (isZoneError) {
@@ -882,7 +905,7 @@ export default function CheckoutPage() {
                 } catch { setActiveZones([]); }
                 setShowOutOfZoneOverlay(true);
             } else {
-                showCard({ type: 'error', title: 'Checkout Failed', message: errMsg || 'Something went wrong. Please try again.' });
+                showCard({ type: 'error', title: 'Order Place Nahi Ho Paya', message: errMsg || 'Kuch dikkat aayi hai. Kripya dobara koshish karein.' });
             }
             setPlacingOrder(false);
         }
@@ -895,10 +918,10 @@ export default function CheckoutPage() {
         return (
             <div className="bg-[#fcfcfc] min-h-screen flex flex-col items-center justify-center p-4">
                 <MdRemoveShoppingCart className="text-[64px] text-slate-300 mb-4" />
-                <h2 className="text-xl font-bold text-slate-700 mb-2">Your cart is empty</h2>
-                <p className="text-slate-500 mb-6 text-center">Looks like you haven't added anything yet.</p>
+                <h2 className="text-xl font-bold text-slate-700 mb-2">Aapka Cart Khali Hai</h2>
+                <p className="text-slate-500 mb-6 text-center">Lagta hai aapne abhi tak koi item cart mein nahi joda hai.</p>
                 <Link href="/" className="px-6 py-3 bg-[#FF5C00] text-white rounded-full font-medium shadow-md">
-                    Browse Shop
+                    Shopping Shuru Karein
                 </Link>
             </div>
         );
@@ -996,7 +1019,7 @@ export default function CheckoutPage() {
                                     className="w-full py-3.5 border-2 border-slate-200 hover:border-slate-300 text-slate-600 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all"
                                 >
                                     <MdClose className="text-[18px]" />
-                                    Dismiss
+                                    Band Karein
                                 </button>
                             </div>
                         </div>
@@ -1032,15 +1055,15 @@ export default function CheckoutPage() {
                                 </div>
                             </div>
                             <h2 className="font-black text-[22px] text-center leading-tight">डिलीवरी उपलब्ध नहीं है</h2>
-                            <p className="text-[13px] text-white/80 text-center mt-1 font-medium">Delivery Not Available</p>
+                            <p className="text-[13px] text-white/80 text-center mt-1 font-medium">Delivery Not Available in this Area</p>
                         </div>
                         <div className="px-6 pt-5 pb-2">
                             <p className="text-[14px] text-slate-700 font-semibold text-center leading-relaxed">
-                                Sorry, your current location is <span className="text-rose-600 font-black">outside our active delivery zones</span>. We currently only deliver to selected areas.
+                                Maaf karein, aapki current location hamare <span className="text-rose-600 font-black">active delivery area se bahar hai</span>. Hum filhal in chune hue areas mein deliver karte hain:
                             </p>
                             {activeZones.length > 0 && (
                                 <div className="mt-4">
-                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2.5 text-center">✅ We deliver to these zones</p>
+                                    <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2.5 text-center">✅ Hum in areas mein deliver karte hain</p>
                                     <div className="flex flex-wrap gap-2 justify-center">
                                         {activeZones.map((zone, i) => (
                                             <span key={i} className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[12px] font-bold rounded-full">
@@ -1053,7 +1076,7 @@ export default function CheckoutPage() {
                             <div className="mt-4 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-3">
                                 <MdTipsAndUpdates className="text-amber-600 text-[20px] shrink-0" />
                                 <p className="text-[12px] text-amber-800 font-semibold leading-relaxed">
-                                    Try changing your delivery address to a location within our serviceable area to place your order.
+                                    Order place karne ke liye kripya aisa delivery address chunein jo hamare service area ke andar ho.
                                 </p>
                             </div>
                         </div>
@@ -1063,14 +1086,14 @@ export default function CheckoutPage() {
                                 className="w-full py-4 bg-gradient-to-r from-[#FF5C00] to-[#e05200] hover:from-[#e05200] hover:to-[#c84900] text-white rounded-2xl font-black text-[14px] flex items-center justify-center gap-2.5 shadow-lg shadow-orange-200 transition-all active:scale-[0.98]"
                             >
                                 <MdEditLocation className="text-[20px]" />
-                                पता बदलें / Change Delivery Address
+                                Address Badlein / Change Delivery Address
                             </button>
                             <button
                                 onClick={() => setShowOutOfZoneOverlay(false)}
                                 className="w-full py-3.5 border-2 border-slate-200 hover:border-slate-300 text-slate-600 rounded-2xl font-bold text-[13px] flex items-center justify-center gap-2 transition-all"
                             >
                                 <MdArrowBack className="text-[18px]" />
-                                वापस जाएं / Go Back
+                                Wapas Jayein / Go Back
                             </button>
                         </div>
                     </div>
@@ -1103,10 +1126,10 @@ export default function CheckoutPage() {
                             <MdHome className="text-xl" />
                         </div>
                         <div>
-                            <h2 className="font-medium text-[15px] text-slate-900 leading-tight">Delivery Details</h2>
-                            <p className="text-[12px] text-slate-700 mt-1 leading-relaxed font-bold">{customAddressText || userAddress || "No location selected"}</p>
+                            <h2 className="font-medium text-[15px] text-slate-900 leading-tight">Delivery ki Jankari</h2>
+                            <p className="text-[12px] text-slate-700 mt-1 leading-relaxed font-bold">{customAddressText || userAddress || "Koi location select nahi hai"}</p>
                             <p className="text-[10px] text-slate-450 font-extrabold mt-1 uppercase tracking-wider">
-                                Phone: +91 {customPhone || user?.phone || "Not provided"}
+                                Phone: +91 {customPhone || user?.phone || "Uplabdh nahi"}
                             </p>
                         </div>
                     </div>
@@ -1120,7 +1143,7 @@ export default function CheckoutPage() {
                             <MdWarning className="text-[16px]" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-rose-850 text-[14px]">Outside Service Limits</h3>
+                            <h3 className="font-bold text-rose-850 text-[14px]">Delivery Seema se Bahar</h3>
                             <p className="text-[12px] text-rose-600 mt-0.5 leading-relaxed font-semibold">
                                 {checkoutError}
                             </p>
@@ -1135,7 +1158,7 @@ export default function CheckoutPage() {
                             <MdError className="text-[16px]" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-rose-850 text-[14px]">Ordering Currently Unavailable</h3>
+                            <h3 className="font-bold text-rose-850 text-[14px]">Order Abhi Uplabdh Nahi Hai</h3>
                             <p className="text-[12px] text-rose-600 mt-0.5 leading-relaxed font-semibold">
                                 {checkoutDisabledMessage}
                             </p>
@@ -1151,13 +1174,13 @@ export default function CheckoutPage() {
                                 <MdSchedule className="text-xl" />
                             </div>
                             <div>
-                                <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Dynamic Route ETA</h3>
+                                <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Delivery ka Samay</h3>
                                 <p className="text-[12px] text-slate-500 mt-1 leading-none font-medium">Fulfillment Distance: {activeDistance} km</p>
                             </div>
                         </div>
                         <div className="text-right shrink-0">
-                            <span className="font-extrabold text-slate-900 text-base block">{billDetails.durationMinutes || 25} mins</span>
-                            <span className="text-[9px] text-emerald-650 font-bold uppercase tracking-wider leading-none block mt-1">Fastest route</span>
+                            <span className="font-extrabold text-slate-900 text-base block">{billDetails.durationMinutes || 25} min me</span>
+                            <span className="text-[9px] text-emerald-650 font-bold uppercase tracking-wider leading-none block mt-1">Sabse tez delivery</span>
                         </div>
                     </div>
                 )}
@@ -1171,8 +1194,8 @@ export default function CheckoutPage() {
                             <MdCelebration className="text-[16px]" />
                         </div>
                         <div>
-                            <h3 className="font-semibold text-emerald-850 text-[14px]">Free delivery applied!</h3>
-                            <p className="text-[12px] text-emerald-600 mt-0.5 font-medium">Free delivery threshold met or zone promotion active.</p>
+                            <h3 className="font-semibold text-emerald-850 text-[14px]">Mubarak ho! FREE delivery lag gayi! 🎉</h3>
+                            <p className="text-[12px] text-emerald-600 mt-0.5 font-medium">Aapke order par delivery charge bilkul FREE hai.</p>
                         </div>
                     </div>
                 ) : !checkoutError ? (
@@ -1181,9 +1204,9 @@ export default function CheckoutPage() {
                             <MdLocalShipping className="text-[16px]" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="font-bold text-[#a73a00] text-[14px]">Standard Hyperlocal Delivery</h3>
+                            <h3 className="font-bold text-[#a73a00] text-[14px]">Surakshit & Superfast Delivery</h3>
                             <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed font-semibold">
-                                Distance of {activeDistance} km mapped dynamically by operational geofence limits ({billDetails?.zoneName || "ZipRocket Zone"}).
+                                {activeDistance} km doori se seedha aapke ghar tak ({billDetails?.zoneName || "ZipRocket Zone"}).
                             </p>
                         </div>
                     </div>
@@ -1191,7 +1214,7 @@ export default function CheckoutPage() {
 
                 {/* Order Summary */}
                 <section>
-                    <h2 className="text-[14px] text-slate-600 mb-3 px-1">Order Summary</h2>
+                    <h2 className="text-[14px] text-slate-600 mb-3 px-1">Order Items (Samaan)</h2>
                     <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
                         {cart.items.map((item, index) => (
                             <div key={item.id} className={`p-3.5 flex items-center justify-between ${index < cart.items.length - 1 ? 'border-b border-slate-100' : ''}`}>
@@ -1240,7 +1263,7 @@ export default function CheckoutPage() {
                                         <span className="px-2 py-0.5 bg-emerald-600 text-white font-extrabold text-[11px] rounded tracking-wider uppercase">{appliedCouponCode}</span>
                                         <span className="text-[11px] text-emerald-700 font-bold">Applied!</span>
                                     </div>
-                                    <p className="text-[13px] text-slate-700 font-bold mt-1">Saved ₹{billDetails?.discountAmount || 0} on this order</p>
+                                    <p className="text-[13px] text-slate-700 font-bold mt-1">Is order par ₹{billDetails?.discountAmount || 0} bachaye!</p>
                                 </div>
                             </div>
                             <button
@@ -1286,8 +1309,8 @@ export default function CheckoutPage() {
                                 <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Coupons & Promo Offers</h3>
                                 <p className="text-[12px] text-slate-500 mt-1 font-medium">
                                     {availableCoupons.length > 0
-                                        ? `Select from ${availableCoupons.length} applicable coupons to save more`
-                                        : "View restaurant and zone discount promos"}
+                                        ? `Aapke liye ${availableCoupons.length} coupons uplabdh hain bachat karne ke liye`
+                                        : "Sabhi offers aur discount yahan dekhein"}
                                 </p>
                             </div>
                         </div>
@@ -1297,7 +1320,7 @@ export default function CheckoutPage() {
 
                 {/* Payment Method Selectors */}
                 <section>
-                    <h2 className="text-[14px] text-slate-600 mb-3 px-1">Payment Method</h2>
+                    <h2 className="text-[14px] text-slate-600 mb-3 px-1">Payment ka Tarika Chunein</h2>
                     <div className="space-y-3">
                         {/* CASH ON DELIVERY (COD) */}
                         <div
@@ -1310,8 +1333,8 @@ export default function CheckoutPage() {
                                     <MdPayments className="text-[20px]" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">Cash on Delivery (COD)</h3>
-                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay in cash or scan QR code on delivery</p>
+                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">Ghar Pahunche Tab Pay Karein (Cash on Delivery)</h3>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Order milne par cash dein ya delivery wale ko QR scan karke pay karein</p>
                                 </div>
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'COD' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
@@ -1330,8 +1353,8 @@ export default function CheckoutPage() {
                                     <MdAccountBalanceWallet className="text-[20px]" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">UPI / Online Payment</h3>
-                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Pay instantly using Google Pay, PhonePe, Cards or NetBanking</p>
+                                    <h3 className="font-bold text-[14px] text-slate-900 leading-tight">Online Payment (UPI / QR)</h3>
+                                    <p className="text-[11px] text-slate-500 mt-0.5 pr-4">Google Pay, PhonePe, Paytm, Amazon Pay, se turant pay karein</p>
                                 </div>
                             </div>
                             <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${paymentMethod === 'ONLINE' && !checkoutError && !isCheckoutDisabled ? 'border-[#FF5C00]' : 'border-slate-355'}`}>
@@ -1353,7 +1376,7 @@ export default function CheckoutPage() {
                         </div>
                     ) : checkoutError ? (
                         <div className="text-center py-6 text-slate-400 text-xs font-semibold">
-                            Fares unavailable because selected location lies outside service area limits.
+                            Chuni hui location service area se bahar hai, isliye bill calculate nahi ho paya.
                         </div>
                     ) : (
                         <>
@@ -1363,7 +1386,7 @@ export default function CheckoutPage() {
                                     <p className="text-[12px] font-bold text-emerald-800">
                                         ₹{amountNeededForFreeDelivery.toFixed(0)} aur add karo, FREE delivery pao! 🚚
                                         <span className="block text-[10px] font-medium text-emerald-600 mt-0.5">
-                                            Add ₹{amountNeededForFreeDelivery.toFixed(0)} more for FREE delivery
+                                            Bas ₹{amountNeededForFreeDelivery.toFixed(0)} ka samaan aur jodein aur FREE delivery paayein
                                         </span>
                                     </p>
                                 </div>
@@ -1373,89 +1396,91 @@ export default function CheckoutPage() {
                                 <div className="flex items-center gap-2.5 bg-amber-50 border border-amber-200 rounded-2xl p-3.5 mb-3">
                                     <MdWarning className="text-amber-600 text-xl shrink-0" />
                                     <p className="text-[12px] font-bold text-amber-900">
-                                        Add ₹{amountNeededForMinOrder.toFixed(0)} more to reach the ₹{activeMinOrderValue} minimum order value
+                                        Minimum order ke liye ₹{amountNeededForMinOrder.toFixed(0)} aur jodein (Kam se kam ₹{activeMinOrderValue} ka order hona zaroori hai)
                                         <span className="block text-[10px] font-medium text-amber-700 mt-0.5">
-                                            Minimum order value for {cart.orderType === 'food' ? 'food' : 'grocery'} is ₹{activeMinOrderValue}
+                                            {cart.orderType === 'food' ? 'Food' : 'Grocery'} ke liye minimum order ₹{activeMinOrderValue} hai
                                         </span>
                                     </p>
                                 </div>
                             )}
 
                             <div className="space-y-2.5 text-[13px]">
-                            <div className="flex justify-between text-slate-600">
-                                <span>Item Total</span>
-                                <span className="text-slate-900 font-medium">₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
-                            </div>
-
-                            <div className="flex justify-between text-slate-600">
-                                <span>Delivery Fee</span>
-                                <span className="text-slate-900 font-medium">₹{(Number(activeDeliveryFee) || 0).toFixed(2)}</span>
-                            </div>
-
-                            {billDetails && Number(billDetails.smallOrderFee) > 0 && (
-                                <div className="flex justify-between text-[#FF5C00]">
-                                    <span>Small Order Handling Fee</span>
-                                    <span className="font-medium">₹{(Number(billDetails.smallOrderFee) || 0).toFixed(2)}</span>
-                                </div>
-                            )}
-
-                            {billDetails && Number(billDetails.platformFee) > 0 && (
                                 <div className="flex justify-between text-slate-600">
-                                    <span>Platform Fee</span>
-                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.platformFee) || 0).toFixed(2)}</span>
+                                    <span>Item Total</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
                                 </div>
-                            )}
 
-                            {billDetails && Number(billDetails.packagingCharge) > 0 && (
                                 <div className="flex justify-between text-slate-600">
-                                    <span>Packaging Charge</span>
-                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.packagingCharge) || 0).toFixed(2)}</span>
-                                </div>
-                            )}
-
-                            {billDetails && Number(billDetails.convenienceFee) > 0 && (
-                                <div className="flex justify-between text-slate-600">
-                                    <span>Convenience Fee</span>
-                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.convenienceFee) || 0).toFixed(2)}</span>
-                                </div>
-                            )}
-
-                            {billDetails && Number(billDetails.surgeCharge) > 0 && (
-                                <div className="flex justify-between text-[#c2410c] font-semibold animate-pulse">
-                                    <span className="flex items-center gap-1">
-                                        <MdThunderstorm className="text-[15px]" />
-                                        Surge Surcharge Active
+                                    <span>Delivery Charge</span>
+                                    <span className="text-slate-900 font-medium">
+                                        {Number(activeDeliveryFee) === 0 ? <span className="text-emerald-600 font-bold uppercase">FREE</span> : `₹${(Number(activeDeliveryFee) || 0).toFixed(2)}`}
                                     </span>
-                                    <span>₹{(Number(billDetails.surgeCharge) || 0).toFixed(2)}</span>
                                 </div>
-                            )}
 
-                            <div className="flex justify-between text-slate-600">
-                                <span>Taxes (GST/Service)</span>
-                                <span className="text-slate-900 font-medium">₹{(Number(activeGST) || 0).toFixed(2)}</span>
-                            </div>
+                                {billDetails && Number(billDetails.smallOrderFee) > 0 && (
+                                    <div className="flex justify-between text-[#FF5C00]">
+                                        <span>Small Order Handling Fee</span>
+                                        <span className="font-medium">₹{(Number(billDetails.smallOrderFee) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
 
-                            {billDetails && billDetails.discountAmount !== undefined && Number(billDetails.discountAmount) > 0 && (
-                                <div className="flex justify-between text-emerald-600 font-extrabold animate-pulse bg-emerald-50/50 p-2.5 rounded-xl border border-dashed border-emerald-200">
-                                    <span className="flex items-center gap-1.5">
-                                        <MdSell className="text-[16px]" />
-                                        Coupon Discount ({appliedCouponCode})
-                                    </span>
-                                    <span>-₹{(Number(billDetails.discountAmount) || 0).toFixed(2)}</span>
-                                </div>
-                            )}
+                                {billDetails && Number(billDetails.platformFee) > 0 && (
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Platform Fee</span>
+                                        <span className="text-slate-900 font-medium">₹{(Number(billDetails.platformFee) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
 
-                            <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between">
-                                <div>
-                                    <span className="font-medium text-[15px] text-slate-900 block">Total To Pay</span>
-                                    {billDetails?.zoneName && (
-                                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                                            Calculated at {billDetails.zoneName}
+                                {billDetails && Number(billDetails.packagingCharge) > 0 && (
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Packaging Charge</span>
+                                        <span className="text-slate-900 font-medium">₹{(Number(billDetails.packagingCharge) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {billDetails && Number(billDetails.convenienceFee) > 0 && (
+                                    <div className="flex justify-between text-slate-600">
+                                        <span>Convenience Fee</span>
+                                        <span className="text-slate-900 font-medium">₹{(Number(billDetails.convenienceFee) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                {billDetails && Number(billDetails.surgeCharge) > 0 && (
+                                    <div className="flex justify-between text-[#c2410c] font-semibold animate-pulse">
+                                        <span className="flex items-center gap-1">
+                                            <MdThunderstorm className="text-[15px]" />
+                                            Surge Surcharge (Maang / Mausam)
                                         </span>
-                                    )}
+                                        <span>₹{(Number(billDetails.surgeCharge) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between text-slate-600">
+                                    <span>Govt Tax (GST)</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(activeGST) || 0).toFixed(2)}</span>
                                 </div>
-                                <span className="font-medium text-[16px] text-[#FF5C00]">₹{(Number(activeGrandTotal) || 0).toFixed(2)}</span>
-                            </div>
+
+                                {billDetails && billDetails.discountAmount !== undefined && Number(billDetails.discountAmount) > 0 && (
+                                    <div className="flex justify-between text-emerald-600 font-extrabold animate-pulse bg-emerald-50/50 p-2.5 rounded-xl border border-dashed border-emerald-200">
+                                        <span className="flex items-center gap-1.5">
+                                            <MdSell className="text-[16px]" />
+                                            Coupon Discount ({appliedCouponCode})
+                                        </span>
+                                        <span>-₹{(Number(billDetails.discountAmount) || 0).toFixed(2)}</span>
+                                    </div>
+                                )}
+
+                                <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between">
+                                    <div>
+                                        <span className="font-medium text-[15px] text-slate-900 block">Total To Pay</span>
+                                        {billDetails?.zoneName && (
+                                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                                Calculated at {billDetails.zoneName}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <span className="font-medium text-[16px] text-[#FF5C00]">₹{(Number(activeGrandTotal) || 0).toFixed(2)}</span>
+                                </div>
                             </div>
                         </>
                     )}
@@ -1472,16 +1497,16 @@ export default function CheckoutPage() {
                 >
                     <span className="font-medium text-[15px]">
                         {isCheckoutDisabled
-                            ? 'Ordering is unavailable'
+                            ? 'Order abhi band hai'
                             : checkoutError
-                                ? 'Outside Delivery Service Area'
+                                ? 'Delivery Seema se Bahar'
                                 : isBelowMinimum
-                                    ? `Add ₹${amountNeededForMinOrder.toFixed(0)} more to place order`
+                                    ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
                                     : loadingBill
-                                        ? 'Calculating dynamic fares...'
+                                        ? 'Bill calculate ho raha hai...'
                                         : placingOrder
-                                            ? 'Processing...'
-                                            : (paymentMethod === 'ONLINE' ? 'Pay & Place Order' : 'Place Order')}
+                                            ? 'Order confirm ho raha hai...'
+                                            : (paymentMethod === 'ONLINE' ? 'Online Pay Karein & Order Place Karein' : 'Order Confirm Karein')}
                     </span>
                     {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && !isBelowMinimum && <MdArrowForward className="text-[20px]" />}
                 </button>
@@ -1498,9 +1523,9 @@ export default function CheckoutPage() {
                         <div className="px-6 pt-6 pb-4 flex items-center justify-between border-b border-slate-50">
                             <div>
                                 <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">
-                                    {checkoutAddressStep === 'select' ? 'डिलिवरी पता चुनें / Select Delivery Address' : 'Location Details'}
+                                    {checkoutAddressStep === 'select' ? 'Delivery ka Pata Chunein' : 'Pata ki Jankari'}
                                 </h3>
-                                <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">ZipRocket Hyperlocal Logistics</p>
+                                <p className="text-[10px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">ZipRocket Fast Delivery</p>
                             </div>
                             <button
                                 onClick={() => setIsAddressEditModalOpen(false)}
@@ -1527,19 +1552,17 @@ export default function CheckoutPage() {
                                             if (addr.label === 'Other') IconComp = MdHomeWork;
 
                                             return (
-                                                <div 
+                                                <div
                                                     key={addr._id}
                                                     onClick={() => handleSelectSavedAddress(addr)}
-                                                    className={`p-4 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-start ${
-                                                        isSelected 
-                                                            ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/15' 
-                                                            : 'border-slate-100 hover:border-slate-200'
-                                                    }`}
+                                                    className={`p-4 bg-white border rounded-2xl shadow-sm hover:shadow-md transition-all cursor-pointer flex justify-between items-start ${isSelected
+                                                        ? 'border-[#FF5C00] ring-1 ring-[#FF5C00]/15'
+                                                        : 'border-slate-100 hover:border-slate-200'
+                                                        }`}
                                                 >
                                                     <div className="flex gap-3">
-                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                                                            isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-550'
-                                                        }`}>
+                                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSelected ? 'bg-[#FF5C00]/10 text-[#FF5C00]' : 'bg-slate-100 text-slate-550'
+                                                            }`}>
                                                             <IconComp className="text-[18px]" />
                                                         </div>
                                                         <div>
@@ -1552,9 +1575,8 @@ export default function CheckoutPage() {
                                                             <p className="text-[12px] text-slate-500 mt-1.5 leading-snug line-clamp-2 pr-4">{addr.fullAddress}</p>
                                                         </div>
                                                     </div>
-                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                                        isSelected ? 'border-[#FF5C00]' : 'border-slate-300'
-                                                    }`}>
+                                                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-[#FF5C00]' : 'border-slate-300'
+                                                        }`}>
                                                         {isSelected && <div className="w-2.5 h-2.5 rounded-full bg-[#FF5C00]"></div>}
                                                     </div>
                                                 </div>
@@ -1587,7 +1609,7 @@ export default function CheckoutPage() {
                                         { id: 'Work', label: 'Office', iconComp: MdWork },
                                         { id: 'Other', label: 'Other', iconComp: MdMyLocation }
                                     ] as const).map((tag) => {
-                                        const isActive = 
+                                        const isActive =
                                             (tag.id === 'Home' && (addressLabel === 'Home' || addressLabel === 'House')) ||
                                             (tag.id === 'Work' && (addressLabel === 'Work' || addressLabel === 'Office')) ||
                                             (tag.id === 'Other' && (addressLabel !== 'Home' && addressLabel !== 'House' && addressLabel !== 'Work' && addressLabel !== 'Office'));
@@ -1602,11 +1624,10 @@ export default function CheckoutPage() {
                                                     else if (tag.id === 'Work') setAddressLabel('Work');
                                                     else setAddressLabel('Other');
                                                 }}
-                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all ${
-                                                    isActive 
-                                                        ? 'bg-[#FF5C00] text-white shadow-sm' 
-                                                        : 'text-slate-600 hover:text-slate-900 bg-transparent'
-                                                }`}
+                                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-full text-[13px] font-bold tracking-wide transition-all ${isActive
+                                                    ? 'bg-[#FF5C00] text-white shadow-sm'
+                                                    : 'text-slate-600 hover:text-slate-900 bg-transparent'
+                                                    }`}
                                             >
                                                 <TagIcon className="text-[16px]" />
                                                 <span>{tag.label}</span>
@@ -1621,7 +1642,7 @@ export default function CheckoutPage() {
                                         type="text"
                                         value={houseNo}
                                         onChange={(e) => setHouseNo(e.target.value)}
-                                        placeholder="Building / Floor *"
+                                        placeholder="Makaan No. / Building / Floor *"
                                         className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
                                 </div>
@@ -1632,7 +1653,7 @@ export default function CheckoutPage() {
                                         type="text"
                                         value={street}
                                         onChange={(e) => setStreet(e.target.value)}
-                                        placeholder="Street (Recommended)"
+                                        placeholder="Gali / Mohalla / Rasta (Zaroori)"
                                         className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
                                 </div>
@@ -1640,14 +1661,14 @@ export default function CheckoutPage() {
                                 {/* Area / Locality block with map preview */}
                                 <div className="relative border border-slate-200 rounded-xl px-4 py-3.5 flex items-center justify-between gap-3 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.015)]">
                                     <span className="absolute -top-2 left-4 bg-white px-1.5 text-[11px] font-bold text-slate-400 tracking-wide">
-                                        Area/Locality
+                                        Area / Locality
                                     </span>
                                     <div className="text-[13px] text-slate-550 font-semibold leading-relaxed pr-2 max-w-[70%] text-left select-none">
-                                        {mohalla || userAddress || "No location selected"}
+                                        {mohalla || userAddress || "Koi location select nahi hai"}
                                     </div>
-                                    
+
                                     {/* Mini map thumbnail */}
-                                    <div 
+                                    <div
                                         onClick={() => setIsLocationModalOpen(true)}
                                         className="w-[72px] h-[72px] rounded-xl border border-slate-200 bg-slate-50 relative overflow-hidden cursor-pointer flex flex-col items-center justify-center hover:border-[#FF5C00]/50 transition-colors shadow-sm shrink-0"
                                         style={{
@@ -1655,7 +1676,7 @@ export default function CheckoutPage() {
                                             backgroundSize: '12px 12px',
                                             backgroundColor: '#f8fafc'
                                         }}
-                                        title="Click to change location"
+                                        title="Location badalne ke liye click karein"
                                     >
                                         {/* CSS Grid-like Roads visual */}
                                         <div className="absolute inset-0 opacity-20 pointer-events-none">
@@ -1663,10 +1684,10 @@ export default function CheckoutPage() {
                                             <div className="absolute top-0 left-1/3 w-[3px] h-full bg-slate-400"></div>
                                             <div className="absolute top-1/4 left-2/3 w-[3px] h-full bg-slate-400"></div>
                                         </div>
-                                        
+
                                         {/* Pin Marker */}
                                         <MdLocationOn className="text-[24px] text-[#FF5C00] relative z-10 filter drop-shadow-[0_2px_3px_rgba(0,0,0,0.15)] animate-bounce" />
-                                        
+
                                         {/* Change text tag */}
                                         <span className="absolute bottom-1 text-[9px] font-black text-[#FF5C00] uppercase tracking-wider bg-white/95 px-1.5 py-0.5 rounded shadow-sm z-10 border border-slate-100">
                                             Change
@@ -1680,7 +1701,7 @@ export default function CheckoutPage() {
                                         type="text"
                                         value={addressLabel === 'Home' ? 'Home' : addressLabel === 'Work' ? 'Work' : addressLabel}
                                         onChange={(e) => setAddressLabel(e.target.value)}
-                                        placeholder="Save address as *"
+                                        placeholder="Address ka Naam (Ghar, Dukan, Office) *"
                                         className="w-full bg-white border border-slate-200 hover:border-slate-350 rounded-xl px-4 py-3 text-[14px] text-slate-800 placeholder-slate-400 focus:border-[#FF5C00] focus:ring-1 focus:ring-[#FF5C00]/25 transition-all outline-none font-semibold shadow-[0_1px_2px_rgba(0,0,0,0.015)]"
                                     />
                                 </div>
@@ -1694,7 +1715,7 @@ export default function CheckoutPage() {
                                             maxLength={10}
                                             value={editedPhone}
                                             onChange={(e) => setEditedPhone(e.target.value.replace(/\D/g, ""))}
-                                            placeholder="Contact Phone Number *"
+                                            placeholder="Mobile Number (10 digit) *"
                                             className="w-full bg-transparent p-3.5 px-4 text-[14px] text-slate-800 placeholder-slate-400 outline-none font-semibold"
                                         />
                                     </div>
@@ -1759,12 +1780,12 @@ export default function CheckoutPage() {
                                         {validatingEdit ? (
                                             <>
                                                 <MdSync className="text-[16px] animate-spin" />
-                                                Saving...
+                                                Address save ho raha hai...
                                             </>
                                         ) : (
                                             <>
                                                 <MdSave className="text-[16px]" />
-                                                Confirm Address
+                                                Pata Confirm Karein
                                             </>
                                         )}
                                     </button>
@@ -1788,8 +1809,8 @@ export default function CheckoutPage() {
                         {/* Header */}
                         <div className="px-6 pb-4 pt-1 sm:pt-6 flex items-center justify-between border-b border-slate-50 shrink-0">
                             <div>
-                                <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">लागू कूपन / Available Coupons</h3>
-                                <p className="text-[11px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">Apply Promo for massive savings</p>
+                                <h3 className="font-extrabold text-[18px] text-slate-900 tracking-tight">Discounts aur Coupons</h3>
+                                <p className="text-[11px] text-[#FF5C00] font-black uppercase tracking-wider mt-0.5">Bachat ke liye coupon lagayein</p>
                             </div>
                             <button
                                 onClick={() => { setIsCouponDrawerOpen(false); setCouponError(null); }}
@@ -1803,13 +1824,13 @@ export default function CheckoutPage() {
                         <div className="p-6 space-y-5 overflow-y-auto flex-1">
                             {/* Manual Apply Input */}
                             <div className="space-y-1.5">
-                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">कूपन कोड दर्ज करें (Enter Coupon Code)</label>
+                                <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest">Coupon Code Dalein (Enter Coupon Code)</label>
                                 <div className="flex bg-slate-50 border border-slate-200 rounded-2xl items-center focus-within:border-[#FF5C00] focus-within:ring-1 focus-within:ring-[#FF5C00]/25 transition-all pr-2">
                                     <input
                                         type="text"
                                         value={couponInputText}
                                         onChange={(e) => setCouponInputText(e.target.value.toUpperCase())}
-                                        placeholder="ENTER PROMO CODE (e.g. WELCOME50)"
+                                        placeholder="COUPON CODE DALEIN (Jaise: WELCOME50)"
                                         disabled={applyingCoupon}
                                         className="w-full bg-transparent p-3.5 text-[13px] text-slate-800 placeholder-slate-400 outline-none uppercase font-bold tracking-widest"
                                     />
@@ -1819,7 +1840,7 @@ export default function CheckoutPage() {
                                         disabled={applyingCoupon || !couponInputText.trim()}
                                         className="px-4.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
                                     >
-                                        {applyingCoupon ? "Applying..." : "Apply"}
+                                        {applyingCoupon ? "Lag raha hai..." : "Apply Karein"}
                                     </button>
                                 </div>
                             </div>
@@ -1834,14 +1855,14 @@ export default function CheckoutPage() {
                             {/* List of Applicable Coupons */}
                             {availableCoupons.length > 0 && (
                                 <div className="space-y-3.5">
-                                    <h4 className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">✅ लागू करने के लिए उपलब्ध (Applicable Coupons)</h4>
+                                    <h4 className="text-[11px] font-black text-emerald-700 uppercase tracking-widest">✅ Aapke liye Uplabdh Coupons</h4>
                                     {availableCoupons.map((coupon) => (
                                         <div
                                             key={coupon._id}
                                             className="bg-emerald-50/30 border border-dashed border-emerald-350 rounded-2xl p-4 flex flex-col gap-3 relative overflow-hidden"
                                         >
                                             <div className="absolute top-0 right-0 bg-emerald-600 text-white text-[9px] font-extrabold px-3 py-1 rounded-bl-xl tracking-wider uppercase">
-                                                SAVE ₹{coupon.estimatedDiscount}
+                                                ₹{coupon.estimatedDiscount} BACHAT
                                             </div>
                                             <div className="flex items-start gap-2.5">
                                                 <div className="px-2.5 py-1 bg-white border border-dashed border-emerald-600 text-emerald-700 text-xs font-black rounded uppercase tracking-wider">
@@ -1855,14 +1876,14 @@ export default function CheckoutPage() {
                                             <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 text-[11px]">
                                                 <span className="text-[10px] text-emerald-700 font-extrabold flex items-center gap-1">
                                                     <MdCheckCircle className="text-[14px]" />
-                                                    Eligible for this order
+                                                    Is order par lag sakta hai
                                                 </span>
                                                 <button
                                                     onClick={() => handleApplyCoupon(coupon.code)}
                                                     disabled={applyingCoupon}
                                                     className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-black uppercase tracking-wider rounded-lg transition-transform active:scale-95 shrink-0 shadow-sm"
                                                 >
-                                                    Apply
+                                                    Apply Karein
                                                 </button>
                                             </div>
                                         </div>
@@ -1873,14 +1894,14 @@ export default function CheckoutPage() {
                             {/* List of Unapplicable Coupons */}
                             {unapplicableCoupons.length > 0 && (
                                 <div className="space-y-3.5">
-                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">⚠️ अयोग्य कूपन (Unapplicable Coupons)</h4>
+                                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">⚠️ Anya Coupons (Jo abhi lag nahi sakte)</h4>
                                     {unapplicableCoupons.map((coupon) => (
                                         <div
                                             key={coupon._id}
                                             className="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex flex-col gap-3 relative opacity-70"
                                         >
                                             <div className="flex items-start gap-2.5">
-                                                <div className="px-2.5 py-1 bg-white border border-slate-350 text-slate-500 text-xs font-black rounded uppercase tracking-wider">
+                                                <div className="px-2.5 py-1 bg-white border border-slate-355 text-slate-500 text-xs font-black rounded uppercase tracking-wider">
                                                     {coupon.code}
                                                 </div>
                                             </div>
@@ -1890,7 +1911,7 @@ export default function CheckoutPage() {
                                             </div>
                                             <div className="border-t border-slate-200/60 pt-3 mt-1 flex items-start gap-2 text-[10px] text-rose-600 font-bold leading-tight">
                                                 <MdInfo className="text-[14px] shrink-0" />
-                                                <span>{coupon.reason || "Terms & conditions not met"}</span>
+                                                <span>{coupon.reason || "Terms & conditions poori nahi hain"}</span>
                                             </div>
                                         </div>
                                     ))}
@@ -1900,8 +1921,8 @@ export default function CheckoutPage() {
                             {availableCoupons.length === 0 && unapplicableCoupons.length === 0 && (
                                 <div className="text-center py-10 flex flex-col items-center justify-center">
                                     <MdSell className="text-[48px] text-slate-300 mb-3" />
-                                    <p className="text-[13px] text-slate-500 font-bold">No coupons available / कोई कूपन उपलब्ध नहीं है</p>
-                                    <p className="text-[11px] text-slate-400 mt-1 font-medium">Keep shopping to unlock future rewards!</p>
+                                    <p className="text-[13px] text-slate-500 font-bold">Koi coupon uplabdh nahi hai</p>
+                                    <p className="text-[11px] text-slate-400 mt-1 font-medium">Agli baar shopping par naye rewards milenge!</p>
                                 </div>
                             )}
                         </div>

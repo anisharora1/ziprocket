@@ -32,7 +32,7 @@ export default function OrdersPage() {
 
     const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
     const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
-    const [cancelReason, setCancelReason] = useState("Ordered by mistake");
+    const [cancelReason, setCancelReason] = useState("Galti se order ho gaya");
     const [otherReasonText, setOtherReasonText] = useState("");
     const [cancellingLoader, setCancellingLoader] = useState(false);
 
@@ -47,7 +47,7 @@ export default function OrdersPage() {
 
     const handleOpenCancelModal = (orderId: string) => {
         setCancellingOrderId(orderId);
-        setCancelReason("Ordered by mistake");
+        setCancelReason("Galti se order ho gaya");
         setOtherReasonText("");
         setIsCancelModalOpen(true);
     };
@@ -56,12 +56,12 @@ export default function OrdersPage() {
         if (!cancellingOrderId) return;
         setCancellingLoader(true);
         try {
-            const finalReason = cancelReason === "Other" ? otherReasonText : cancelReason;
+            const finalReason = cancelReason === "Anya wajah (Other)" ? otherReasonText : cancelReason;
             const res = await apiClient.patch(`/orders/${cancellingOrderId}/cancel`, {
                 reason: finalReason
             });
             if (res.data.success) {
-                alert("Order cancelled successfully!");
+                alert("Order safalta-purvak cancel ho gaya!");
                 setIsCancelModalOpen(false);
                 setCancellingOrderId(null);
                 // Optimistic local update + background refresh
@@ -72,7 +72,7 @@ export default function OrdersPage() {
             }
         } catch (err: any) {
             console.error("Cancellation failed:", err);
-            alert(err.response?.data?.message || "Failed to cancel order.");
+            alert(err.response?.data?.message || "Order cancel karne me samasya aayi.");
         } finally {
             setCancellingLoader(false);
         }
@@ -187,7 +187,7 @@ export default function OrdersPage() {
         try {
             const sdkLoaded = await loadRazorpayScript();
             if (!sdkLoaded) {
-                alert("Failed to load Razorpay SDK. Please check your network connection.");
+                alert("Payment SDK load nahi ho paya. Kripya internet check karein.");
                 setRetryingOrderId(null);
                 return;
             }
@@ -224,14 +224,14 @@ export default function OrdersPage() {
                         });
 
                         if (verifyRes.data.success) {
-                            alert("Payment Successful! Your order has been placed.");
+                            alert("Payment safal raha! Aapka order confirm ho gaya hai.");
                             invalidateOrders();
                         } else {
-                            alert("Payment verification failed! Please contact support.");
+                            alert("Payment verify nahi ho paya! Kripya support se sampark karein.");
                         }
                     } catch (err: any) {
                         console.error("Signature verification error:", err);
-                        alert("Verification Error: " + (err.response?.data?.message || err.message));
+                        alert("Verification samasya: " + (err.response?.data?.message || err.message));
                     } finally {
                         setRetryingOrderId(null);
                     }
@@ -254,7 +254,7 @@ export default function OrdersPage() {
                         } catch (e) {
                             console.error("Cancellation logging failed:", e);
                         }
-                        alert("Payment cancelled.");
+                        alert("Payment cancel kar diya gaya.");
                         setRetryingOrderId(null);
                         invalidateOrders();
                     }
@@ -275,7 +275,7 @@ export default function OrdersPage() {
                 } catch (e) {
                     console.error("Failure logging failed:", e);
                 }
-                alert(`Payment Failed: ${response.error.description}`);
+                alert(`Payment asafal raha: ${response.error.description}`);
                 setRetryingOrderId(null);
                 invalidateOrders();
             });
@@ -283,7 +283,7 @@ export default function OrdersPage() {
             paymentObject.open();
         } catch (error: any) {
             console.error("Retry payment failed:", error);
-            alert("Retry Payment Failure: " + (error.response?.data?.message || error.message));
+            alert("Payment samasya: " + (error.response?.data?.message || error.message));
             setRetryingOrderId(null);
         }
     };
@@ -346,7 +346,7 @@ export default function OrdersPage() {
                     </div>
                     <h2 className="text-xl font-black text-slate-800 mb-2 leading-none">Access Order History</h2>
                     <p className="text-slate-400 text-xs font-semibold max-w-xs leading-relaxed mb-6 mt-1">
-                        Please log in to your account to review active orders, status updates, and historical settlements.
+                        Apne live orders aur purane sabhi orders dekhne ke liye account me login karein.
                     </p>
                     <Link href="/auth/login" className="inline-block px-8 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-md active:scale-95">
                         Log In
@@ -373,7 +373,7 @@ export default function OrdersPage() {
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 mb-6 shadow-sm">
                         <MdInfo className="text-amber-600 text-[20px] shrink-0 mt-0.5" />
                         <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                            You currently have {activeOrders.length} active orders. Tracking the most recent order below.
+                            Aapke abhi {activeOrders.length} active orders hain. Niche sabse naye order ka live status hai.
                         </p>
                     </div>
                 )}
@@ -394,7 +394,7 @@ export default function OrdersPage() {
                                     </p>
                                     <h3 className="text-lg font-black text-slate-800">
                                         {currentActiveOrder.orderType === 'food'
-                                            ? (currentActiveOrder.restaurant?.name || "Premium Restaurant Partner")
+                                            ? (currentActiveOrder.restaurant?.name || "Restaurant Partner")
                                             : "ZipGrocery Delivery"}
                                     </h3>
                                     <p className="text-xs font-semibold text-slate-500 mt-1 max-w-md leading-relaxed">
@@ -417,8 +417,8 @@ export default function OrdersPage() {
                                             <MdError className="text-[20px]" />
                                         </div>
                                         <div>
-                                            <h4 className="text-xs font-bold text-slate-800 leading-tight">Unpaid Online Order</h4>
-                                            <p className="text-[10px] font-semibold text-slate-550 mt-0.5">Please complete payment for the restaurant to start preparation.</p>
+                                            <h4 className="text-xs font-bold text-slate-800 leading-tight">Online Payment Baki Hai</h4>
+                                            <p className="text-[10px] font-semibold text-slate-550 mt-0.5">Order taiyar karne ke liye kripya online payment poori karein.</p>
                                         </div>
                                     </div>
                                     <button
@@ -444,7 +444,7 @@ export default function OrdersPage() {
                             {/* Delivery Confirmation OTP for Prepaid (ONLINE) Orders */}
                             {currentActiveOrder.paymentMethod === "ONLINE" && (currentActiveOrder.orderStatus === "on_the_way" || currentActiveOrder.orderStatus === "accepted_by_delivery") && currentActiveOrder.deliveryOtp && (
                                 <div className="bg-orange-50 border-2 border-dashed border-[#FF5C00] rounded-2xl p-4 text-center mb-6">
-                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Share this code with your delivery partner</p>
+                                    <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Yeh OTP delivery partner ko delivery ke samay batayein</p>
                                     <p className="text-3xl font-black tracking-[0.3em] text-[#FF5C00]">{currentActiveOrder.deliveryOtp}</p>
                                 </div>
                             )}
@@ -517,9 +517,9 @@ export default function OrdersPage() {
                         <div className="w-20 h-20 bg-[#FFF1E6] rounded-full flex items-center justify-center mb-5 border border-[#FFE2CC]/40 shadow-inner">
                             <MdReceiptLong className="text-4xl text-[#FF5C00]" />
                         </div>
-                        <h3 className="font-black text-slate-800 text-lg mb-2 leading-none">No Orders Found</h3>
+                        <h3 className="font-black text-slate-800 text-lg mb-2 leading-none">Koi Order Nahi Mila</h3>
                         <p className="text-slate-400 text-xs font-semibold leading-relaxed mb-6 mt-1">
-                            You haven't placed any grocery or restaurant orders yet! Let's get something delicious.
+                            Aapne abhi tak koi grocery ya food order nahi kiya hai. Apni pasand ka samaan order karein!
                         </p>
                         <Link href="/" className="inline-block px-8 py-3 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95">
                             Order Now
@@ -530,7 +530,7 @@ export default function OrdersPage() {
                     <section className="animate-in fade-in duration-200">
                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <MdHistory className="text-slate-400" />
-                            Past Orders
+                            Purane Orders
                         </h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -563,7 +563,7 @@ export default function OrdersPage() {
 
                                         {!isCancelled && order.orderType === "food" && !order.rating && (
                                             <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
-                                                <span className="text-[11px] font-semibold text-slate-500 mr-1">Rate this order:</span>
+                                                <span className="text-[11px] font-semibold text-slate-500 mr-1">Order ko star dein:</span>
                                                 {[1, 2, 3, 4, 5].map((star) => (
                                                     <button
                                                         key={star}
@@ -577,7 +577,7 @@ export default function OrdersPage() {
                                                                     invalidateOrders();
                                                                 }
                                                             } catch (err: any) {
-                                                                alert(err.response?.data?.message || "Failed to submit rating.");
+                                                                alert(err.response?.data?.message || "Rating submit nahi ho payi.");
                                                             }
                                                         }}
                                                         className="text-[20px] text-amber-400 hover:scale-110 transition-transform cursor-pointer"
@@ -589,7 +589,7 @@ export default function OrdersPage() {
                                         )}
                                         {!isCancelled && order.rating && (
                                             <div className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-100 text-[12px] font-semibold text-slate-500">
-                                                You rated: {"★".repeat(order.rating)}{"☆".repeat(5 - order.rating)}
+                                                Aapki rating: {"★".repeat(order.rating)}{"☆".repeat(5 - order.rating)}
                                             </div>
                                         )}
 
@@ -598,7 +598,7 @@ export default function OrdersPage() {
                                                 <span>₹{order.totalAmount.toLocaleString()}</span>
                                                 {order.paymentMethod === "ONLINE" && (
                                                     <span className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                        {order.paymentStatus === 'paid' ? 'Paid' : 'Unpaid'}
+                                                        {order.paymentStatus === 'paid' ? 'Paid' : 'Baki (Unpaid)'}
                                                     </span>
                                                 )}
                                             </span>
@@ -655,15 +655,15 @@ export default function OrdersPage() {
                                 <MdCancel className="text-[24px]" />
                             </div>
                             <div className="flex-1">
-                                <h3 className="text-[17px] font-black text-slate-800 leading-none mb-1.5">Cancel Order</h3>
+                                <h3 className="text-[17px] font-black text-slate-800 leading-none mb-1.5">Order Cancel Karein</h3>
                                 <p className="text-slate-400 text-xs font-semibold leading-relaxed">
-                                    Are you sure you want to cancel this order? This action cannot be undone once confirmed.
+                                    Kya aap sach me is order ko cancel karna chahte hain? Confirm hone ke baad ise wapas nahi kiya ja sakta.
                                 </p>
                             </div>
                         </div>
 
                         <div className="my-6 space-y-3">
-                            <label className="block text-[10px] font-black text-slate-655 uppercase tracking-wider">Select Cancellation Reason</label>
+                            <label className="block text-[10px] font-black text-slate-655 uppercase tracking-wider">Cancel karne ki wajah chunein</label>
                             <div className="grid grid-cols-1 gap-2">
                                 {[
                                     "Ordered by mistake",
@@ -677,8 +677,8 @@ export default function OrdersPage() {
                                         type="button"
                                         onClick={() => setCancelReason(reason)}
                                         className={`px-4 py-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between ${cancelReason === reason
-                                                ? 'border-[#FF5C00] bg-[#FF5C00]/5 text-[#FF5C00]'
-                                                : 'border-slate-100 hover:border-slate-200 text-slate-655'
+                                            ? 'border-[#FF5C00] bg-[#FF5C00]/5 text-[#FF5C00]'
+                                            : 'border-slate-100 hover:border-slate-200 text-slate-655'
                                             }`}
                                     >
                                         <span>{reason}</span>
@@ -693,7 +693,7 @@ export default function OrdersPage() {
                                 <textarea
                                     value={otherReasonText}
                                     onChange={(e) => setOtherReasonText(e.target.value)}
-                                    placeholder="Tell us more about your reason..."
+                                    placeholder="Apni wajah yahan likhein..."
                                     rows={2}
                                     className="w-full mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/10 focus:border-[#FF5C00] transition-all text-xs font-semibold"
                                 />
@@ -719,7 +719,7 @@ export default function OrdersPage() {
                                 {cancellingLoader ? (
                                     <>
                                         <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Cancelling...
+                                        Cancel ho raha hai...
                                     </>
                                 ) : (
                                     "Yes, Cancel"
