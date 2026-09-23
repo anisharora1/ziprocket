@@ -5,7 +5,7 @@ import Restaurant from "../models/Restaurant";
 import User from "../models/User";
 import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
-import DeliveryModel from "../models/Delivery";
+import Delivery from "../models/Delivery";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
@@ -364,6 +364,13 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                     } else if (cancelledBy === "restaurant") {
                         await Restaurant.findByIdAndUpdate(order.restaurant, { $inc: { cancellationCount: 1 } });
                     }
+
+                    // Cancel the courier's assigned task if one exists
+                    const linkedDelivery = await Delivery.findOne({ order: orderId, status: { $ne: "delivered" } });
+                    if (linkedDelivery) {
+                        linkedDelivery.status = "cancelled";
+                        await linkedDelivery.save();
+                    }
                 }
 
                 // Increment total orders count for the restaurant only upon successful delivery
@@ -383,7 +390,7 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                     rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
                 }
                 // Notify the assigned delivery boy if one has claimed this order
-                const activeDelivery = await DeliveryModel.findOne({ order: orderId }).select("deliveryBoy").lean();
+                const activeDelivery = await Delivery.findOne({ order: orderId }).select("deliveryBoy").lean();
                 if (activeDelivery?.deliveryBoy) {
                     rooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
                 }
@@ -711,6 +718,14 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
         order.cancellationReason = reason || "Cancelled by user";
         order.cancelledAt = new Date();
 
+        // Also cancel the courier's assigned task, if one exists — otherwise it silently
+        // stays showing as "active" on the delivery partner's app forever.
+        const linkedDelivery = await Delivery.findOne({ order: order._id, status: { $ne: "delivered" } });
+        if (linkedDelivery) {
+            linkedDelivery.status = "cancelled";
+            await linkedDelivery.save();
+        }
+
         await order.save();
 
         // Invalidate Redis caches
@@ -731,6 +746,9 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
             }
             if ((order as any).deliveryZone) {
                 rooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
+            }
+            if (linkedDelivery?.deliveryBoy) {
+                rooms.push(`delivery:${linkedDelivery.deliveryBoy.toString()}`);
             }
             emitToRooms(rooms, "order_cancelled", {
                 orderId: id,

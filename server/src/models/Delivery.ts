@@ -10,7 +10,7 @@ export interface IDelivery extends BaseDocument {
     order: Types.ObjectId;
     deliveryBoy: Types.ObjectId;
 
-    status: "assigned" | "picked" | "on_the_way" | "delivered";
+    status: "assigned" | "picked" | "on_the_way" | "delivered" | "cancelled";
 
     earnings: number;
     deliveryProof?: IDeliveryProof;
@@ -23,7 +23,7 @@ const deliverySchema = new Schema<IDelivery>({
 
     status: {
         type: String,
-        enum: ["assigned", "picked", "on_the_way", "delivered"],
+        enum: ["assigned", "picked", "on_the_way", "delivered", "cancelled"],
         default: "assigned"
     },
 

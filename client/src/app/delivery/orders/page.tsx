@@ -142,16 +142,20 @@ export default function DeliveryOrdersPage() {
     },
     onOrderCancelled: (data) => {
       if (data?.orderId) {
-        // Remove from pending queue immediately
+        // Remove from both pending queue and active tasks immediately
         queryClient.setQueryData(['orders', 'delivery'], (prev: any) => {
           if (!prev) return prev;
           return {
             ...prev,
-            pendingQueue: prev.pendingQueue.filter((o: Order) => o._id !== data.orderId),
+            pendingQueue: (prev.pendingQueue || []).filter((o: Order) => o._id !== data.orderId),
+            activeTasks: (prev.activeTasks || []).filter((t: DeliveryRecord) => {
+              const taskOrderId = typeof t.order === "object" ? t.order?._id : t.order;
+              return taskOrderId !== data.orderId;
+            }),
           };
         });
       }
-      // Sync active tasks too (cancellation may affect an active task)
+      // Sync active tasks with server in background
       invalidateDelivery();
     },
     onOrderDelivered: () => {
