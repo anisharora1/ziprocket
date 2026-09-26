@@ -596,6 +596,10 @@ graph LR
 - **Nginx WebSocket Upgrade:** Ensure `proxy_set_header Upgrade $http_upgrade` and `proxy_set_header Connection "upgrade"` are set for `/socket.io/`.
 - **Static Asset Caching:** Configure long-term cache headers (`Cache-Control: public, max-age=31536000, immutable`) for `/_next/static/`.
 
+### Post-Deployment Cache Checklist
+> [!IMPORTANT]
+> **Schema / Data-Shape Cache Invalidation Rule:** Whenever a deployment alters the **shape or format** of data stored in Redis cache keys (not just its raw values), the corresponding cache pattern must be flushed immediately post-deploy (e.g. `npm run cache:flush-menus` in `server`). Redis does not detect application code changes, so un-flushed keys will silently serve stale schemas to clients.
+
 ---
 
 ## 19. Known Limitations
