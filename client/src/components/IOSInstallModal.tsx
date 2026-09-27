@@ -77,6 +77,7 @@ export default function IOSInstallModal() {
             height={56}
             className="rounded-xl object-cover"
             priority
+            unoptimized={true}
           />
         </div>
 

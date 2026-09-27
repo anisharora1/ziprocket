@@ -145,6 +145,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['firebase/app', 'firebase/auth'],
   },
   images: {
+    unoptimized: true, // Prevents Vercel from re-optimizing Cloudinary/Unsplash images that are already transformed at the URL level
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [360, 480, 640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256],

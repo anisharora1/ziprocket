@@ -188,6 +188,7 @@ export default function OptimizedImage({
         priority={priority}
         loading={priority ? undefined : (loading || "lazy")}
         sizes={computedSizes}
+        unoptimized={true}
         onLoad={() => setLoaded(true)}
         className={`transition-opacity duration-300 ${className.includes("object-contain") ? "object-contain" : "object-cover"
           } ${loaded ? "opacity-100" : "opacity-0"}`}

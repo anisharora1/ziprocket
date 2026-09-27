@@ -25,6 +25,7 @@ export default function FirstVisitInstallModal() {
             height={72} 
             className="rounded-2xl object-cover"
             priority
+            unoptimized={true}
           />
         </div>
 

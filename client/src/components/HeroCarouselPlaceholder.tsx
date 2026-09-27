@@ -7,8 +7,7 @@ import Image from "next/image";
 const FIRST_BANNER = {
   title: "Delicious Meals Delivered Fast",
   description: "Get up to 50% off on your first order!",
-  // Use the Next.js image optimization endpoint so we serve a smaller, properly sized image
-  image: "/_next/image?url=https%3A%2F%2Fimages.unsplash.com%2Fphoto-1504674900247-0877df9cc836%3Fauto%3Dformat%26fit%3Dcrop%26q%3D80%26w%3D1200&w=1080&q=75",
+  image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=1200",
   href: "/restaurants",
   badge: "Mega Deal",
 };
@@ -34,6 +33,7 @@ export default function HeroCarouselPlaceholder() {
             fetchPriority="high"
             fill={true}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1200px"
+            unoptimized={true}
             className="absolute inset-0 w-full h-full object-cover"
           />
           <div

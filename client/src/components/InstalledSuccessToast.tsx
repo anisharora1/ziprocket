@@ -35,6 +35,7 @@ export default function InstalledSuccessToast() {
             height={72}
             className="rounded-2xl object-cover"
             priority
+            unoptimized={true}
           />
           <div className="absolute -bottom-2 -right-2 bg-emerald-500 text-white rounded-full p-1 shadow-lg ring-4 ring-white dark:ring-slate-900">
             <MdCheckCircle className="text-xl" />
