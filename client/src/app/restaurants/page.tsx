@@ -249,73 +249,80 @@ export default function FoodDiscoveryPage() {
   return (
     <div className="bg-[#fcfcfc] text-on-surface pb-28 min-h-screen w-full font-sans">
       <div className="max-w-7xl mx-auto w-full">
-        {/* Redesigned Header: Brand + Veg Only on top row, Search Bar below */}
-        <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-4 sm:px-6 lg:px-8 pt-3 pb-2.5">
-          <div className="flex items-center justify-between mb-2.5">
-            <Link href="/" className="font-black text-lg sm:text-xl text-[#FF5C00] tracking-tight">
-              ZipRocket
+        {/* Single Row Header: ZipRocket Brand + 44-48px Search Bar + Veg Only */}
+        <header className="sticky top-0 z-40 bg-white border-b border-slate-100 px-3 sm:px-6 lg:px-8 py-2 sm:py-2.5">
+          <div className="flex items-center gap-2 sm:gap-3 w-full">
+            {/* ZipRocket Branding */}
+            <Link
+              href="/"
+              className="font-black text-lg lg:text-xl text-[#FF5C00] tracking-tight shrink-0 flex items-center"
+            >
+              ZIPROCKET
             </Link>
+
+            {/* Height-Optimized Search Bar (44-48px) */}
+            <div className="flex-1 min-w-0 h-10 sm:h-12 flex items-center gap-2 bg-slate-100 rounded-full px-3 sm:px-4 border border-slate-200/60 focus-within:border-[#FF5C00]/50 focus-within:ring-2 focus-within:ring-[#FF5C00]/10 transition-all">
+              <MdSearch className="text-slate-400 text-lg shrink-0" />
+              <input
+                type="text"
+                placeholder="Search dishes..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-transparent outline-none text-xs sm:text-sm w-full placeholder-slate-400 text-slate-800 font-medium min-w-0"
+                suppressHydrationWarning={true}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded-full hover:bg-slate-200 shrink-0"
+                >
+                  <MdClose className="text-sm sm:text-base" />
+                </button>
+              )}
+            </div>
+
+            {/* Compact Veg Only Button */}
             <button
               onClick={() => setVegOnly(!vegOnly)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[12px] font-bold transition-all active:scale-95 cursor-pointer ${
-                vegOnly
-                  ? "border-green-600 bg-green-50 text-green-700 shadow-xs"
-                  : "border-slate-300 text-slate-600 hover:bg-slate-50"
-              }`}
+              className={`h-10 sm:h-12 flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 rounded-full border text-[11px] sm:text-xs font-bold transition-all active:scale-95 cursor-pointer shrink-0 whitespace-nowrap ${vegOnly
+                ? "border-green-600 bg-green-50 text-green-700 shadow-xs"
+                : "border-slate-300 text-slate-600 hover:bg-slate-50"
+                }`}
             >
-              <span className={`w-2 h-2 rounded-full ${vegOnly ? "bg-green-600" : "bg-slate-300"}`} />
-              Veg Only
+              <span className={`w-2 h-2 rounded-full shrink-0 ${vegOnly ? "bg-green-600" : "bg-slate-300"}`} />
+              <span>Veg Only</span>
             </button>
-          </div>
-          <div className="flex items-center gap-2 bg-slate-100 rounded-full px-4 py-2 border border-slate-200/60 focus-within:border-[#FF5C00]/50 focus-within:ring-2 focus-within:ring-[#FF5C00]/10 transition-all">
-            <MdSearch className="text-slate-400 text-lg shrink-0" />
-            <input
-              type="text"
-              placeholder="Search dishes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent outline-none text-sm w-full placeholder-slate-400 text-slate-800 font-medium"
-              suppressHydrationWarning={true}
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="text-slate-400 hover:text-slate-600 transition-colors p-0.5 rounded-full hover:bg-slate-200"
-              >
-                <MdClose className="text-base" />
-              </button>
-            )}
           </div>
         </header>
 
-        {/* Categories: wrapping flex layout allowing multiple rows */}
-        <div className="flex flex-wrap gap-2 px-4 sm:px-6 lg:px-8 py-3 border-b border-slate-50">
-          {/* "All" Pill */}
-          <button
-            onClick={() => setActiveCategory("All")}
-            className={`px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-xs ${
-              activeCategory === "All"
+        {/* Categories: Max 2 Rows with Horizontal Scrolling */}
+        <div className="overflow-x-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-3 sm:px-6 lg:px-8 py-2.5 border-b border-slate-50">
+          <div className="grid grid-rows-2 grid-flow-col gap-2 w-max sm:w-auto sm:flex sm:flex-wrap">
+            {/* "All" Pill */}
+            <button
+              onClick={() => setActiveCategory("All")}
+              className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-[13px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-xs ${activeCategory === "All"
                 ? "bg-[#FF5C00] text-white shadow-sm shadow-[#FF5C00]/20"
                 : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-            }`}
-          >
-            All
-          </button>
+                }`}
+            >
+              All
+            </button>
 
-          {/* Dynamic Categories */}
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategory(activeCategory === cat ? "All" : cat)}
-              className={`px-4 py-1.5 rounded-full text-[13px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-xs ${
-                activeCategory === cat
+            {/* Dynamic Categories */}
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setActiveCategory(activeCategory === cat ? "All" : cat)}
+                className={`px-3.5 sm:px-4 py-1.5 rounded-full text-xs sm:text-[13px] font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer shadow-xs ${activeCategory === cat
                   ? "bg-[#FF5C00] text-white shadow-sm shadow-[#FF5C00]/20"
                   : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+                  }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Food Items Discovery Grid */}
@@ -325,15 +332,15 @@ export default function FoodDiscoveryPage() {
               {searchQuery
                 ? `Results for "${searchQuery}"`
                 : activeCategory !== "All"
-                ? `${activeCategory} Dishes`
-                : "Popular & Featured Dishes"}
+                  ? `${activeCategory} Dishes`
+                  : "Popular & Featured Dishes"}
             </h2>
             <span className="text-[11px] font-semibold text-slate-400">
               {loading
                 ? "Finding dishes..."
                 : isDefaultFeed
-                ? `Showing ${displayedItems.length} of ${currentPopularPool.length} dishes`
-                : `${displayedItems.length} dishes found`}
+                  ? `Showing ${displayedItems.length} of ${currentPopularPool.length} dishes`
+                  : `${displayedItems.length} dishes found`}
             </span>
           </div>
 
@@ -421,14 +428,12 @@ export default function FoodDiscoveryPage() {
                         <div>
                           <div className="flex items-center gap-1.5 mb-1">
                             <div
-                              className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center border ${
-                                item.isVeg ? "border-green-600" : "border-red-600"
-                              } bg-white rounded-[3px]`}
+                              className={`shrink-0 w-3.5 h-3.5 flex items-center justify-center border ${item.isVeg ? "border-green-600" : "border-red-600"
+                                } bg-white rounded-[3px]`}
                             >
                               <div
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  item.isVeg ? "bg-green-600" : "bg-red-600"
-                                }`}
+                                className={`w-1.5 h-1.5 rounded-full ${item.isVeg ? "bg-green-600" : "bg-red-600"
+                                  }`}
                               />
                             </div>
                             <span className="text-[10px] text-slate-400 font-semibold truncate">
@@ -487,11 +492,10 @@ export default function FoodDiscoveryPage() {
                                 e.stopPropagation();
                                 handleAddItem(item);
                               }}
-                              className={`h-7 sm:h-8 px-3.5 bg-white border border-[#FF5C00] text-[#FF5C00] font-black text-xs uppercase rounded-xl transition-all active:scale-95 shadow-xs ${
-                                item.isAvailable === false
-                                  ? "border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none"
-                                  : "hover:bg-[#FF5C00]/5"
-                              }`}
+                              className={`h-7 sm:h-8 px-3.5 bg-white border border-[#FF5C00] text-[#FF5C00] font-black text-xs uppercase rounded-xl transition-all active:scale-95 shadow-xs ${item.isAvailable === false
+                                ? "border-slate-300 text-slate-400 bg-slate-50 cursor-default shadow-none"
+                                : "hover:bg-[#FF5C00]/5"
+                                }`}
                             >
                               {item.isAvailable === false ? "OOS" : "Add"}
                             </button>
@@ -576,14 +580,12 @@ export default function FoodDiscoveryPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
                     <div
-                      className={`shrink-0 w-4 h-4 flex items-center justify-center border ${
-                        selectedItem.isVeg ? "border-green-600" : "border-red-600"
-                      } bg-white rounded-sm`}
+                      className={`shrink-0 w-4 h-4 flex items-center justify-center border ${selectedItem.isVeg ? "border-green-600" : "border-red-600"
+                        } bg-white rounded-sm`}
                     >
                       <div
-                        className={`w-2 h-2 rounded-full ${
-                          selectedItem.isVeg ? "bg-green-600" : "bg-red-600"
-                        }`}
+                        className={`w-2 h-2 rounded-full ${selectedItem.isVeg ? "bg-green-600" : "bg-red-600"
+                          }`}
                       />
                     </div>
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
@@ -625,19 +627,18 @@ export default function FoodDiscoveryPage() {
                   </span>
                   {selectedItem.spiceLevel && selectedItem.spiceLevel !== "none" && (
                     <span
-                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg ${
-                        selectedItem.spiceLevel === "hot"
-                          ? "bg-red-50 text-red-700 border border-red-200"
-                          : selectedItem.spiceLevel === "medium"
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded-lg ${selectedItem.spiceLevel === "hot"
+                        ? "bg-red-50 text-red-700 border border-red-200"
+                        : selectedItem.spiceLevel === "medium"
                           ? "bg-orange-50 text-orange-700 border border-orange-200"
                           : "bg-amber-50 text-amber-700 border border-amber-200"
-                      }`}
+                        }`}
                     >
                       {selectedItem.spiceLevel === "hot"
                         ? "🌶️🌶️🌶️ Hot"
                         : selectedItem.spiceLevel === "medium"
-                        ? "🌶️🌶️ Medium"
-                        : "🌶️ Mild"}
+                          ? "🌶️🌶️ Medium"
+                          : "🌶️ Mild"}
                     </span>
                   )}
                 </div>
@@ -682,11 +683,10 @@ export default function FoodDiscoveryPage() {
                       <button
                         disabled={selectedItem.isAvailable === false}
                         onClick={() => handleAddFromModal(selectedItem)}
-                        className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 ${
-                          selectedItem.isAvailable === false
-                            ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                            : "bg-[#FF5C00] hover:bg-[#e05200] text-white shadow-[#FF5C00]/20"
-                        }`}
+                        className={`flex items-center gap-1.5 px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-wider shadow-md transition-all active:scale-95 ${selectedItem.isAvailable === false
+                          ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
+                          : "bg-[#FF5C00] hover:bg-[#e05200] text-white shadow-[#FF5C00]/20"
+                          }`}
                       >
                         <MdAdd className="text-base" />
                         <span>{selectedItem.isAvailable === false ? "Unavailable" : "Add to Cart"}</span>
