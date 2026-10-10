@@ -47,6 +47,31 @@ export const Colors = {
   footerMuted: '#52525B',
   footerLine: '#3F3F46',
   footerSub: '#71717A',
+
+  // Cart & Slate palette
+  cartBg: '#FCFCFC',
+  slate50: '#F8FAFC',
+  slate100: '#F1F5F9',
+  slate200: '#E2E8F0',
+  slate300: '#CBD5E1',
+  slate400: '#94A3B8',
+  slate450: '#8291A5',
+  slate500: '#64748B',
+  slate600: '#475569',
+  slate700: '#334155',
+  slate800: '#1E293B',
+  slate900: '#0F172A',
+
+  // Cart status & accents
+  orange50: '#FFF7ED',
+  rose50: '#FFF1F2',
+  rose500: '#F43F5E',
+  rose600: '#E11D48',
+  rose800: '#9F1239',
+  roseWarningBg: '#FFF5F5',
+  roseWarningBorder: '#FFE2E2',
+  emerald600: '#059669',
+  emerald700: '#047857',
 } as const;
 
 export const Spacing = {
