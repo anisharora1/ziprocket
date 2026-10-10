@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -40,11 +40,18 @@ const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP).map((id) => ({
 export default function GroceryIndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { q } = useLocalSearchParams<{ q?: string }>();
   const { cart, addToCart, updateQuantity } = useCart();
   const { getGroceryStatusMessage } = usePlatform();
   const groceryStatusMessage = getGroceryStatusMessage();
 
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(q || '');
+
+  useEffect(() => {
+    if (q) {
+      setSearchQuery(q);
+    }
+  }, [q]);
 
   // Fetch featured & recent grocery products
   const { data: featuredProducts = [], isLoading: featuredLoading } = useQuery<Product[]>({

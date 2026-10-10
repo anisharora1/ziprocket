@@ -1,13 +1,16 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Tabs } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
+import { Tabs, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors, Typography, FontFamily } from '../../src/constants/theme';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
+import { useIsSearchFocused } from '../../src/services/searchFocusStore';
 
 export default function TabLayout() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
+  const isSearchFocused = useIsSearchFocused();
   const bottomInset = Math.max(insets.bottom, 10);
   const tabHeight = 56 + bottomInset;
 
@@ -37,17 +40,62 @@ export default function TabLayout() {
           name="home"
           options={{
             title: 'Home',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="home" size={size || 24} color={color} />
-            ),
+            tabBarAccessibilityLabel: isSearchFocused ? 'Home tab' : 'Home, active tab',
+            tabBarIcon: ({ size, focused }) => {
+              const active = focused && !isSearchFocused;
+              return (
+                <MaterialIcons
+                  name="home"
+                  size={size || 24}
+                  color={active ? Colors.primary : Colors.textSecondary}
+                />
+              );
+            },
+            tabBarLabel: ({ focused }) => {
+              const active = focused && !isSearchFocused;
+              return (
+                <Text
+                  style={[
+                    styles.tabBarLabel,
+                    { color: active ? Colors.primary : Colors.textSecondary },
+                  ]}
+                >
+                  Home
+                </Text>
+              );
+            },
           }}
         />
         <Tabs.Screen
           name="search"
+          listeners={{
+            tabPress: (e) => {
+              e.preventDefault();
+              router.navigate({
+                pathname: '/(tabs)/home',
+                params: { focusSearch: String(Date.now()) },
+              });
+            },
+          }}
           options={{
             title: 'Search',
-            tabBarIcon: ({ color, size }) => (
-              <MaterialIcons name="search" size={size || 24} color={color} />
+            tabBarAccessibilityLabel: isSearchFocused ? 'Search, active tab' : 'Search tab',
+            tabBarIcon: ({ size }) => (
+              <MaterialIcons
+                name="search"
+                size={size || 24}
+                color={isSearchFocused ? Colors.primary : Colors.textSecondary}
+              />
+            ),
+            tabBarLabel: () => (
+              <Text
+                style={[
+                  styles.tabBarLabel,
+                  { color: isSearchFocused ? Colors.primary : Colors.textSecondary },
+                ]}
+              >
+                Search
+              </Text>
             ),
           }}
         />
@@ -80,5 +128,10 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  tabBarLabel: {
+    fontFamily: FontFamily.semibold,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold,
   },
 });

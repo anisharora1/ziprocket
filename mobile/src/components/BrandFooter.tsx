@@ -41,24 +41,24 @@ export default function BrandFooter() {
           adjustsFontSizeToFit
           numberOfLines={1}
         >
-          delivery app
+          delivery app ❤️
         </Text>
-        <View style={styles.brandRow}>
-          <Text
-            style={[
-              styles.brandText,
-              { fontSize: headingFontSize, lineHeight: headingLineHeight },
-            ]}
-          >
-            ziprocket
-          </Text>
-          <MaterialIcons
-            name="rocket-launch"
-            size={Math.round(headingFontSize * 0.72)}
-            color={Colors.primary}
-            style={styles.rocketIcon}
-          />
-        </View>
+      </View>
+      <View style={styles.brandRow}>
+        <Text
+          style={[
+            styles.brandText,
+            { fontSize: headingFontSize, lineHeight: headingLineHeight },
+          ]}
+        >
+          ziprocket
+        </Text>
+        <MaterialIcons
+          name="rocket-launch"
+          size={Math.round(headingFontSize * 0.72)}
+          color={Colors.primary}
+          style={styles.rocketIcon}
+        />
       </View>
 
       {/* Thin Divider Line with 12px Diagonal Tail */}
@@ -79,12 +79,12 @@ export default function BrandFooter() {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    backgroundColor: Colors.footerBg,
+    backgroundColor: 'transparent',
     paddingHorizontal: 32,
-    paddingTop: 48,
+    paddingTop: 58,
   },
   headingBlock: {
-    marginBottom: 24,
+    marginBottom: 25,
   },
   mutedHeadingText: {
     fontFamily: FontFamily.extraBold,

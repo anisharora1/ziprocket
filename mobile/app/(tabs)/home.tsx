@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import {
   View,
   ScrollView,
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Header from '../../src/components/Header';
 import SearchBar from '../../src/components/SearchBar';
@@ -19,8 +21,34 @@ import BrandFooter from '../../src/components/BrandFooter';
 import { apiClient } from '../../src/services/api';
 import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
+import { searchFocusStore } from '../../src/services/searchFocusStore';
 
 export default function HomeScreen() {
+  const scrollRef = useRef<ScrollView>(null);
+  const searchInputRef = useRef<TextInput>(null);
+  const { focusSearch } = useLocalSearchParams<{ focusSearch?: string }>();
+  const prevFocusSearchRef = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (focusSearch && focusSearch !== prevFocusSearchRef.current) {
+      prevFocusSearchRef.current = focusSearch;
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [focusSearch]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        searchInputRef.current?.blur();
+        searchFocusStore.setIsFocused(false);
+      };
+    }, [])
+  );
+
   const {
     data: restaurants = [],
     isLoading,
@@ -39,8 +67,11 @@ export default function HomeScreen() {
       <Header />
 
       <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets={true}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -51,7 +82,7 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.body}>
-          <SearchBar />
+          <SearchBar inputRef={searchInputRef} />
           <HeroCarousel />
           <Categories />
           <TopRated />
