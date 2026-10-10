@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import OptimizedImage from './OptimizedImage';
+import { usePlatform } from '../context/PlatformContext';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
 export interface Product {
@@ -9,6 +10,7 @@ export interface Product {
   name: string;
   brand?: string;
   category?: string;
+  subcategory?: string;
   price: number;
   discountedPrice?: number;
   stockQuantity: number;
@@ -33,8 +35,41 @@ export default function ProductCard({
   updateQuantity,
 }: ProductCardProps) {
   const currentPrice = prod.discountedPrice || prod.price;
-  const isAvailable = prod.isAvailable !== false && prod.stockQuantity > 0;
+  const { isGroceryCurrentlyOpen } = usePlatform();
+  const isGroceryOpen = isGroceryCurrentlyOpen();
+
+  const isAvailable = prod.isAvailable !== false && prod.stockQuantity > 0 && isGroceryOpen;
   const imgUri = prod.images?.[0] || '';
+
+  const handleDecrease = () => {
+    if (!isGroceryOpen) return;
+    updateQuantity(`groc-${prod._id}`, qty - 1);
+  };
+
+  const handleIncrease = () => {
+    if (!isGroceryOpen) return;
+    if (qty >= prod.stockQuantity) {
+      Alert.alert('Stock Limit', `Sorry! Only ${prod.stockQuantity} units available.`);
+      return;
+    }
+    updateQuantity(`groc-${prod._id}`, qty + 1);
+  };
+
+  const handleAdd = () => {
+    if (!isAvailable) return;
+    addToCart({
+      item: {
+        id: `groc-${prod._id}`,
+        name: prod.name,
+        price: currentPrice,
+        quantity: 1,
+        img: imgUri,
+      },
+      vendorId: 'zip-grocery-hub',
+      vendorName: 'ZipGrocery Stores',
+      orderType: 'grocery',
+    });
+  };
 
   return (
     <View style={styles.card}>
@@ -45,15 +80,19 @@ export default function ProductCard({
         </View>
       ) : null}
 
-      {/* Product Image */}
+      {/* Product Image Box */}
       <View style={styles.imageBox}>
-        <OptimizedImage
-          src={imgUri}
-          alt={prod.name}
-          preset="thumbnail"
-          style={styles.productImage}
-          contentFit="contain"
-        />
+        {imgUri ? (
+          <OptimizedImage
+            src={imgUri}
+            alt={prod.name}
+            preset="thumbnail"
+            style={styles.productImage}
+            contentFit="contain"
+          />
+        ) : (
+          <MaterialIcons name="image" size={32} color={Colors.textMuted} />
+        )}
 
         {/* Add / Qty controls overlay at bottom-right of image */}
         <View style={styles.cartControlOverlay}>
@@ -61,14 +100,16 @@ export default function ProductCard({
             <View style={styles.qtyControlBox}>
               <Pressable
                 style={styles.qtyBtn}
-                onPress={() => updateQuantity(`groc-${prod._id}`, qty - 1)}
+                onPress={handleDecrease}
+                disabled={!isGroceryOpen}
               >
                 <MaterialIcons name="remove" size={14} color={Colors.primary} />
               </Pressable>
               <Text style={styles.qtyText}>{qty}</Text>
               <Pressable
                 style={styles.qtyBtn}
-                onPress={() => updateQuantity(`groc-${prod._id}`, qty + 1)}
+                onPress={handleIncrease}
+                disabled={!isGroceryOpen}
               >
                 <MaterialIcons name="add" size={14} color={Colors.primary} />
               </Pressable>
@@ -77,20 +118,7 @@ export default function ProductCard({
             <Pressable
               disabled={!isAvailable}
               style={[styles.addBtn, !isAvailable && styles.disabledAddBtn]}
-              onPress={() =>
-                addToCart({
-                  item: {
-                    id: `groc-${prod._id}`,
-                    name: prod.name,
-                    price: currentPrice,
-                    quantity: 1,
-                    img: imgUri,
-                  },
-                  vendorId: 'zip-grocery-hub',
-                  vendorName: 'ZipGrocery Stores',
-                  orderType: 'grocery',
-                })
-              }
+              onPress={handleAdd}
             >
               <Text
                 style={[
@@ -98,21 +126,31 @@ export default function ProductCard({
                   !isAvailable && styles.disabledAddBtnText,
                 ]}
               >
-                {!isAvailable ? 'Out of Stock' : 'Add'}
+                {!isGroceryOpen
+                  ? 'Closed'
+                  : !prod.isAvailable
+                  ? 'Unavailable'
+                  : prod.stockQuantity === 0
+                  ? 'Out of Stock'
+                  : 'Add'}
               </Text>
             </Pressable>
           )}
         </View>
       </View>
 
-      {/* Info details */}
+      {/* Details Box */}
       <View style={styles.infoBox}>
-        {prod.weightSize ? (
-          <Text style={styles.weightText}>{prod.weightSize}</Text>
-        ) : null}
+        <Text style={styles.brandText} numberOfLines={1}>
+          {prod.brand || 'Local Brand'}
+        </Text>
         <Text style={styles.nameText} numberOfLines={2}>
           {prod.name}
         </Text>
+        {prod.weightSize ? (
+          <Text style={styles.weightText}>{prod.weightSize}</Text>
+        ) : null}
+
         <View style={styles.priceRow}>
           <Text style={styles.priceText}>₹{currentPrice}</Text>
           {prod.discountedPrice && prod.price > prod.discountedPrice ? (
@@ -174,7 +212,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.surface,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
@@ -218,10 +256,12 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     paddingTop: Spacing.md,
   },
-  weightText: {
-    fontFamily: FontFamily.medium,
-    fontSize: 10,
+  brandText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 9,
     color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginBottom: 2,
   },
   nameText: {
@@ -232,11 +272,18 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     minHeight: 36,
   },
+  weightText: {
+    fontFamily: FontFamily.medium,
+    fontSize: 10,
+    color: Colors.textMuted,
+    marginTop: 2,
+    marginBottom: 4,
+  },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     gap: Spacing.xs,
-    marginTop: 4,
+    marginTop: 'auto',
   },
   priceText: {
     fontFamily: FontFamily.bold,

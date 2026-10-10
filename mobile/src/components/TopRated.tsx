@@ -28,9 +28,7 @@ export default function TopRated() {
     <View style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.sectionTitle}>Top Rated Near You</Text>
-        <Pressable onPress={() => router.push('/(tabs)/search')}>
-          <Text style={styles.seeAllText}>See all</Text>
-        </Pressable>
+        <Text style={styles.seeAllText}>SPONSORED CHOICES</Text>
       </View>
 
       <ScrollView

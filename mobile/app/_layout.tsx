@@ -15,6 +15,7 @@ import {
 import { AuthProvider } from '../src/context/AuthContext';
 import { SocketProvider } from '../src/context/SocketContext';
 import { LocationProvider } from '../src/context/LocationContext';
+import { PlatformProvider } from '../src/context/PlatformContext';
 import { CartProvider } from '../src/context/CartContext';
 import { Colors } from '../src/constants/theme';
 
@@ -53,19 +54,22 @@ export default function RootLayout() {
         <AuthProvider>
           <SocketProvider>
             <LocationProvider>
-              <CartProvider>
-                <StatusBar style="dark" />
-                <Stack screenOptions={{ headerShown: false }}>
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)/login" />
-                  <Stack.Screen name="(tabs)" />
-                  <Stack.Screen name="restaurants/[id]" />
-                  <Stack.Screen name="grocery/index" />
-                  <Stack.Screen name="cart/index" />
-                  <Stack.Screen name="checkout/index" />
-                  <Stack.Screen name="addresses/index" />
-                </Stack>
-              </CartProvider>
+              <PlatformProvider>
+                <CartProvider>
+                  <StatusBar style="dark" />
+                  <Stack screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="index" options={{ headerShown: false }} />
+                    <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
+                    <Stack.Screen name="grocery/index" options={{ headerShown: false }} />
+                    <Stack.Screen name="grocery/category/[categoryName]" options={{ headerShown: false }} />
+                    <Stack.Screen name="cart/index" options={{ headerShown: false }} />
+                    <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
+                    <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
+                  </Stack>
+                </CartProvider>
+              </PlatformProvider>
             </LocationProvider>
           </SocketProvider>
         </AuthProvider>
