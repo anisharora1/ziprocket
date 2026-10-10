@@ -41,6 +41,12 @@ export const Colors = {
   white: '#FFFFFF',
   black: '#000000',
   overlay: 'rgba(0, 0, 0, 0.5)',
+
+  // Brand Footer
+  footerBg: '#18181B',
+  footerMuted: '#52525B',
+  footerLine: '#3F3F46',
+  footerSub: '#71717A',
 } as const;
 
 export const Spacing = {

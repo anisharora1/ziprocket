@@ -15,6 +15,7 @@ import Categories from '../../src/components/Categories';
 import TopRated from '../../src/components/TopRated';
 import RestaurantList from '../../src/components/RestaurantList';
 import PopularGroceries from '../../src/components/PopularGroceries';
+import BrandFooter from '../../src/components/BrandFooter';
 import { apiClient } from '../../src/services/api';
 import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
@@ -63,6 +64,8 @@ export default function HomeScreen() {
           )}
           <PopularGroceries />
         </View>
+
+        {!isLoading && <BrandFooter />}
       </ScrollView>
     </SafeAreaView>
   );
@@ -74,10 +77,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   scrollContent: {
-    paddingBottom: 110, // Generous padding so floating cart button does not block content
+    paddingBottom: 0,
   },
   body: {
     paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.md,
     gap: Spacing.sm,
   },
   centerLoading: {

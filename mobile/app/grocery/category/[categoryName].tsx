@@ -17,6 +17,7 @@ import { useCart } from '../../../src/context/CartContext';
 import OptimizedImage from '../../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../../src/components/ProductCard';
 import FloatingCartButton from '../../../src/components/FloatingCartButton';
+import BrandFooter from '../../../src/components/BrandFooter';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_SUBCATEGORY_ICONS,
@@ -187,10 +188,7 @@ export default function CategoryProductsScreen() {
               keyExtractor={(item) => item._id}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}
-              contentContainerStyle={[
-                styles.gridContent,
-                { paddingBottom: insets.bottom + 90 },
-              ]}
+              contentContainerStyle={styles.gridContent}
               showsVerticalScrollIndicator={false}
               renderItem={({ item }) => (
                 <View style={styles.cardContainer}>
@@ -202,6 +200,7 @@ export default function CategoryProductsScreen() {
                   />
                 </View>
               )}
+              ListFooterComponent={products.length > 0 ? <BrandFooter /> : null}
             />
           )}
         </View>

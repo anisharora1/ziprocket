@@ -245,13 +245,6 @@ export default function RestaurantDetailScreen() {
           <Pressable onPress={handleShare} style={styles.topIconBtn}>
             <MaterialIcons name="share" size={20} color={Colors.textSecondary} />
           </Pressable>
-          <Pressable onPress={() => setIsFavorite(!isFavorite)} style={styles.topIconBtn}>
-            <MaterialIcons
-              name={isFavorite ? 'favorite' : 'favorite-border'}
-              size={20}
-              color={isFavorite ? Colors.error : Colors.textSecondary}
-            />
-          </Pressable>
         </View>
       </View>
 
@@ -328,7 +321,7 @@ export default function RestaurantDetailScreen() {
               </View>
             </View>
 
-            {/* Restaurant Cover Image */}
+            {/* Restaurant Cover Image
             <View style={styles.heroImageContainer}>
               <OptimizedImage
                 src={
@@ -340,7 +333,7 @@ export default function RestaurantDetailScreen() {
                 style={styles.heroImage}
                 contentFit="cover"
               />
-            </View>
+            </View> */}
           </View>
         </View>
 
@@ -353,16 +346,16 @@ export default function RestaurantDetailScreen() {
                 {settings?.maintenanceMode
                   ? 'Platform Maintenance Mode'
                   : !isPlatformCurrentlyOpen()
-                  ? 'ZipRocket Orders Currently Closed'
-                  : 'Restaurant Currently Unavailable'}
+                    ? 'ZipRocket Orders Currently Closed'
+                    : 'Restaurant Currently Unavailable'}
               </Text>
               <Text style={styles.warningDesc}>
                 {platformMsg ||
                   (restaurant?.availabilityStatus === 'disabled'
                     ? 'This restaurant is temporarily disabled by administration.'
                     : !isWithinHours && openTimeFormatted
-                    ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
-                    : 'This restaurant is currently closed and not accepting online orders right now.')}
+                      ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
+                      : 'This restaurant is currently closed and not accepting online orders right now.')}
               </Text>
             </View>
           </View>
@@ -550,8 +543,8 @@ export default function RestaurantDetailScreen() {
                         <View style={styles.priceRow}>
                           <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
                           {item.discountedPrice &&
-                          Number(item.discountedPrice) > 0 &&
-                          item.price > item.discountedPrice ? (
+                            Number(item.discountedPrice) > 0 &&
+                            item.price > item.discountedPrice ? (
                             <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
                           ) : null}
                         </View>

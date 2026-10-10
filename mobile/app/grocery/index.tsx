@@ -18,6 +18,7 @@ import { usePlatform } from '../../src/context/PlatformContext';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../src/components/ProductCard';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
+import BrandFooter from '../../src/components/BrandFooter';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_CATEGORY_DISPLAY,
@@ -62,6 +63,8 @@ export default function GroceryIndexScreen() {
     },
   });
 
+  const isInitialLoading = featuredLoading || recentLoading;
+
   // Search query
   const { data: searchResults = [], isFetching: isSearching } = useQuery<Product[]>({
     queryKey: ['grocery-search', searchQuery],
@@ -99,21 +102,19 @@ export default function GroceryIndexScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 80 },
-        ]}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Quick Commerce Search Banner */}
-        <View style={styles.heroBanner}>
-          <View style={styles.badgeRow}>
-            <Text style={styles.badgeText}>DELIVERY IN 10 MINUTES</Text>
-          </View>
-          <Text style={styles.bannerTitle}>ZipGrocery Store</Text>
-          <Text style={styles.bannerSubtitle}>
-            Fresh vegetables, dairy, household items & munchies delivered instantly!
-          </Text>
+        <View style={styles.body}>
+          {/* Quick Commerce Search Banner */}
+          <View style={styles.heroBanner}>
+            <View style={styles.badgeRow}>
+              <Text style={styles.badgeText}>DELIVERY IN 10 MINUTES</Text>
+            </View>
+            <Text style={styles.bannerTitle}>ZipGrocery Store</Text>
+            <Text style={styles.bannerSubtitle}>
+              Fresh vegetables, dairy, household items & munchies delivered instantly!
+            </Text>
 
           {/* Search Input Box */}
           <View style={styles.searchBarBox}>
@@ -266,6 +267,9 @@ export default function GroceryIndexScreen() {
             </View>
           </>
         )}
+        </View>
+
+        {!isInitialLoading && <BrandFooter />}
       </ScrollView>
 
       {/* Floating Bottom Cart Bar */}
@@ -298,6 +302,9 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
   scrollContent: {
+    paddingBottom: 0,
+  },
+  body: {
     padding: Spacing.md,
   },
   heroBanner: {

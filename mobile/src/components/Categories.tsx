@@ -3,171 +3,76 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
-interface CategoryItem {
-  name: string;
-  icon: string;
-  bg: string;
-  isGrocery: boolean;
-  categoryName?: string;
-  searchQuery?: string;
-}
-
-const HOME_CATEGORIES: CategoryItem[] = [
-  {
-    name: 'Fruits & Veggies',
-    icon: '🥦',
-    bg: '#E6F4EA',
-    isGrocery: true,
-    categoryName: 'Vegetables & Fruits',
-  },
-  {
-    name: 'Dairy & Bread',
-    icon: '🥛',
-    bg: '#FDF4E5',
-    isGrocery: true,
-    categoryName: 'Dairy & Bread',
-  },
-  {
-    name: 'Munchies',
-    icon: '🍿',
-    bg: '#FFF1E6',
-    isGrocery: true,
-    categoryName: 'Munchies',
-  },
-  {
-    name: 'Drinks & Juices',
-    icon: '🥤',
-    bg: '#E8F0FE',
-    isGrocery: true,
-    categoryName: 'Cold Drinks & Juices',
-  },
-  {
-    name: 'Atta, Rice, Oils',
-    icon: '🌾',
-    bg: '#FFEBE5',
-    isGrocery: true,
-    categoryName: 'Atta, Rice & Dals',
-  },
-  {
-    name: 'Biryani',
-    icon: '🥘',
-    bg: '#FFF2E6',
-    isGrocery: false,
-    searchQuery: 'Biryani',
-  },
-  {
-    name: 'Pizza & Pasta',
-    icon: '🍕',
-    bg: '#FCE8E6',
-    isGrocery: false,
-    searchQuery: 'Pizza',
-  },
-  {
-    name: 'Burgers',
-    icon: '🍔',
-    bg: '#E6F4EA',
-    isGrocery: false,
-    searchQuery: 'Burger',
-  },
-];
-
 export default function Categories() {
   const router = useRouter();
 
-  const handleCategoryPress = (cat: CategoryItem) => {
-    if (cat.isGrocery && cat.categoryName) {
-      router.push({
-        pathname: '/grocery/category/[categoryName]',
-        params: { categoryName: cat.categoryName },
-      } as any);
-    } else {
-      router.push('/(tabs)/search' as any);
-    }
-  };
-
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>What would you like to order?</Text>
-        <Text style={styles.badge}>FOOD & GROCERIES</Text>
-      </View>
+      {/* Food category */}
+      <Pressable
+        style={styles.card}
+        onPress={() => router.push('/(tabs)/search')}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: '#FFF1E6' }]}>
+          <Text style={styles.emoji}>🍔</Text>
+        </View>
+        <Text style={styles.title}>Food</Text>
+        <Text style={styles.subtitle}>Hungry?</Text>
+      </Pressable>
 
-      <View style={styles.grid}>
-        {HOME_CATEGORIES.map((cat) => (
-          <Pressable
-            key={cat.name}
-            style={styles.card}
-            onPress={() => handleCategoryPress(cat)}
-          >
-            <View style={[styles.iconCircle, { backgroundColor: cat.bg }]}>
-              <Text style={styles.emoji}>{cat.icon}</Text>
-            </View>
-            <Text style={styles.categoryName} numberOfLines={2}>
-              {cat.name}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      {/* Grocery category */}
+      <Pressable
+        style={styles.card}
+        onPress={() => router.push('/grocery' as any)}
+      >
+        <View style={[styles.iconCircle, { backgroundColor: '#E6F4EA' }]}>
+          <Text style={styles.emoji}>🛒</Text>
+        </View>
+        <Text style={styles.title}>Grocery</Text>
+        <Text style={styles.subtitle}>Fresh Daily</Text>
+      </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    flexDirection: 'row',
+    gap: Spacing.md,
     marginVertical: Spacing.sm,
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  title: {
-    fontFamily: FontFamily.bold,
-    fontSize: Typography.fontSize.base,
-    color: Colors.textPrimary,
-  },
-  badge: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: 9,
-    color: Colors.textMuted,
-    letterSpacing: 0.5,
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.xs + 2,
-    justifyContent: 'space-between',
-  },
   card: {
-    width: '23%',
+    flex: 1,
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: 4,
+    borderRadius: BorderRadius.xxl,
+    paddingVertical: Spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    marginBottom: Spacing.xs,
     ...Shadows.sm,
   },
   iconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.full,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: Spacing.xs,
   },
   emoji: {
-    fontSize: 20,
+    fontSize: 28,
   },
-  categoryName: {
+  title: {
     fontFamily: FontFamily.bold,
-    fontSize: 10,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    textAlign: 'center',
-    lineHeight: 12,
+  },
+  subtitle: {
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
 });
