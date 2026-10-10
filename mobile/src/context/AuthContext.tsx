@@ -1,13 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
-import { apiClient } from '../services/api';
+import { apiClient, setOnUnauthorized } from '../services/api';
 
 export interface User {
   _id: string;
   name: string;
   phone: string;
   email?: string;
-  role: 'customer' | 'seller' | 'delivery' | 'grocery_moderator' | 'admin';
+  role: 'customer' | 'seller' | 'delivery' | 'grocery_moderator' | 'admin' | string;
 }
 
 export interface AuthContextType {
@@ -67,6 +67,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(newUser);
     apiClient.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
   }, []);
+
+  // Register unauthorized callback with API client
+  useEffect(() => {
+    setOnUnauthorized(logout);
+    return () => {
+      setOnUnauthorized(null);
+    };
+  }, [logout]);
 
   useEffect(() => {
     const bootstrapAuth = async () => {

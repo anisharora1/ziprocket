@@ -12,6 +12,13 @@ export const apiClient = axios.create({
   timeout: 15000,
 });
 
+let onUnauthorizedCallback: (() => void) | null = null;
+let isHandlingUnauthorized = false;
+
+export const setOnUnauthorized = (callback: (() => void) | null) => {
+  onUnauthorizedCallback = callback;
+};
+
 // Request interceptor: Attach JWT Bearer token from SecureStore
 apiClient.interceptors.request.use(
   async (config) => {
@@ -46,14 +53,35 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    if (__DEV__) {
+    const status = error.response?.status;
+    const url = error.config?.url || '';
+    const isCart401 = status === 401 && url.includes('/cart');
+
+    // Only log errors in __DEV__ if not a /cart 401
+    if (__DEV__ && !isCart401) {
       console.error('[API Error]:', {
-        url: error.config?.url,
+        url,
         method: error.config?.method,
-        status: error.response?.status,
+        status,
         message: error.response?.data?.message || error.message,
       });
     }
+
+    // On 401 from any request that carried a token, trigger onUnauthorized once
+    const carriedToken = !!error.config?.headers?.Authorization;
+    if (status === 401 && carriedToken && onUnauthorizedCallback && !isHandlingUnauthorized) {
+      isHandlingUnauthorized = true;
+      try {
+        onUnauthorizedCallback();
+      } catch (e) {
+        console.warn('[API Client] onUnauthorized handler error:', e);
+      } finally {
+        setTimeout(() => {
+          isHandlingUnauthorized = false;
+        }, 3000);
+      }
+    }
+
     return Promise.reject(error);
   }
 );

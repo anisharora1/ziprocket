@@ -6,6 +6,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useCallback,
 } from 'react';
 import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -52,6 +53,9 @@ export interface CartContextType {
 
 const STORAGE_KEY = 'ziprocket_cart';
 
+// Session-level warning throttle for sync failures (at most once per session)
+let hasWarnedSyncFailure = false;
+
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -64,42 +68,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [showReplaceAlert, setShowReplaceAlert] = useState(false);
   const [pendingPayload, setPendingPayload] = useState<AddToCartPayload | null>(null);
+
   const hasLoadedRef = useRef(false);
-  const { user } = useAuth();
+  const cartVersionRef = useRef(0);
+  const prevTokenRef = useRef<string | null>(null);
+  const { token } = useAuth();
 
-  // 1. Load cart on initial mount or when auth user changes
-  useEffect(() => {
-    const loadCart = async () => {
-      if (user) {
-        try {
-          const res = await apiClient.get('/cart');
-          if (res.data?.success && res.data?.cart) {
-            const backendCart = res.data.cart;
-            const formattedItems = (backendCart.items || []).map((i: any) => ({
-              id: i.itemId || i.id,
-              name: i.name,
-              price: i.price,
-              quantity: i.quantity,
-              img: i.img,
-            }));
-            setCart({
-              items: formattedItems,
-              vendorId: backendCart.vendorId || null,
-              vendorName: backendCart.vendorName || null,
-              orderType: backendCart.orderType || null,
-            });
-            return;
-          }
-        } catch (err) {
-          console.warn('[Cart] Failed to load synced cart from backend:', err);
-        }
+  // Helper to persist to AsyncStorage immediately (source of truth)
+  const saveToLocalStorage = useCallback(async (cartState: CartState) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cartState));
+    } catch (e) {
+      if (!hasWarnedSyncFailure) {
+        console.warn('[Cart] Failed saving to AsyncStorage:', e);
       }
+    }
+  }, []);
 
-      // Guest or offline storage fallback
+  // 1. Initial boot: Always load from AsyncStorage first (offline-first source of truth)
+  useEffect(() => {
+    const initLocalCart = async () => {
       try {
-        const savedCart = await AsyncStorage.getItem(STORAGE_KEY);
-        if (savedCart) {
-          const parsed = JSON.parse(savedCart);
+        const saved = await AsyncStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
             setCart({
               items: Array.isArray(parsed.items) ? parsed.items : [],
@@ -110,25 +102,135 @@ export function CartProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (e) {
-        console.warn('[Cart] Failed to load local cart from AsyncStorage:', e);
+        if (!hasWarnedSyncFailure) {
+          console.warn('[Cart] Local cart read exception:', e);
+        }
+      } finally {
+        hasLoadedRef.current = true;
       }
     };
 
-    loadCart().then(() => {
-      hasLoadedRef.current = true;
-    });
-  }, [user]);
+    initLocalCart();
+  }, []);
 
-  // 2. Persist to AsyncStorage and sync to backend (debounced)
+  // 2. Auth changes: sync with backend on login, clear on logout
   useEffect(() => {
     if (!hasLoadedRef.current) return;
 
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cart)).catch((e) => {
-      console.warn('[Cart] Error saving to AsyncStorage:', e);
-    });
+    const hadToken = !!prevTokenRef.current;
+    const hasToken = !!token;
+    prevTokenRef.current = token;
 
-    if (!user) return;
+    // Logout: Clear the cart state and storage
+    if (hadToken && !hasToken) {
+      cartVersionRef.current += 1;
+      const emptyState: CartState = {
+        items: [],
+        vendorId: null,
+        vendorName: null,
+        orderType: null,
+      };
+      setCart(emptyState);
+      AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+      return;
+    }
 
+    // Login: Real token is now available, sync/merge with backend
+    if (hasToken) {
+      const syncOnLogin = async () => {
+        const currentVersion = cartVersionRef.current;
+        try {
+          const res = await apiClient.get('/cart');
+          // Safeguard: Discard response if user mutated cart while in flight
+          if (cartVersionRef.current !== currentVersion) return;
+
+          if (res.data?.success && res.data?.cart) {
+            const backendCart = res.data.cart;
+            const backendItems: CartItem[] = (backendCart.items || []).map((i: any) => ({
+              id: i.itemId || i.id,
+              name: i.name,
+              price: Number(i.price),
+              quantity: Number(i.quantity),
+              img: i.img,
+            }));
+
+            setCart((currentLocalCart) => {
+              // Case A: Local cart has items
+              if (currentLocalCart.items.length > 0) {
+                // If same vendor and orderType, merge items
+                if (
+                  backendCart.vendorId &&
+                  currentLocalCart.vendorId === backendCart.vendorId &&
+                  currentLocalCart.orderType === backendCart.orderType
+                ) {
+                  const mergedMap = new Map<string, CartItem>();
+                  backendItems.forEach((item) => mergedMap.set(item.id, item));
+                  currentLocalCart.items.forEach((item) => {
+                    if (mergedMap.has(item.id)) {
+                      const existing = mergedMap.get(item.id)!;
+                      mergedMap.set(item.id, {
+                        ...item,
+                        quantity: Math.max(item.quantity, existing.quantity),
+                      });
+                    } else {
+                      mergedMap.set(item.id, item);
+                    }
+                  });
+
+                  const mergedState: CartState = {
+                    items: Array.from(mergedMap.values()),
+                    vendorId: currentLocalCart.vendorId,
+                    vendorName: currentLocalCart.vendorName,
+                    orderType: currentLocalCart.orderType,
+                  };
+                  saveToLocalStorage(mergedState);
+                  return mergedState;
+                }
+
+                // If different vendors or backend is empty, keep current local cart
+                saveToLocalStorage(currentLocalCart);
+                return currentLocalCart;
+              }
+
+              // Case B: Local cart was empty, adopt backend cart if it has items
+              if (backendItems.length > 0) {
+                const newCartState: CartState = {
+                  items: backendItems,
+                  vendorId: backendCart.vendorId || null,
+                  vendorName: backendCart.vendorName || null,
+                  orderType: backendCart.orderType || null,
+                };
+                saveToLocalStorage(newCartState);
+                return newCartState;
+              }
+
+              return currentLocalCart;
+            });
+          }
+        } catch (err: any) {
+          if (!hasWarnedSyncFailure) {
+            hasWarnedSyncFailure = true;
+            console.warn('[Cart] Sync on login failed (operating in offline fallback):', err?.message);
+          }
+          // Never clear or overwrite local cart on failure
+        }
+      };
+
+      syncOnLogin();
+    }
+  }, [token, saveToLocalStorage]);
+
+  // 3. Debounced backend sync on cart changes (Only when real token exists)
+  useEffect(() => {
+    if (!hasLoadedRef.current) return;
+
+    // Immediately persist every state update locally
+    saveToLocalStorage(cart);
+
+    // If no authenticated token (guest), do NOT make any network calls to /cart
+    if (!token) return;
+
+    const currentVersion = cartVersionRef.current;
     const timeout = setTimeout(async () => {
       try {
         await apiClient.post('/cart', {
@@ -137,15 +239,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
           vendorName: cart.vendorName,
           orderType: cart.orderType,
         });
-      } catch (err) {
-        console.warn('[Cart] Failed to sync cart to backend:', err);
+      } catch (err: any) {
+        if (cartVersionRef.current === currentVersion && !hasWarnedSyncFailure) {
+          hasWarnedSyncFailure = true;
+          console.warn('[Cart] Background sync failed (retaining local state):', err?.message);
+        }
       }
     }, 800);
 
     return () => clearTimeout(timeout);
-  }, [cart, user]);
+  }, [cart, token, saveToLocalStorage]);
 
   const addToCart = (payload: AddToCartPayload) => {
+    cartVersionRef.current += 1;
+
     // If cart is empty, simply initialize
     if (cart.items.length === 0) {
       setCart({
@@ -183,6 +290,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const confirmReplaceCart = () => {
+    cartVersionRef.current += 1;
     if (pendingPayload) {
       setCart({
         items: [{ ...pendingPayload.item, quantity: 1 }],
@@ -201,6 +309,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = (itemId: string) => {
+    cartVersionRef.current += 1;
     setCart((prev) => {
       const nextItems = prev.items.filter((i) => i.id !== itemId);
       if (nextItems.length === 0) {
@@ -211,6 +320,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    cartVersionRef.current += 1;
     if (quantity <= 0) {
       removeFromCart(itemId);
       return;
@@ -222,6 +332,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const clearCart = () => {
+    cartVersionRef.current += 1;
     setCart({ items: [], vendorId: null, vendorName: null, orderType: null });
   };
 

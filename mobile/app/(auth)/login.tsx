@@ -1,71 +1,324 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  StyleSheet,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { apiClient } from '../../src/services/api';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../src/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
-  const [phone, setPhone] = useState('');
 
-  const handleMockLogin = async () => {
-    // Placeholder login for development/demo testing
-    await login('mock_jwt_token_for_preview', {
-      _id: 'guest_user_1',
-      name: 'Preview User',
-      phone: phone || '9876543210',
-      role: 'customer',
-    });
-    router.replace('/(tabs)/home');
+  const [step, setStep] = useState<1 | 2>(1);
+  const [phone, setPhone] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [timer, setTimer] = useState(30);
+
+  const otpInputRefs = useRef<Array<TextInput | null>>([null, null, null, null, null, null]);
+
+  // Resend OTP countdown timer
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+    if (step === 2 && timer > 0) {
+      interval = setInterval(() => setTimer((t) => t - 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [step, timer]);
+
+  const handleRequestOtp = async () => {
+    const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+    if (cleanPhone.length < 10) {
+      setError('Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const res = await apiClient.post('/auth/request-otp', {
+        phone: cleanPhone,
+      });
+
+      if (res.data?.success) {
+        setStep(2);
+        setTimer(30);
+        setOtp(['', '', '', '', '', '']);
+      } else {
+        setError(res.data?.message || 'Failed to send OTP. Please try again.');
+      }
+    } catch (err: any) {
+      const backendMessage =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Unable to send OTP. Please check your network connection.';
+      setError(backendMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const otpString = otp.join('');
+    if (otpString.length !== 6) {
+      setError('Please enter the 6-digit verification code');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      const res = await apiClient.post('/auth/verify-otp', {
+        phone: cleanPhone,
+        otp: otpString,
+        role: 'customer',
+      });
+
+      if (res.data?.success && res.data?.token && res.data?.user) {
+        const verifiedUser = res.data.user;
+
+        // Role check: Only customers are permitted in this customer app
+        if (verifiedUser.role && verifiedUser.role !== 'customer') {
+          setError('This app is for customers only.');
+          return;
+        }
+
+        await login(res.data.token, verifiedUser);
+        router.replace('/(tabs)/home');
+      } else {
+        setError(res.data?.message || 'Verification failed. Please try again.');
+      }
+    } catch (err: any) {
+      const backendMessage =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        err.message ||
+        'Invalid or expired verification code.';
+      setError(backendMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    const cleanValue = value.replace(/\D/g, '');
+    const newOtp = [...otp];
+
+    if (cleanValue.length > 1) {
+      // Handle paste of 6 digits
+      const digits = cleanValue.slice(0, 6).split('');
+      for (let i = 0; i < 6; i++) {
+        newOtp[i] = digits[i] || '';
+      }
+      setOtp(newOtp);
+      otpInputRefs.current[Math.min(digits.length, 5)]?.focus();
+      return;
+    }
+
+    newOtp[index] = cleanValue;
+    setOtp(newOtp);
+
+    // Auto-advance to next box
+    if (cleanValue && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyPress = (index: number, key: string) => {
+    if (key === 'Backspace' && !otp[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
   };
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Brand header */}
-        <View style={styles.brandHeader}>
-          <View style={styles.logoBadge}>
-            <MaterialIcons name="bolt" size={36} color={Colors.white} />
-          </View>
-          <Text style={styles.brandTitle}>ZipRocket</Text>
-          <Text style={styles.brandSubtitle}>Hyperlocal Food & Grocery Delivery</Text>
-        </View>
-
-        {/* Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Login / Register</Text>
-          <Text style={styles.cardSubtitle}>
-            Enter your mobile number to get an OTP for fast, passwordless login.
-          </Text>
-
-          <View style={styles.inputContainer}>
-            <Text style={styles.countryCode}>+91</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="10-digit mobile number"
-              placeholderTextColor={Colors.textMuted}
-              keyboardType="phone-pad"
-              maxLength={10}
-              value={phone}
-              onChangeText={setPhone}
-            />
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Brand header */}
+          <View style={styles.brandHeader}>
+            <View style={styles.logoBadge}>
+              <MaterialIcons name="bolt" size={36} color={Colors.white} />
+            </View>
+            <Text style={styles.brandTitle}>ZipRocket</Text>
+            <Text style={styles.brandSubtitle}>India's Fastest Delivery</Text>
           </View>
 
-          <Pressable style={styles.primaryButton} onPress={handleMockLogin}>
-            <Text style={styles.primaryButtonText}>Continue with OTP</Text>
-          </Pressable>
+          {/* Form Card */}
+          <View style={styles.card}>
+            {error ? (
+              <View style={styles.errorAlert}>
+                <MaterialIcons name="error-outline" size={18} color={Colors.error} />
+                <Text style={styles.errorAlertText}>{error}</Text>
+              </View>
+            ) : null}
 
-          <Pressable
-            style={styles.secondaryButton}
-            onPress={() => router.replace('/(tabs)/home')}
-          >
-            <Text style={styles.secondaryButtonText}>Skip & Explore as Guest</Text>
-          </Pressable>
-        </View>
-      </View>
+            {step === 1 ? (
+              // Step 1: Mobile number entry
+              <View>
+                <Text style={styles.cardTitle}>Log in or sign up</Text>
+
+                <View style={styles.phoneInputRow}>
+                  <View style={styles.countryCodeBox}>
+                    <MaterialIcons name="flag" size={18} color={Colors.textSecondary} />
+                    <Text style={styles.countryCodeText}>+91</Text>
+                  </View>
+                  <TextInput
+                    style={styles.phoneTextInput}
+                    placeholder="Enter mobile number"
+                    placeholderTextColor={Colors.textMuted}
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                    value={phone}
+                    onChangeText={(val) => {
+                      setPhone(val.replace(/\D/g, '').slice(0, 10));
+                      if (error) setError('');
+                    }}
+                  />
+                </View>
+
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    (loading || phone.length < 10) && styles.disabledButton,
+                  ]}
+                  disabled={loading || phone.length < 10}
+                  onPress={handleRequestOtp}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Continue</Text>
+                  )}
+                </Pressable>
+
+                <View style={styles.smsNoticeRow}>
+                  <View style={styles.smsIconCircle}>
+                    <MaterialIcons name="sms" size={14} color={Colors.primary} />
+                  </View>
+                  <Text style={styles.smsNoticeText}>OTP will be sent via SMS</Text>
+                </View>
+
+                <Pressable
+                  style={styles.guestButton}
+                  onPress={() => router.replace('/(tabs)/home')}
+                >
+                  <Text style={styles.guestButtonText}>Skip & Explore as Guest</Text>
+                </Pressable>
+              </View>
+            ) : (
+              // Step 2: 6-digit OTP entry
+              <View>
+                <View style={styles.verifyHeaderRow}>
+                  <Text style={styles.cardTitle}>Verify Details</Text>
+                  <View style={styles.phoneBadgeRow}>
+                    <Text style={styles.phoneBadgeText}>+91 {phone}</Text>
+                    <Pressable
+                      style={styles.editPhoneButton}
+                      onPress={() => {
+                        setStep(1);
+                        setError('');
+                      }}
+                    >
+                      <MaterialIcons name="edit" size={16} color={Colors.primary} />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* 6 Digit OTP input boxes */}
+                <View style={styles.otpBoxesRow}>
+                  {otp.map((digit, idx) => (
+                    <TextInput
+                      key={idx}
+                      ref={(ref) => {
+                        otpInputRefs.current[idx] = ref;
+                      }}
+                      style={[
+                        styles.otpBox,
+                        digit ? styles.otpBoxFilled : null,
+                      ]}
+                      keyboardType="number-pad"
+                      maxLength={1}
+                      value={digit}
+                      onChangeText={(val) => handleOtpChange(idx, val)}
+                      onKeyPress={({ nativeEvent }) => handleOtpKeyPress(idx, nativeEvent.key)}
+                      autoFocus={idx === 0}
+                    />
+                  ))}
+                </View>
+
+                {/* Timer / Resend Button */}
+                <View style={styles.timerContainer}>
+                  {timer > 0 ? (
+                    <View style={styles.timerRow}>
+                      <MaterialIcons name="schedule" size={16} color={Colors.textSecondary} />
+                      <Text style={styles.timerText}>
+                        Resend OTP in{' '}
+                        <Text style={styles.timerHighlight}>
+                          00:{timer.toString().padStart(2, '0')}
+                        </Text>
+                      </Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      style={styles.resendButton}
+                      onPress={handleRequestOtp}
+                      disabled={loading}
+                    >
+                      <MaterialIcons name="refresh" size={16} color={Colors.primary} />
+                      <Text style={styles.resendButtonText}>Resend OTP now</Text>
+                    </Pressable>
+                  )}
+                </View>
+
+                <Pressable
+                  style={[
+                    styles.primaryButton,
+                    (loading || otp.join('').length !== 6) && styles.disabledButton,
+                  ]}
+                  disabled={loading || otp.join('').length !== 6}
+                  onPress={handleVerifyOtp}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color={Colors.white} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>Verify & Proceed</Text>
+                  )}
+                </Pressable>
+
+                <Pressable
+                  style={styles.guestButton}
+                  onPress={() => router.replace('/(tabs)/home')}
+                >
+                  <Text style={styles.guestButtonText}>Skip & Explore as Guest</Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -75,9 +328,13 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
-  container: {
+  keyboardView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.xl,
     justifyContent: 'center',
   },
   brandHeader: {
@@ -85,9 +342,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   logoBadge: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
+    width: 68,
+    height: 68,
+    borderRadius: BorderRadius.xxl,
     backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -103,7 +360,10 @@ const styles = StyleSheet.create({
   brandSubtitle: {
     fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
-    marginTop: Spacing.xs,
+    fontWeight: Typography.fontWeight.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   card: {
     backgroundColor: Colors.surface,
@@ -115,58 +375,181 @@ const styles = StyleSheet.create({
   },
   cardTitle: {
     fontSize: Typography.fontSize.xl,
-    fontWeight: Typography.fontWeight.bold,
+    fontWeight: Typography.fontWeight.heavy,
     color: Colors.textPrimary,
-  },
-  cardSubtitle: {
-    fontSize: Typography.fontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: Spacing.xs,
     marginBottom: Spacing.md,
-    lineHeight: Typography.lineHeight.sm,
+    textAlign: 'center',
   },
-  inputContainer: {
+  errorAlert: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.errorLight,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: Colors.error,
     borderRadius: BorderRadius.lg,
-    paddingHorizontal: Spacing.md,
-    height: 52,
+    padding: Spacing.sm + 2,
     marginBottom: Spacing.md,
-    backgroundColor: Colors.surfaceMuted,
+    gap: Spacing.xs,
   },
-  countryCode: {
+  errorAlertText: {
+    flex: 1,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.error,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  phoneInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    marginBottom: Spacing.md,
+    backgroundColor: Colors.surface,
+  },
+  countryCodeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceMuted,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    borderRightWidth: 1,
+    borderRightColor: Colors.border,
+    gap: 4,
+  },
+  countryCodeText: {
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginRight: Spacing.sm,
   },
-  textInput: {
+  phoneTextInput: {
     flex: 1,
-    fontSize: Typography.fontSize.base,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
+    letterSpacing: 1,
   },
   primaryButton: {
     backgroundColor: Colors.primary,
-    paddingVertical: Spacing.md - 2,
-    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
     alignItems: 'center',
-    marginBottom: Spacing.sm,
-    ...Shadows.sm,
+    justifyContent: 'center',
+    ...Shadows.md,
+  },
+  disabledButton: {
+    opacity: 0.5,
   },
   primaryButtonText: {
     color: Colors.white,
     fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
+    letterSpacing: 0.5,
   },
-  secondaryButton: {
-    paddingVertical: Spacing.sm,
+  smsNoticeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    marginTop: Spacing.md,
   },
-  secondaryButtonText: {
-    color: Colors.primary,
-    fontSize: Typography.fontSize.sm,
+  smsIconCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primaryAlpha10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smsNoticeText: {
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.textSecondary,
     fontWeight: Typography.fontWeight.semibold,
+  },
+  guestButton: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.sm,
+  },
+  guestButtonText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  verifyHeaderRow: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  phoneBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surfaceMuted,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.full,
+    gap: Spacing.xs,
+  },
+  phoneBadgeText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  editPhoneButton: {
+    padding: 2,
+  },
+  otpBoxesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.md,
+  },
+  otpBox: {
+    width: 44,
+    height: 54,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    textAlign: 'center',
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.heavy,
+    color: Colors.textPrimary,
+  },
+  otpBoxFilled: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryAlpha10,
+  },
+  timerContainer: {
+    backgroundColor: Colors.surfaceMuted,
+    paddingVertical: Spacing.sm + 2,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  timerText: {
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.textSecondary,
+    fontWeight: Typography.fontWeight.semibold,
+  },
+  timerHighlight: {
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.bold,
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
+  resendButtonText: {
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.primary,
+    fontWeight: Typography.fontWeight.bold,
   },
 });
