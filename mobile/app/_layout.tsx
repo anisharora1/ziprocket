@@ -14,10 +14,22 @@ import {
 } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider } from '../src/context/AuthContext';
 import { SocketProvider } from '../src/context/SocketContext';
-import { LocationProvider } from '../src/context/LocationContext';
+import { LocationProvider, useLocation } from '../src/context/LocationContext';
 import { PlatformProvider } from '../src/context/PlatformContext';
 import { CartProvider } from '../src/context/CartContext';
 import { Colors } from '../src/constants/theme';
+import LocationPromptModal from '../src/components/LocationPromptModal';
+import LocationSelectorModal from '../src/components/LocationSelectorModal';
+
+function LocationModals() {
+  const { isPickerOpen, closePicker } = useLocation();
+  return (
+    <>
+      <LocationPromptModal />
+      <LocationSelectorModal visible={isPickerOpen} onClose={closePicker} />
+    </>
+  );
+}
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
@@ -54,6 +66,7 @@ export default function RootLayout() {
         <AuthProvider>
           <SocketProvider>
             <LocationProvider>
+              <LocationModals />
               <PlatformProvider>
                 <CartProvider>
                   <StatusBar style="dark" />

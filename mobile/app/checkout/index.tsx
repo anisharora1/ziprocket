@@ -22,6 +22,7 @@ import { useSocket } from '../../src/context/SocketContext';
 import { apiClient } from '../../src/services/api';
 import { getHighAccuracyGPSFix } from '../../src/utils/geolocation';
 import OptimizedImage from '../../src/components/OptimizedImage';
+import LocationSelectorModal from '../../src/components/LocationSelectorModal';
 import NotificationModal, { NotifCardData } from '../../src/components/NotificationModal';
 import {
   Colors,
@@ -250,6 +251,13 @@ export default function CheckoutScreen() {
         const activeLat = customCoords?.lat || userCoords?.lat;
         const activeLng = customCoords?.lng || userCoords?.lng;
 
+        if (!activeLat || !activeLng) {
+          setLoadingBill(false);
+          setCheckoutError('Koi delivery location select nahi hai. Kripya address chunein.');
+          setBillDetails(null);
+          return;
+        }
+
         const payload = {
           vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
           items: cart.items.map((c) => ({
@@ -410,25 +418,6 @@ export default function CheckoutScreen() {
 
   // Address picker open helper
   const handleOpenAddressModal = () => {
-    setEditError(null);
-    setGpsCoords(customCoords || userCoords || null);
-    setEditedPhone(customPhone || user?.phone || '');
-    setEditedPincode(customPincode || userPincode || '');
-    setMohalla(userAddress || '');
-    setVillage(userCity || '');
-    setHouseNo('');
-    setFloor('');
-    setStreet('');
-    setLandmark('');
-    setInstructions('');
-    setAddressLabel('Home');
-    setShowInstructions(false);
-
-    if (savedAddresses.length > 0) {
-      setAddressStep('select');
-    } else {
-      setAddressStep('form');
-    }
     setIsAddressModalOpen(true);
   };
 
@@ -1243,296 +1232,11 @@ export default function CheckoutScreen() {
         </Text>
       </View>
 
-      {/* Address Picker / Edit Modal */}
-      <Modal
+      {/* Location Selector Modal */}
+      <LocationSelectorModal
         visible={isAddressModalOpen}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setIsAddressModalOpen(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.modalOverlay}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>
-                  {addressStep === 'select' ? 'Delivery ka Pata Chunein' : 'Pata ki Jankari'}
-                </Text>
-                <Text style={styles.modalSubtitle}>ZipRocket Fast Delivery</Text>
-              </View>
-              <Pressable
-                onPress={() => setIsAddressModalOpen(false)}
-                style={styles.modalCloseBtn}
-              >
-                <MaterialIcons name="close" size={20} color={Colors.slate600} />
-              </Pressable>
-            </View>
-
-            {addressStep === 'select' ? (
-              <ScrollView style={styles.modalBodyScroll}>
-                <Text style={styles.modalSectionLabel}>Select a Saved Address</Text>
-                {savedAddresses.length === 0 ? (
-                  <View style={styles.emptySavedBox}>
-                    <Text style={styles.emptySavedText}>No saved addresses found.</Text>
-                  </View>
-                ) : (
-                  savedAddresses.map((addr) => {
-                    const isSelected = selectedAddressId === addr._id;
-                    return (
-                      <Pressable
-                        key={addr._id}
-                        style={[
-                          styles.savedAddressCard,
-                          isSelected && styles.savedAddressCardSelected,
-                        ]}
-                        onPress={() => handleSelectSavedAddress(addr)}
-                      >
-                        <View style={styles.savedCardLeft}>
-                          <View
-                            style={[
-                              styles.savedIconCircle,
-                              isSelected && styles.savedIconCircleActive,
-                            ]}
-                          >
-                            <MaterialIcons
-                              name={
-                                addr.label === 'Work'
-                                  ? 'work'
-                                  : addr.label === 'Other'
-                                    ? 'home-work'
-                                    : 'home'
-                              }
-                              size={18}
-                              color={isSelected ? Colors.primary : Colors.slate500}
-                            />
-                          </View>
-                          <View style={styles.savedDetailsCol}>
-                            <View style={styles.savedBadgeRow}>
-                              <Text style={styles.savedLabelText}>{addr.label}</Text>
-                              {addr.isDefault ? (
-                                <Text style={styles.defaultPill}>Default</Text>
-                              ) : null}
-                            </View>
-                            <Text style={styles.savedFullAddr} numberOfLines={2}>
-                              {addr.fullAddress}
-                            </Text>
-                          </View>
-                        </View>
-                        <View
-                          style={[
-                            styles.radioOuter,
-                            isSelected && { borderColor: Colors.primary },
-                          ]}
-                        >
-                          {isSelected ? <View style={styles.radioInner} /> : null}
-                        </View>
-                      </Pressable>
-                    );
-                  })
-                )}
-
-                <Pressable
-                  style={styles.addNewAddressBtn}
-                  onPress={() => setAddressStep('form')}
-                >
-                  <MaterialIcons name="add" size={18} color={Colors.primary} />
-                  <Text style={styles.addNewAddressText}>Add New Delivery Address</Text>
-                </Pressable>
-              </ScrollView>
-            ) : (
-              <ScrollView style={styles.modalBodyScroll}>
-                {editError ? (
-                  <View style={styles.editErrorBanner}>
-                    <MaterialIcons name="error" size={16} color={Colors.rose600} />
-                    <Text style={styles.editErrorText}>{editError}</Text>
-                  </View>
-                ) : null}
-
-                {/* GPS Autodetect Button */}
-                <Pressable
-                  style={styles.detectGpsBtn}
-                  onPress={handleDetectGPS}
-                  disabled={detectingGps}
-                >
-                  <MaterialIcons
-                    name="my-location"
-                    size={18}
-                    color={detectingGps ? Colors.slate400 : Colors.primary}
-                  />
-                  <Text style={styles.detectGpsText}>
-                    {detectingGps
-                      ? 'GPS location fetch ho rahi hai...'
-                      : 'Use My Current Location (GPS)'}
-                  </Text>
-                </Pressable>
-
-                {/* Tag Chips */}
-                <View style={styles.tagChipsRow}>
-                  {(['Home', 'Work', 'Other'] as const).map((tag) => (
-                    <Pressable
-                      key={tag}
-                      style={[
-                        styles.tagChip,
-                        addressLabel === tag && styles.tagChipActive,
-                      ]}
-                      onPress={() => setAddressLabel(tag)}
-                    >
-                      <MaterialIcons
-                        name={tag === 'Work' ? 'work' : tag === 'Other' ? 'my-location' : 'home'}
-                        size={16}
-                        color={addressLabel === tag ? Colors.white : Colors.slate600}
-                      />
-                      <Text
-                        style={[
-                          styles.tagChipText,
-                          addressLabel === tag && styles.tagChipTextActive,
-                        ]}
-                      >
-                        {tag === 'Home' ? 'House' : tag === 'Work' ? 'Office' : 'Other'}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {/* Form Inputs */}
-                <TextInput
-                  style={styles.modalInput}
-                  value={houseNo}
-                  onChangeText={setHouseNo}
-                  placeholder="Makaan No. / Building / Floor *"
-                  placeholderTextColor={Colors.slate400}
-                />
-
-                <TextInput
-                  style={styles.modalInput}
-                  value={street}
-                  onChangeText={setStreet}
-                  placeholder="Gali / Mohalla / Rasta (Zaroori)"
-                  placeholderTextColor={Colors.slate400}
-                />
-
-                <TextInput
-                  style={styles.modalInput}
-                  value={mohalla}
-                  onChangeText={setMohalla}
-                  placeholder="Area / Locality / Mohalla *"
-                  placeholderTextColor={Colors.slate400}
-                />
-
-                <TextInput
-                  style={styles.modalInput}
-                  value={village}
-                  onChangeText={setVillage}
-                  placeholder="Gaon / Shehar (Village/City) *"
-                  placeholderTextColor={Colors.slate400}
-                />
-
-                <TextInput
-                  style={styles.modalInput}
-                  value={landmark}
-                  onChangeText={setLandmark}
-                  placeholder="Landmark (Pass ki mashhoor jagah)"
-                  placeholderTextColor={Colors.slate400}
-                />
-
-                <TextInput
-                  style={styles.modalInput}
-                  value={editedPincode}
-                  onChangeText={(t) => setEditedPincode(t.replace(/\D/g, ''))}
-                  placeholder="Pincode (6 digits)"
-                  placeholderTextColor={Colors.slate400}
-                  keyboardType="numeric"
-                  maxLength={6}
-                />
-
-                <View style={styles.phoneInputRow}>
-                  <Text style={styles.phonePrefix}>+91</Text>
-                  <TextInput
-                    style={styles.phoneInputField}
-                    value={editedPhone}
-                    onChangeText={(t) => setEditedPhone(t.replace(/\D/g, ''))}
-                    placeholder="Mobile Number (10 digit) *"
-                    placeholderTextColor={Colors.slate400}
-                    keyboardType="phone-pad"
-                    maxLength={10}
-                  />
-                </View>
-
-                {/* Optional Instructions */}
-                {!showInstructions ? (
-                  <Pressable
-                    style={styles.addInstBtn}
-                    onPress={() => setShowInstructions(true)}
-                  >
-                    <MaterialIcons name="description" size={16} color={Colors.primary} />
-                    <Text style={styles.addInstText}>
-                      Add Delivery Instructions (Optional)
-                    </Text>
-                  </Pressable>
-                ) : (
-                  <TextInput
-                    style={[styles.modalInput, { height: 60 }]}
-                    value={instructions}
-                    onChangeText={setInstructions}
-                    placeholder="e.g. Keep at gate / Call before arrival"
-                    placeholderTextColor={Colors.slate400}
-                    multiline
-                  />
-                )}
-              </ScrollView>
-            )}
-
-            {/* Modal Footer */}
-            <View style={styles.modalFooter}>
-              {addressStep === 'form' && savedAddresses.length > 0 ? (
-                <Pressable
-                  style={styles.modalBackBtn}
-                  onPress={() => setAddressStep('select')}
-                >
-                  <Text style={styles.modalBackText}>Back</Text>
-                </Pressable>
-              ) : null}
-
-              <Pressable
-                style={styles.modalCancelBtn}
-                onPress={() => setIsAddressModalOpen(false)}
-              >
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </Pressable>
-
-              {addressStep === 'form' ? (
-                <Pressable
-                  style={[
-                    styles.modalConfirmBtn,
-                    (validatingEdit ||
-                      !village.trim() ||
-                      !mohalla.trim() ||
-                      !editedPhone.trim() ||
-                      !houseNo.trim()) &&
-                      styles.modalConfirmBtnDisabled,
-                  ]}
-                  onPress={handleSaveAddressEdit}
-                  disabled={
-                    validatingEdit ||
-                    !village.trim() ||
-                    !mohalla.trim() ||
-                    !editedPhone.trim() ||
-                    !houseNo.trim()
-                  }
-                >
-                  {validatingEdit ? (
-                    <ActivityIndicator size="small" color={Colors.white} />
-                  ) : (
-                    <Text style={styles.modalConfirmText}>Pata Confirm Karein</Text>
-                  )}
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        onClose={() => setIsAddressModalOpen(false)}
+      />
 
       {/* Coupons Drawer Modal */}
       <Modal

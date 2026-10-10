@@ -1,52 +1,52 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
+import LocationSelectorModal from './LocationSelectorModal';
 
 export default function Header() {
   const router = useRouter();
-  const { address, isLoading, fetchLocation } = useLocation();
+  const { address, isLoading } = useLocation();
   const { user, token } = useAuth();
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
 
   return (
-    <View style={styles.header}>
-      {/* Deliver To location selector */}
-      <Pressable style={styles.locationButton} onPress={fetchLocation}>
-        <View style={styles.pinCircle}>
-          <MaterialIcons
-            name={isLoading ? 'hourglass-empty' : 'location-on'}
-            size={20}
-            color={Colors.primary}
-          />
-        </View>
-        <View style={styles.locationTextGroup}>
-          <Text style={styles.deliverToLabel}>Deliver to</Text>
-          <Text style={styles.addressText} numberOfLines={1}>
-            {isLoading ? 'Locating...' : address || 'Select location'}
-          </Text>
-        </View>
-        <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.textMuted} />
-      </Pressable>
+    <>
+      <View style={styles.header}>
+        {/* Deliver To location selector: Tapping ONLY opens picker modal, NEVER calls GPS */}
+        <Pressable
+          style={styles.locationButton}
+          onPress={() => setIsLocationModalOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Deliver to location picker"
+        >
+          <View style={styles.pinCircle}>
+            <MaterialIcons
+              name={isLoading ? 'hourglass-empty' : 'location-on'}
+              size={20}
+              color={Colors.primary}
+            />
+          </View>
+          <View style={styles.locationTextGroup}>
+            <Text style={styles.deliverToLabel}>Deliver to</Text>
+            <Text style={styles.addressText} numberOfLines={1}>
+              {isLoading ? 'Locating...' : address || 'Select location'}
+            </Text>
+          </View>
+          <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.textMuted} />
+        </Pressable>
 
-      {/* User profile avatar or Login shortcut */}
-      <Pressable
-        style={styles.avatarButton}
-        onPress={() => router.push(token && user ? '/(tabs)/profile' : '/(auth)/login')}
-      >
-        {token && user ? (
-          <View style={styles.avatarLogged}>
-            <MaterialIcons name="person" size={22} color={Colors.textSecondary} />
-          </View>
-        ) : (
-          <View style={styles.signInPill}>
-            <Text style={styles.signInText}>Sign In</Text>
-          </View>
-        )}
-      </Pressable>
-    </View>
+      </View>
+
+      {/* Location Selector Modal */}
+      <LocationSelectorModal
+        visible={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+      />
+    </>
   );
 }
 
