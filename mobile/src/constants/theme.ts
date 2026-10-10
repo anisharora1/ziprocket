@@ -10,6 +10,7 @@ export const Colors = {
   // Background & Surfaces
   background: '#F9F9FC',
   surface: '#FFFFFF',
+  surfaceSecondary: '#F8FAFC',
   surfaceCard: '#FFFFFF',
   surfaceMuted: '#F1F5F9',
   surfaceContainer: '#EEEEF0',
@@ -61,7 +62,17 @@ export const BorderRadius = {
   full: 9999,
 } as const;
 
+export const FontFamily = {
+  regular: 'PlusJakartaSans_400Regular',
+  medium: 'PlusJakartaSans_500Medium',
+  semibold: 'PlusJakartaSans_600SemiBold',
+  semiBold: 'PlusJakartaSans_600SemiBold',
+  bold: 'PlusJakartaSans_700Bold',
+  extraBold: 'PlusJakartaSans_800ExtraBold',
+} as const;
+
 export const Typography = {
+  fontFamily: FontFamily,
   fontSize: {
     xs: 10,
     sm: 12,
