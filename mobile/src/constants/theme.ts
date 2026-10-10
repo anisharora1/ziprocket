@@ -67,11 +67,13 @@ export const Colors = {
   rose50: '#FFF1F2',
   rose500: '#F43F5E',
   rose600: '#E11D48',
+  rose700: '#BE123C',
   rose800: '#9F1239',
   roseWarningBg: '#FFF5F5',
   roseWarningBorder: '#FFE2E2',
   emerald600: '#059669',
   emerald700: '#047857',
+  emerald800: '#065F46',
 } as const;
 
 export const Spacing = {
