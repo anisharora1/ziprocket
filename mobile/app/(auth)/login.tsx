@@ -13,8 +13,10 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
+import { auth, ConfirmationResult } from '../../src/services/firebase';
 import { useAuth } from '../../src/context/AuthContext';
 import { apiClient } from '../../src/services/api';
+import { getFriendlyErrorMessage } from '../../src/utils/errorHandler';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../src/constants/theme';
 
 export default function LoginScreen() {
@@ -27,8 +29,9 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [timer, setTimer] = useState(30);
+  const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
 
-  const otpInputRefs = useRef<Array<TextInput | null>>([null, null, null, null, null, null]);
+  const otpInputRefs = useRef<(TextInput | null)[]>([null, null, null, null, null, null]);
 
   // Resend OTP countdown timer
   useEffect(() => {
@@ -42,7 +45,7 @@ export default function LoginScreen() {
   const handleRequestOtp = async () => {
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     if (cleanPhone.length < 10) {
-      setError('Please enter a valid 10-digit phone number');
+      setError('Kripya sahi 10-digit mobile number enter karein.');
       return;
     }
 
@@ -50,24 +53,13 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      const res = await apiClient.post('/auth/request-otp', {
-        phone: cleanPhone,
-      });
-
-      if (res.data?.success) {
-        setStep(2);
-        setTimer(30);
-        setOtp(['', '', '', '', '', '']);
-      } else {
-        setError(res.data?.message || 'Failed to send OTP. Please try again.');
-      }
+      const confirmation = await auth().signInWithPhoneNumber('+91' + cleanPhone);
+      setConfirmationResult(confirmation);
+      setStep(2);
+      setTimer(30);
+      setOtp(['', '', '', '', '', '']);
     } catch (err: any) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        'Unable to send OTP. Please check your network connection.';
-      setError(backendMessage);
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -76,7 +68,12 @@ export default function LoginScreen() {
   const handleVerifyOtp = async () => {
     const otpString = otp.join('');
     if (otpString.length !== 6) {
-      setError('Please enter the 6-digit verification code');
+      setError('Kripya 6-digit verification code enter karein.');
+      return;
+    }
+
+    if (!confirmationResult) {
+      setError('Session expire ho chuka hai. Kripya OTP dobara mangwayein.');
       return;
     }
 
@@ -84,18 +81,31 @@ export default function LoginScreen() {
     setError('');
 
     try {
-      const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      // 1. Confirm OTP with Firebase
+      const userCredential = await confirmationResult.confirm(otpString);
+      const currentUser = auth().currentUser;
+      const idToken = currentUser
+        ? await currentUser.getIdToken()
+        : await userCredential.user.getIdToken();
+
+      if (!idToken) {
+        throw new Error('Authentication token prapt nahi ho saka. Kripya dobara try karein.');
+      }
+
+      // 2. Call backend /auth/verify-otp with Firebase ID token
       const res = await apiClient.post('/auth/verify-otp', {
-        phone: cleanPhone,
-        otp: otpString,
+        token: idToken,
         role: 'customer',
+        name: 'User',
+        isPwa: false,
       });
 
       if (res.data?.success && res.data?.token && res.data?.user) {
         const verifiedUser = res.data.user;
 
-        // Role check: Only customers are permitted in this customer app
+        // Role check: Only customers are permitted in this mobile customer app
         if (verifiedUser.role && verifiedUser.role !== 'customer') {
+          await auth().signOut();
           setError('This app is for customers only.');
           return;
         }
@@ -103,15 +113,10 @@ export default function LoginScreen() {
         await login(res.data.token, verifiedUser);
         router.replace('/(tabs)/home');
       } else {
-        setError(res.data?.message || 'Verification failed. Please try again.');
+        setError(res.data?.message || 'Verification fail ho gaya. Kripya dobara try karein.');
       }
     } catch (err: any) {
-      const backendMessage =
-        err.response?.data?.message ||
-        err.response?.data?.error ||
-        err.message ||
-        'Invalid or expired verification code.';
-      setError(backendMessage);
+      setError(getFriendlyErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -122,13 +127,14 @@ export default function LoginScreen() {
     const newOtp = [...otp];
 
     if (cleanValue.length > 1) {
-      // Handle paste of 6 digits
+      // Handle paste or SMS autofill of 6 digits
       const digits = cleanValue.slice(0, 6).split('');
       for (let i = 0; i < 6; i++) {
         newOtp[i] = digits[i] || '';
       }
       setOtp(newOtp);
-      otpInputRefs.current[Math.min(digits.length, 5)]?.focus();
+      const nextIndex = Math.min(digits.length, 5);
+      otpInputRefs.current[nextIndex]?.focus();
       return;
     }
 
@@ -163,7 +169,7 @@ export default function LoginScreen() {
               <MaterialIcons name="bolt" size={36} color={Colors.white} />
             </View>
             <Text style={styles.brandTitle}>ZipRocket</Text>
-            <Text style={styles.brandSubtitle}>India's Fastest Delivery</Text>
+            <Text style={styles.brandSubtitle}>India&#39;s Fastest Delivery</Text>
           </View>
 
           {/* Form Card */}
@@ -260,7 +266,9 @@ export default function LoginScreen() {
                         digit ? styles.otpBoxFilled : null,
                       ]}
                       keyboardType="number-pad"
-                      maxLength={1}
+                      maxLength={idx === 0 ? 6 : 1}
+                      textContentType="oneTimeCode"
+                      autoComplete="sms-otp"
                       value={digit}
                       onChangeText={(val) => handleOtpChange(idx, val)}
                       onKeyPress={({ nativeEvent }) => handleOtpKeyPress(idx, nativeEvent.key)}

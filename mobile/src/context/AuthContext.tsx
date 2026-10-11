@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { auth } from '../services/firebase';
 import { apiClient, setOnUnauthorized } from '../services/api';
 
 export interface User {
@@ -34,7 +35,7 @@ const parseJwt = (token: string) => {
         .join('')
     );
     return JSON.parse(jsonPayload);
-  } catch (e) {
+  } catch {
     return null;
   }
 };
@@ -50,6 +51,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.deleteItemAsync('user');
     } catch (e) {
       console.warn('[AuthContext] Error clearing SecureStore:', e);
+    }
+    try {
+      await auth().signOut();
+    } catch {
+      // Ignore if Firebase auth is already signed out
     }
     setToken(null);
     setUser(null);

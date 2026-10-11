@@ -8,12 +8,16 @@
     "scheme": "mobile",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "bundleIdentifier": "com.ziprocket.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "icon": "./assets/expo.icon",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "ZipRocket aapka delivery address dhoondhne ke liye location use karta hai."
       }
     },
     "android": {
+      "package": "com.ziprocket.app",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -46,6 +50,16 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "ZipRocket aapka delivery address dhoondhne ke liye location use karta hai."
+        }
+      ],
+      "@react-native-firebase/app",
+      "@react-native-firebase/auth",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],
