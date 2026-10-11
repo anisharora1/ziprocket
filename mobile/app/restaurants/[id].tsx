@@ -54,7 +54,6 @@ export default function RestaurantDetailScreen() {
   const [activeCategory, setActiveCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [vegOnly, setVegOnly] = useState<boolean>(false);
-  const [isFavorite, setIsFavorite] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
 
   // Parallel fetch restaurant details & menu
@@ -179,6 +178,11 @@ export default function RestaurantDetailScreen() {
   const platformMsg = getPlatformStatusMessage();
   const isOrderingDisabled = !!platformMsg || !isRestaurantOpen;
 
+  const stickyHeaderIndices = useMemo(
+    () => [isOrderingDisabled ? 2 : 1],
+    [isOrderingDisabled]
+  );
+
   const openTimeFormatted = restaurant?.operatingHours?.open
     ? formatToAMPM(restaurant.operatingHours.open)
     : '';
@@ -215,7 +219,7 @@ export default function RestaurantDetailScreen() {
           <MaterialIcons name="store" size={64} color={Colors.textMuted} />
           <Text style={styles.errorTitle}>Restaurant Unavailable</Text>
           <Text style={styles.errorSubtitle}>
-            We couldn't load this restaurant's menu. It may be temporarily deactivated or offline.
+            {"We couldn't load this restaurant's menu. It may be temporarily deactivated or offline."}
           </Text>
           <Pressable
             style={styles.retryBtn}
@@ -254,9 +258,10 @@ export default function RestaurantDetailScreen() {
           { paddingBottom: insets.bottom + 80 },
         ]}
         showsVerticalScrollIndicator={false}
+        stickyHeaderIndices={stickyHeaderIndices}
       >
-        {/* Restaurant Hero Card */}
-        <View style={styles.heroCard}>
+        {/* Child 0: Restaurant Hero Card */}
+        <View key="hero-card" style={styles.heroCard}>
           <View style={styles.heroRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
@@ -320,49 +325,37 @@ export default function RestaurantDetailScreen() {
                 </View>
               </View>
             </View>
-
-            {/* Restaurant Cover Image
-            <View style={styles.heroImageContainer}>
-              <OptimizedImage
-                src={
-                  restaurant.image ||
-                  'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?auto=format&fit=crop&q=80&w=800'
-                }
-                alt={restaurant.name}
-                preset="card"
-                style={styles.heroImage}
-                contentFit="cover"
-              />
-            </View> */}
           </View>
         </View>
 
-        {/* Ordering Warning Alert Banner */}
-        {isOrderingDisabled && (
-          <View style={styles.warningBanner}>
-            <MaterialIcons name="error" size={20} color={Colors.error} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.warningTitle}>
-                {settings?.maintenanceMode
-                  ? 'Platform Maintenance Mode'
-                  : !isPlatformCurrentlyOpen()
-                    ? 'ZipRocket Orders Currently Closed'
-                    : 'Restaurant Currently Unavailable'}
-              </Text>
-              <Text style={styles.warningDesc}>
-                {platformMsg ||
-                  (restaurant?.availabilityStatus === 'disabled'
-                    ? 'This restaurant is temporarily disabled by administration.'
-                    : !isWithinHours && openTimeFormatted
-                      ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
-                      : 'This restaurant is currently closed and not accepting online orders right now.')}
-              </Text>
-            </View>
-          </View>
-        )}
+        {/* Child 1: Ordering Warning Alert Banner (only when rendered, avoids null/false placeholder) */}
+        {...(isOrderingDisabled
+          ? [
+              <View key="warning-banner" style={styles.warningBanner}>
+                <MaterialIcons name="error" size={20} color={Colors.error} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.warningTitle}>
+                    {settings?.maintenanceMode
+                      ? 'Platform Maintenance Mode'
+                      : !isPlatformCurrentlyOpen()
+                        ? 'ZipRocket Orders Currently Closed'
+                        : 'Restaurant Currently Unavailable'}
+                  </Text>
+                  <Text style={styles.warningDesc}>
+                    {platformMsg ||
+                      (restaurant?.availabilityStatus === 'disabled'
+                        ? 'This restaurant is temporarily disabled by administration.'
+                        : !isWithinHours && openTimeFormatted
+                          ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
+                          : 'This restaurant is currently closed and not accepting online orders right now.')}
+                  </Text>
+                </View>
+              </View>,
+            ]
+          : [])}
 
-        {/* Sticky Search & Filter Toolbar */}
-        <View style={styles.toolbarCard}>
+        {/* Child 2 (or 1): Sticky Search & Filter Toolbar */}
+        <View key="toolbar-card" style={styles.toolbarCard}>
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
               <MaterialIcons name="search" size={18} color={Colors.textMuted} />
@@ -433,184 +426,205 @@ export default function RestaurantDetailScreen() {
           )}
         </View>
 
-        {/* Menu Items List */}
-        {!menuItems || menuItems.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No Menu Items Available</Text>
-            <Text style={styles.emptySubtitle}>
-              This restaurant has not listed any dishes on their menu yet.
-            </Text>
-          </View>
-        ) : filteredMenuItems.length === 0 ? (
-          <View style={styles.emptyStateBox}>
-            <MaterialIcons name="search" size={48} color={Colors.textMuted} />
-            <Text style={styles.emptyTitle}>No Matching Dishes Found</Text>
-            <Text style={styles.emptySubtitle}>
-              {vegOnly
-                ? 'No pure vegetarian items match your filter.'
-                : `No dishes match "${searchQuery}".`}
-            </Text>
-            <Pressable
-              style={styles.clearFilterBtn}
-              onPress={() => {
-                setSearchQuery('');
-                setVegOnly(false);
-                setActiveCategory('All');
-              }}
-            >
-              <Text style={styles.clearFilterText}>CLEAR ALL FILTERS</Text>
-            </Pressable>
-          </View>
-        ) : (
-          displayedCategories.map((category) => {
-            const items = groupedItems[category] || [];
-            if (items.length === 0) return null;
+        {/* Child 3 (or 2): Menu Items Content List */}
+        <View key="menu-container" style={styles.menuContainer}>
+          {!menuItems || menuItems.length === 0 ? (
+            <View style={styles.emptyStateBox}>
+              <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Menu Items Available</Text>
+              <Text style={styles.emptySubtitle}>
+                This restaurant has not listed any dishes on their menu yet.
+              </Text>
+            </View>
+          ) : filteredMenuItems.length === 0 ? (
+            <View style={styles.emptyStateBox}>
+              <MaterialIcons name="search" size={48} color={Colors.textMuted} />
+              <Text style={styles.emptyTitle}>No Matching Dishes Found</Text>
+              <Text style={styles.emptySubtitle}>
+                {vegOnly
+                  ? 'No pure vegetarian items match your filter.'
+                  : `No dishes match "${searchQuery}".`}
+              </Text>
+              <Pressable
+                style={styles.clearFilterBtn}
+                onPress={() => {
+                  setSearchQuery('');
+                  setVegOnly(false);
+                  setActiveCategory('All');
+                }}
+              >
+                <Text style={styles.clearFilterText}>CLEAR ALL FILTERS</Text>
+              </Pressable>
+            </View>
+          ) : (
+            displayedCategories.map((category) => {
+              const items = groupedItems[category] || [];
+              if (items.length === 0) return null;
 
-            return (
-              <View key={`cat-${category}`} style={styles.categorySection}>
-                <View style={styles.categoryHeader}>
-                  <Text style={styles.categoryTitle}>{category}</Text>
-                  <View style={styles.categoryBadge}>
-                    <Text style={styles.categoryBadgeText}>
-                      {items.length} {items.length === 1 ? 'item' : 'items'}
-                    </Text>
+              return (
+                <View key={`cat-${category}`} style={styles.categorySection}>
+                  <View style={styles.categoryHeader}>
+                    <Text style={styles.categoryTitle}>{category}</Text>
+                    <View style={styles.categoryBadge}>
+                      <Text style={styles.categoryBadgeText}>
+                        {items.length} {items.length === 1 ? 'item' : 'items'}
+                      </Text>
+                    </View>
                   </View>
-                </View>
 
-                {items.map((item) => {
-                  const qty = getCartQuantity(item._id);
-                  const effectivePrice = getEffectivePrice(item);
-                  const isItemDisabled =
-                    !item.isAvailable ||
-                    isOrderingDisabled ||
-                    restaurant.isActive === false ||
-                    restaurant.availabilityStatus !== 'open';
+                  {items.map((item, index) => {
+                    const qty = getCartQuantity(item._id);
+                    const effectivePrice = getEffectivePrice(item);
+                    const isItemDisabled =
+                      !item.isAvailable ||
+                      isOrderingDisabled ||
+                      restaurant.isActive === false ||
+                      restaurant.availabilityStatus !== 'open';
+                    const isLastItem = index === items.length - 1;
 
-                  return (
-                    <Pressable
-                      key={item._id}
-                      style={[
-                        styles.dishCard,
-                        !item.isAvailable && { opacity: 0.65 },
-                      ]}
-                      onPress={() => setSelectedItem(item)}
-                    >
-                      <View style={styles.dishInfoCol}>
-                        {/* Veg indicator & Category */}
-                        <View style={styles.vegIndicatorRow}>
-                          <View
-                            style={[
-                              styles.vegIndicatorBox,
-                              { borderColor: item.isVeg ? '#16A34A' : '#DC2626' },
-                            ]}
-                          >
+                    return (
+                      <Pressable
+                        key={item._id}
+                        style={[
+                          styles.dishCard,
+                          isLastItem && styles.dishCardLast,
+                          !item.isAvailable && { opacity: 0.65 },
+                        ]}
+                        onPress={() => setSelectedItem(item)}
+                      >
+                        <View style={styles.dishInfoCol}>
+                          {/* Veg indicator & Category */}
+                          <View style={styles.vegIndicatorRow}>
                             <View
                               style={[
-                                styles.vegIndicatorCircle,
-                                { backgroundColor: item.isVeg ? '#16A34A' : '#DC2626' },
+                                styles.vegIndicatorBox,
+                                { borderColor: item.isVeg ? '#16A34A' : '#DC2626' },
                               ]}
-                            />
-                          </View>
-                          {item.isFeatured ? (
-                            <View style={styles.bestsellerChip}>
-                              <Text style={styles.bestsellerChipText}>🔥 BESTSELLER</Text>
+                            >
+                              <View
+                                style={[
+                                  styles.vegIndicatorCircle,
+                                  { backgroundColor: item.isVeg ? '#16A34A' : '#DC2626' },
+                                ]}
+                              />
                             </View>
-                          ) : null}
-                        </View>
+                            {item.isFeatured ? (
+                              <View style={styles.bestsellerChip}>
+                                <Text style={styles.bestsellerChipText}>🔥 BESTSELLER</Text>
+                              </View>
+                            ) : null}
+                          </View>
 
-                        <Text style={styles.dishName} numberOfLines={2}>
-                          {item.name}
-                        </Text>
-
-                        {item.description ? (
-                          <Text style={styles.dishDesc} numberOfLines={2}>
-                            {item.description}
+                          <Text style={styles.dishName} numberOfLines={2}>
+                            {item.name}
                           </Text>
-                        ) : null}
 
-                        {/* Meta Tags: prep time & spice */}
-                        <View style={styles.dishMetaRow}>
-                          <Text style={styles.dishMetaTag}>⏱️ ~{item.prepTimeMinutes || 15}m</Text>
-                          {item.spiceLevel && item.spiceLevel !== 'none' ? (
-                            <Text style={styles.dishMetaTag}>
-                              🌶️ {item.spiceLevel.toUpperCase()}
+                          {item.description ? (
+                            <Text style={styles.dishDesc} numberOfLines={2}>
+                              {item.description}
                             </Text>
                           ) : null}
-                        </View>
 
-                        {/* Price */}
-                        <View style={styles.priceRow}>
-                          <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
-                          {item.discountedPrice &&
-                            Number(item.discountedPrice) > 0 &&
-                            item.price > item.discountedPrice ? (
-                            <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
-                          ) : null}
-                        </View>
-                      </View>
-
-                      {/* Right side: Image & Add button overlay */}
-                      <View style={styles.dishImageCol}>
-                        {item.images && item.images[0] ? (
-                          <OptimizedImage
-                            src={item.images[0]}
-                            alt={item.name}
-                            preset="thumbnail"
-                            style={styles.dishImage}
-                            contentFit="cover"
-                          />
-                        ) : (
-                          <View style={styles.dishImagePlaceholder}>
-                            <MaterialIcons name="image" size={32} color={Colors.textMuted} />
-                          </View>
-                        )}
-
-                        <View style={styles.dishAddBtnContainer}>
-                          {qty > 0 ? (
-                            <View style={styles.stepperBox}>
-                              <Pressable
-                                style={styles.stepperBtn}
-                                onPress={() => updateQuantity(`food-${item._id}`, qty - 1)}
-                              >
-                                <MaterialIcons name="remove" size={14} color={Colors.primary} />
-                              </Pressable>
-                              <Text style={styles.stepperQtyText}>{qty}</Text>
-                              <Pressable
-                                style={styles.stepperBtn}
-                                onPress={() => updateQuantity(`food-${item._id}`, qty + 1)}
-                              >
-                                <MaterialIcons name="add" size={14} color={Colors.primary} />
-                              </Pressable>
-                            </View>
-                          ) : (
-                            <Pressable
-                              style={[
-                                styles.addBtn,
-                                isItemDisabled && styles.addBtnDisabled,
-                              ]}
-                              disabled={isItemDisabled}
-                              onPress={() => handleAddItem(item)}
-                            >
-                              <Text
-                                style={[
-                                  styles.addBtnText,
-                                  isItemDisabled && styles.addBtnTextDisabled,
-                                ]}
-                              >
-                                {!item.isAvailable ? 'OOS' : 'ADD'}
+                          {/* Meta Tags: prep time & spice */}
+                          <View style={styles.dishMetaRow}>
+                            <Text style={styles.dishMetaTag}>⏱️ ~{item.prepTimeMinutes || 15}m</Text>
+                            {item.spiceLevel && item.spiceLevel !== 'none' ? (
+                              <Text style={styles.dishMetaTag}>
+                                🌶️ {item.spiceLevel.toUpperCase()}
                               </Text>
-                            </Pressable>
-                          )}
+                            ) : null}
+                          </View>
+
+                          {/* Price */}
+                          <View style={styles.priceRow}>
+                            <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
+                            {item.discountedPrice &&
+                              Number(item.discountedPrice) > 0 &&
+                              item.price > item.discountedPrice ? (
+                              <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
+                            ) : null}
+                          </View>
                         </View>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            );
-          })
-        )}
+
+                        {/* Right side: Image & Add button overlay */}
+                        <View style={styles.dishImageCol}>
+                          {item.images && item.images[0] ? (
+                            <OptimizedImage
+                              src={item.images[0]}
+                              alt={item.name}
+                              preset="card"
+                              style={styles.dishImage}
+                              contentFit="cover"
+                            />
+                          ) : (
+                            <View style={styles.dishImagePlaceholder}>
+                              <MaterialIcons name="image" size={36} color={Colors.textMuted} />
+                            </View>
+                          )}
+
+                          <View style={styles.dishAddBtnContainer}>
+                            {qty > 0 ? (
+                              <View style={styles.stepperBox}>
+                                <Pressable
+                                  style={styles.stepperBtn}
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    updateQuantity(`food-${item._id}`, qty - 1);
+                                  }}
+                                >
+                                  <MaterialIcons name="remove" size={15} color={Colors.primary} />
+                                </Pressable>
+                                <Text style={styles.stepperQtyText}>{qty}</Text>
+                                <Pressable
+                                  style={styles.stepperBtn}
+                                  onPress={(e) => {
+                                    e.stopPropagation?.();
+                                    updateQuantity(`food-${item._id}`, qty + 1);
+                                  }}
+                                >
+                                  <MaterialIcons name="add" size={15} color={Colors.primary} />
+                                </Pressable>
+                              </View>
+                            ) : (
+                              <Pressable
+                                style={[
+                                  styles.addBtn,
+                                  isItemDisabled && styles.addBtnDisabled,
+                                ]}
+                                disabled={isItemDisabled}
+                                onPress={(e) => {
+                                  e.stopPropagation?.();
+                                  handleAddItem(item);
+                                }}
+                              >
+                                <Text
+                                  style={[
+                                    styles.addBtnText,
+                                    isItemDisabled && styles.addBtnTextDisabled,
+                                  ]}
+                                >
+                                  {!item.isAvailable ? 'OOS' : 'ADD'}
+                                </Text>
+                                {!isItemDisabled ? (
+                                  <MaterialIcons
+                                    name="add"
+                                    size={14}
+                                    color={Colors.primary}
+                                    style={styles.addBtnPlusIcon}
+                                  />
+                                ) : null}
+                              </Pressable>
+                            )}
+                          </View>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              );
+            })
+          )}
+        </View>
       </ScrollView>
 
       {/* Floating Bottom Cart Bar */}
@@ -712,8 +726,8 @@ export default function RestaurantDetailScreen() {
                   ) : (
                     <Pressable
                       style={[
-                        styles.addBtn,
-                        isOrderingDisabled && styles.addBtnDisabled,
+                        styles.modalAddBtn,
+                        isOrderingDisabled && styles.modalAddBtnDisabled,
                       ]}
                       disabled={isOrderingDisabled || !selectedItem.isAvailable}
                       onPress={() => {
@@ -722,8 +736,8 @@ export default function RestaurantDetailScreen() {
                     >
                       <Text
                         style={[
-                          styles.addBtnText,
-                          isOrderingDisabled && styles.addBtnTextDisabled,
+                          styles.modalAddBtnText,
+                          isOrderingDisabled && styles.modalAddBtnTextDisabled,
                         ]}
                       >
                         ADD TO CART
@@ -774,7 +788,7 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
   },
   scrollContent: {
-    padding: Spacing.md,
+    paddingTop: Spacing.md,
   },
   loadingBox: {
     flex: 1,
@@ -825,6 +839,7 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    marginHorizontal: Spacing.md,
     marginBottom: Spacing.md,
     ...Shadows.sm,
   },
@@ -949,6 +964,7 @@ const styles = StyleSheet.create({
     borderColor: '#FEE2E2',
     borderRadius: BorderRadius.xl,
     padding: Spacing.md,
+    marginHorizontal: Spacing.md,
     marginBottom: Spacing.md,
   },
   warningTitle: {
@@ -965,12 +981,13 @@ const styles = StyleSheet.create({
   },
   toolbarCard: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.sm + 2,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.md,
-    ...Shadows.sm,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
+    zIndex: 100,
+    elevation: 3,
   },
   searchRow: {
     flexDirection: 'row',
@@ -1051,6 +1068,9 @@ const styles = StyleSheet.create({
   categoryPillTextActive: {
     color: Colors.white,
   },
+  menuContainer: {
+    backgroundColor: Colors.surface,
+  },
   emptyStateBox: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -1059,6 +1079,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xxl,
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    marginHorizontal: Spacing.md,
+    marginVertical: Spacing.lg,
   },
   emptyTitle: {
     fontFamily: FontFamily.bold,
@@ -1087,7 +1109,8 @@ const styles = StyleSheet.create({
     color: Colors.primary,
   },
   categorySection: {
-    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.md,
   },
   categoryHeader: {
     flexDirection: 'row',
@@ -1096,7 +1119,7 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   categoryTitle: {
     fontFamily: FontFamily.extraBold,
@@ -1116,14 +1139,13 @@ const styles = StyleSheet.create({
   },
   dishCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    marginBottom: Spacing.sm,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.borderLight,
     gap: Spacing.md,
-    ...Shadows.sm,
+  },
+  dishCardLast: {
+    borderBottomWidth: 0,
   },
   dishInfoCol: {
     flex: 1,
@@ -1204,68 +1226,87 @@ const styles = StyleSheet.create({
     textDecorationLine: 'line-through',
   },
   dishImageCol: {
-    width: 96,
+    width: 136,
     alignItems: 'center',
+    paddingBottom: 4,
   },
   dishImage: {
-    width: 96,
-    height: 96,
-    borderRadius: BorderRadius.lg,
+    width: 136,
+    height: 136,
+    borderRadius: BorderRadius.xl,
     backgroundColor: Colors.surfaceMuted,
   },
   dishImagePlaceholder: {
-    width: 96,
-    height: 96,
-    borderRadius: BorderRadius.lg,
+    width: 136,
+    height: 136,
+    borderRadius: BorderRadius.xl,
     backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dishAddBtnContainer: {
-    marginTop: -16,
+    marginTop: -20,
     zIndex: 10,
+    elevation: 4,
+    alignItems: 'center',
   },
   addBtn: {
+    width: 100,
+    height: 38,
     backgroundColor: Colors.surface,
     borderWidth: 1.5,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.lg,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     ...Shadows.sm,
+    elevation: 3,
   },
   addBtnDisabled: {
     borderColor: Colors.border,
     backgroundColor: Colors.surfaceMuted,
+    elevation: 0,
   },
   addBtnText: {
     fontFamily: FontFamily.extraBold,
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.sm,
     color: Colors.primary,
     letterSpacing: 0.5,
   },
   addBtnTextDisabled: {
     color: Colors.textMuted,
   },
+  addBtnPlusIcon: {
+    position: 'absolute',
+    top: 2,
+    right: 4,
+  },
   stepperBox: {
+    width: 100,
+    height: 38,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     backgroundColor: Colors.surface,
     borderWidth: 1.5,
     borderColor: Colors.primary,
     borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
+    paddingHorizontal: 4,
     ...Shadows.sm,
+    elevation: 3,
   },
   stepperBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    width: 28,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   stepperQtyText: {
     fontFamily: FontFamily.extraBold,
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textPrimary,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
   },
   modalOverlay: {
     flex: 1,
@@ -1315,7 +1356,7 @@ const styles = StyleSheet.create({
   },
   modalDishDesc: {
     fontFamily: FontFamily.medium,
-    fontSize: Typography.fontSize.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
     lineHeight: 18,
     marginTop: 6,
@@ -1337,5 +1378,29 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.extraBold,
     fontSize: Typography.fontSize.xl,
     color: Colors.textPrimary,
+  },
+  modalAddBtn: {
+    backgroundColor: Colors.surface,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
+  },
+  modalAddBtnDisabled: {
+    borderColor: Colors.border,
+    backgroundColor: Colors.surfaceMuted,
+  },
+  modalAddBtnText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.primary,
+    letterSpacing: 0.5,
+  },
+  modalAddBtnTextDisabled: {
+    color: Colors.textMuted,
   },
 });
