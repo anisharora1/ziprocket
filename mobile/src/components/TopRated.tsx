@@ -52,7 +52,7 @@ export default function TopRated({ items }: TopRatedProps = {}) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Top Rated Near You</Text>
+        <Text style={styles.sectionTitle}>Featured & Top Rated</Text>
         <Text style={styles.seeAllText}>SPONSORED CHOICES</Text>
       </View>
 
@@ -67,8 +67,8 @@ export default function TopRated({ items }: TopRatedProps = {}) {
             (typeof item.image === 'string'
               ? item.image
               : typeof item.image === 'object' && item.image?.url
-              ? item.image.url
-              : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4');
+                ? item.image.url
+                : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4');
 
           return (
             <Pressable
@@ -122,11 +122,11 @@ const styles = StyleSheet.create({
     fontFamily: FontFamily.bold,
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
-    color: Colors.textPrimary,
+    color: Colors.textMuted,
   },
   seeAllText: {
     fontFamily: FontFamily.semibold,
-    fontSize: Typography.fontSize.xs + 1,
+    fontSize: Typography.fontSize.xs,
     color: Colors.primary,
     fontWeight: Typography.fontWeight.semibold,
   },

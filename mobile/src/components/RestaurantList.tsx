@@ -140,7 +140,8 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.md,
+    letterSpacing: 1,
   },
   list: {
     gap: Spacing.md,

@@ -1,16 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
+  Text,
+  Pressable,
   ScrollView,
   Dimensions,
   StyleSheet,
   NativeSyntheticEvent,
   NativeScrollEvent,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/api';
 import OptimizedImage from './OptimizedImage';
-import { Colors, Spacing, BorderRadius, Shadows } from '../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamily,
+  Shadows,
+} from '../constants/theme';
 
 export interface Promotion {
   _id: string;
@@ -19,14 +29,16 @@ export interface Promotion {
   image: string;
   targetType: 'restaurant' | 'grocery';
   category?: string;
+  restaurant?: any;
   isActive: boolean;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const BANNER_WIDTH = SCREEN_WIDTH - Spacing.md * 2;
-const BANNER_HEIGHT = BANNER_WIDTH * 0.42;
+const BANNER_HEIGHT = BANNER_WIDTH * 0.44;
 
 export default function HeroCarousel() {
+  const router = useRouter();
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -60,6 +72,39 @@ export default function HeroCarousel() {
     return null;
   }
 
+  const handleBannerPress = (banner: Promotion) => {
+    let destination = banner.category || (banner.targetType === 'grocery' ? '/grocery' : '/restaurants');
+    if (destination === '/restaurant') {
+      destination = '/restaurants';
+    }
+
+    if (banner.restaurant) {
+      const restId = typeof banner.restaurant === 'object' ? banner.restaurant._id : banner.restaurant;
+      router.push(`/restaurants/${restId}` as any);
+      return;
+    }
+
+    if (destination === '/grocery' || banner.targetType === 'grocery') {
+      router.push('/grocery' as any);
+      return;
+    }
+
+    if (destination.startsWith('/grocery/category/')) {
+      router.push(destination as any);
+      return;
+    }
+
+    if (destination.startsWith('/restaurants/')) {
+      router.push(destination as any);
+      return;
+    }
+
+    if (destination === '/restaurants') {
+      router.push('/(tabs)/home' as any);
+      return;
+    }
+  };
+
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const contentOffset = event.nativeEvent.contentOffset.x;
     const index = Math.round(contentOffset / BANNER_WIDTH);
@@ -79,7 +124,13 @@ export default function HeroCarousel() {
         contentContainerStyle={styles.scrollContent}
       >
         {banners.map((item) => (
-          <View key={item._id} style={styles.bannerWrapper}>
+          <Pressable
+            key={item._id}
+            style={styles.bannerWrapper}
+            onPress={() => handleBannerPress(item)}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+          >
             <OptimizedImage
               src={item.image}
               alt={item.title}
@@ -87,7 +138,23 @@ export default function HeroCarousel() {
               style={styles.bannerImage}
               contentFit="cover"
             />
-          </View>
+            {/* Dark gradient overlay for text readability */}
+            <View style={styles.overlay}>
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagText}>
+                  {item.targetType === 'grocery' ? 'QUICK STORE' : 'MEGA DEAL'}
+                </Text>
+              </View>
+              <Text style={styles.bannerTitle} numberOfLines={2}>
+                {item.title}
+              </Text>
+              {item.description ? (
+                <Text style={styles.bannerDesc} numberOfLines={2}>
+                  {item.description}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
         ))}
       </ScrollView>
 
@@ -122,11 +189,53 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xxl,
     overflow: 'hidden',
     backgroundColor: Colors.surfaceMuted,
+    position: 'relative',
     ...Shadows.md,
   },
   bannerImage: {
     width: '100%',
     height: '100%',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  tagBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.xs,
+  },
+  tagText: {
+    color: Colors.white,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  bannerTitle: {
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.lg,
+    lineHeight: Typography.lineHeight.lg,
+    maxWidth: 240,
+  },
+  bannerDesc: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.xs,
+    lineHeight: Typography.lineHeight.xs,
+    marginTop: Spacing.xs,
+    maxWidth: 240,
   },
   dotsRow: {
     flexDirection: 'row',

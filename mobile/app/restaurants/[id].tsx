@@ -876,6 +876,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     marginTop: Spacing.sm,
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   ratingBadge: {
     flexDirection: 'row',

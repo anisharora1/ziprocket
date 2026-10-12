@@ -8,9 +8,15 @@ import {
   StyleSheet,
   ActivityIndicator,
   Keyboard,
+  Animated,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
+import {
+  ExpoSpeechRecognitionModule,
+  useSpeechRecognitionEvent,
+} from 'expo-speech-recognition';
 import { apiClient } from '../services/api';
 import { useLocation } from '../context/LocationContext';
 import { searchFocusStore } from '../services/searchFocusStore';
@@ -48,7 +54,144 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
   });
   const [loading, setLoading] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const isListeningRef = useRef(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    isListeningRef.current = isListening;
+  }, [isListening]);
+
+  // Soft pulsing red circle animation while listening
+  useEffect(() => {
+    let animation: Animated.CompositeAnimation | null = null;
+    if (isListening) {
+      animation = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.3,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      animation.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+
+    return () => {
+      animation?.stop();
+    };
+  }, [isListening, pulseAnim]);
+
+  // Clean up speech recognition on unmount
+  useEffect(() => {
+    return () => {
+      try {
+        ExpoSpeechRecognitionModule.abort();
+      } catch {}
+    };
+  }, []);
+
+  // Speech Recognition Events
+  useSpeechRecognitionEvent('start', () => {
+    setIsListening(true);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    setIsListening(false);
+  });
+
+  useSpeechRecognitionEvent('result', (event) => {
+    const text = event.results[0]?.transcript;
+    if (text) {
+      setQuery(text);
+      if (event.isFinal) {
+        if (blurTimerRef.current) {
+          clearTimeout(blurTimerRef.current);
+          blurTimerRef.current = null;
+        }
+        setIsOpen(true);
+        Keyboard.dismiss();
+        if (inputRef && 'current' in inputRef && inputRef.current) {
+          inputRef.current.blur();
+        }
+      }
+    }
+  });
+
+  useSpeechRecognitionEvent('error', (event) => {
+    setIsListening(false);
+    if (event.error === 'aborted') {
+      return;
+    }
+    if (event.error === 'no-speech' || event.error === 'speech-timeout') {
+      Alert.alert('Voice Search', 'Kuch sunai nahi diya, dobara try karein');
+    } else if (event.error === 'network') {
+      Alert.alert('Voice Search', 'Internet check karein, network error aayi hai');
+    } else if (event.error === 'not-allowed') {
+      Alert.alert('Voice Search', 'Mic ki permission on karein.');
+    } else if (
+      event.error === 'service-not-allowed' ||
+      event.error === 'language-not-supported'
+    ) {
+      Alert.alert('Voice Search', 'Is phone par voice search available nahi hai');
+    } else {
+      Alert.alert('Voice Search', 'Voice search me samasya aayi, dobara try karein');
+    }
+  });
+
+  const handleMicPress = async () => {
+    if (isListening) {
+      try {
+        ExpoSpeechRecognitionModule.stop();
+      } catch (e) {
+        console.warn('Error stopping speech recognition:', e);
+      }
+      setIsListening(false);
+      return;
+    }
+
+    let isAvailable = false;
+    try {
+      isAvailable = Boolean(
+        ExpoSpeechRecognitionModule &&
+          typeof ExpoSpeechRecognitionModule.isRecognitionAvailable === 'function' &&
+          ExpoSpeechRecognitionModule.isRecognitionAvailable()
+      );
+    } catch {
+      isAvailable = false;
+    }
+
+    if (!isAvailable) {
+      Alert.alert('Voice Search', 'Is phone par voice search available nahi hai');
+      return;
+    }
+
+    try {
+      const permResult = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!permResult.granted) {
+        Alert.alert('Voice Search', 'Mic ki permission on karein.');
+        return;
+      }
+
+      ExpoSpeechRecognitionModule.start({
+        lang: 'en-IN',
+        interimResults: true,
+        continuous: false,
+      });
+    } catch (err) {
+      console.warn('Speech recognition start error:', err);
+      Alert.alert('Voice Search', 'Is phone par voice search available nahi hai');
+    }
+  };
 
   // Debounced search logic (300ms) matching web client
   useEffect(() => {
@@ -100,7 +243,9 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
     searchFocusStore.setIsFocused(false);
     // Slight delay so suggestion press touches can register cleanly
     blurTimerRef.current = setTimeout(() => {
-      setIsOpen(false);
+      if (!isListeningRef.current) {
+        setIsOpen(false);
+      }
     }, 200);
     onBlur?.();
   };
@@ -176,14 +321,36 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
           autoCapitalize="none"
           autoCorrect={false}
         />
-        {query.length > 0 ? (
+        {query.length > 0 && !isListening ? (
           <Pressable onPress={clearSearch} style={styles.actionBtn}>
             <MaterialIcons name="close" size={18} color={Colors.textMuted} />
           </Pressable>
         ) : (
-          <View style={styles.actionBtn}>
-            <MaterialIcons name="mic" size={20} color={Colors.primary} />
-          </View>
+          <Pressable
+            hitSlop={10}
+            onPress={handleMicPress}
+            style={styles.micActionBtn}
+            accessibilityRole="button"
+            accessibilityLabel={
+              isListening ? 'Listening, tap to stop' : 'Search with voice'
+            }
+          >
+            {isListening && (
+              <Animated.View
+                style={[
+                  styles.pulseCircle,
+                  {
+                    transform: [{ scale: pulseAnim }],
+                  },
+                ]}
+              />
+            )}
+            <MaterialIcons
+              name="mic"
+              size={20}
+              color={isListening ? Colors.error : Colors.primary}
+            />
+          </Pressable>
         )}
       </View>
 
@@ -380,6 +547,20 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  micActionBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  pulseCircle: {
+    position: 'absolute',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: Colors.errorLight,
   },
   dropdownContainer: {
     marginTop: Spacing.xs,
