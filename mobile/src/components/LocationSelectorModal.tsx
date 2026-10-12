@@ -20,6 +20,8 @@ import { apiClient } from '../services/api';
 import { getHighAccuracyGPSFix, GPSError } from '../utils/geolocation';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
+import { useKeyboardHeight } from '../hooks';
+
 interface LocationSelectorModalProps {
   visible?: boolean;
   isOpen?: boolean; // Web compatibility alias
@@ -32,6 +34,7 @@ export default function LocationSelectorModal({
   onClose,
 }: LocationSelectorModalProps) {
   const isModalVisible = visible ?? isOpen ?? false;
+  const keyboardHeight = useKeyboardHeight();
 
   const {
     location,
@@ -67,6 +70,7 @@ export default function LocationSelectorModal({
   // Debounced Places Autocomplete Query (400ms debounce, starts at 3+ chars)
   useEffect(() => {
     if (searchQuery.trim().length < 3) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSuggestions([]);
       return;
     }
@@ -96,6 +100,7 @@ export default function LocationSelectorModal({
       loadSavedAddresses();
     }
     if (isModalVisible) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStep('select');
       setSearchQuery('');
       setSuggestions([]);
@@ -286,11 +291,15 @@ export default function LocationSelectorModal({
       visible={isModalVisible}
       animationType="slide"
       presentationStyle="pageSheet"
+      statusBarTranslucent
       onRequestClose={onClose}
     >
       <SafeAreaView style={styles.safeArea} edges={['top', 'bottom', 'left', 'right']}>
         <KeyboardAvoidingView
-          style={styles.keyboardContainer}
+          style={[
+            styles.keyboardContainer,
+            Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight },
+          ]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
           {/* Header */}

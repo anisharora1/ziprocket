@@ -1,2 +1,2 @@
 // Custom hooks barrel export
-export {};
+export { useKeyboardHeight } from './useKeyboardHeight';

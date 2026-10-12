@@ -8,6 +8,8 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +25,7 @@ import OptimizedImage from '../../src/components/OptimizedImage';
 import LocationSelectorModal from '../../src/components/LocationSelectorModal';
 import CheckoutAddressModal from '../../src/components/CheckoutAddressModal';
 import NotificationModal, { NotifCardData } from '../../src/components/NotificationModal';
+import { useKeyboardHeight } from '../../src/hooks';
 import {
   Colors,
   Spacing,
@@ -60,6 +63,8 @@ interface BillDetails {
 export default function CheckoutScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const keyboardHeight = useKeyboardHeight();
   const { cart, clearCart } = useCart();
   const { user } = useAuth();
   const {
@@ -852,7 +857,7 @@ export default function CheckoutScreen() {
               <Text style={styles.etaMinutes}>
                 {billDetails.durationMinutes || 25} min me
               </Text>
-              <Text style={styles.etaFastBadge}>Sabse tez delivery</Text>
+              <Text style={styles.etaFastBadge}>Fast delivery</Text>
             </View>
           </View>
         ) : null}
@@ -882,8 +887,7 @@ export default function CheckoutScreen() {
             <View style={styles.bannerTextCol}>
               <Text style={styles.safeBannerTitle}>Surakshit & Superfast Delivery</Text>
               <Text style={styles.safeBannerDesc}>
-                {activeDistance} km doori se seedha aapke ghar tak (
-                {billDetails?.zoneName || 'ZipRocket Zone'}).
+                {activeDistance} km doori se seedha aapke ghar tak.
               </Text>
             </View>
           </View>
@@ -1187,8 +1191,8 @@ export default function CheckoutScreen() {
                 </View>
 
                 {billDetails &&
-                billDetails.discountAmount !== undefined &&
-                Number(billDetails.discountAmount) > 0 ? (
+                  billDetails.discountAmount !== undefined &&
+                  Number(billDetails.discountAmount) > 0 ? (
                   <View style={styles.discountRow}>
                     <Text style={styles.discountRowText}>
                       Coupon Discount ({appliedCouponCode})
@@ -1230,7 +1234,7 @@ export default function CheckoutScreen() {
               !!checkoutError ||
               isCheckoutDisabled ||
               isBelowMinimum) &&
-              styles.submitOrderBtnDisabled,
+            styles.submitOrderBtnDisabled,
           ]}
           onPress={handlePlaceOrder}
           disabled={
@@ -1257,10 +1261,10 @@ export default function CheckoutScreen() {
             </Text>
           )}
           {!placingOrder &&
-          !loadingBill &&
-          !checkoutError &&
-          !isCheckoutDisabled &&
-          !isBelowMinimum ? (
+            !loadingBill &&
+            !checkoutError &&
+            !isCheckoutDisabled &&
+            !isBelowMinimum ? (
             <MaterialIcons name="arrow-forward" size={18} color={Colors.white} />
           ) : null}
         </Pressable>
@@ -1316,10 +1320,31 @@ export default function CheckoutScreen() {
         visible={isCouponDrawerOpen}
         animationType="slide"
         transparent
+        statusBarTranslucent
         onRequestClose={() => setIsCouponDrawerOpen(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.couponDrawerContent}>
+        <View style={[styles.modalOverlay, { paddingBottom: keyboardHeight }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (keyboardHeight > 0) {
+                Keyboard.dismiss();
+              } else {
+                setIsCouponDrawerOpen(false);
+              }
+            }}
+          />
+          <View
+            style={[
+              styles.couponDrawerContent,
+              {
+                maxHeight: Math.max(
+                  240,
+                  windowHeight - keyboardHeight - insets.top - 16
+                ),
+              },
+            ]}
+          >
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Discounts aur Coupons</Text>
@@ -1333,22 +1358,33 @@ export default function CheckoutScreen() {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalBodyScroll}>
+            <ScrollView
+              style={styles.modalBodyScroll}
+              contentContainerStyle={styles.couponScrollContent}
+              keyboardShouldPersistTaps="handled"
+            >
               {/* Manual input */}
               <View style={styles.couponInputContainer}>
                 <TextInput
                   style={styles.couponTextInput}
                   value={couponInputText}
                   onChangeText={(t) => setCouponInputText(t.toUpperCase())}
-                  placeholder="COUPON CODE DALEIN (WELCOME50)"
+                  placeholder="Coupon code dalein"
                   placeholderTextColor={Colors.slate400}
                   autoCapitalize="characters"
+                  numberOfLines={1}
+                  returnKeyType="done"
+                  onSubmitEditing={() => {
+                    if (couponInputText.trim() && !applyingCoupon) {
+                      handleApplyCoupon(couponInputText);
+                    }
+                  }}
                 />
                 <Pressable
                   style={[
                     styles.couponApplyBtn,
                     (!couponInputText.trim() || applyingCoupon) &&
-                      styles.couponApplyBtnDisabled,
+                    styles.couponApplyBtnDisabled,
                   ]}
                   onPress={() => handleApplyCoupon(couponInputText)}
                   disabled={!couponInputText.trim() || applyingCoupon}
@@ -2331,6 +2367,9 @@ const styles = StyleSheet.create({
   modalBodyScroll: {
     padding: 20,
   },
+  couponScrollContent: {
+    paddingBottom: 20,
+  },
   modalSectionLabel: {
     fontFamily: FontFamily.extraBold,
     fontSize: 11,
@@ -2604,8 +2643,9 @@ const styles = StyleSheet.create({
   },
   couponTextInput: {
     flex: 1,
+    height: 44,
     paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingVertical: 10,
     fontFamily: FontFamily.bold,
     fontSize: 13,
     color: Colors.slate900,

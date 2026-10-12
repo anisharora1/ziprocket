@@ -6,13 +6,15 @@ import {
   TextInput,
   Pressable,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   StyleSheet,
+  Keyboard,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { SavedAddress } from '../context/LocationContext';
+import { useKeyboardHeight } from '../hooks';
 import {
   Colors,
   Spacing,
@@ -92,6 +94,9 @@ export default function CheckoutAddressModal({
   userAddress,
 }: CheckoutAddressModalProps) {
   const [focusedField, setFocusedField] = useState<string | null>(null);
+  const { height: windowHeight } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const keyboardHeight = useKeyboardHeight();
 
   const isSaveDisabled =
     validatingEdit ||
@@ -105,14 +110,31 @@ export default function CheckoutAddressModal({
       visible={visible}
       animationType="slide"
       transparent
+      statusBarTranslucent
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          style={styles.keyboardAvoid}
+      <View style={[styles.modalOverlay, { paddingBottom: keyboardHeight }]}>
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => {
+            if (keyboardHeight > 0) {
+              Keyboard.dismiss();
+            } else {
+              onClose();
+            }
+          }}
+        />
+        <View
+          style={[
+            styles.sheetContainer,
+            {
+              maxHeight: Math.max(
+                260,
+                windowHeight - keyboardHeight - insets.top - 16
+              ),
+            },
+          ]}
         >
-          <View style={styles.sheetContainer}>
             {/* Header */}
             <View style={styles.header}>
               <View style={styles.headerTextWrap}>
@@ -535,8 +557,7 @@ export default function CheckoutAddressModal({
               </View>
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
     </Modal>
   );
 }

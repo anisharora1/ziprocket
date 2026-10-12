@@ -11,6 +11,7 @@ import {
   RefreshControl,
   StyleSheet,
   Alert,
+  Keyboard,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -20,6 +21,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { apiClient } from '../../src/services/api';
 import { useCustomerOrders } from '../../src/hooks/useOrders';
 import { useOrderSocket } from '../../src/hooks/useOrderSocket';
+import { useKeyboardHeight } from '../../src/hooks';
 import Header from '../../src/components/Header';
 import {
   Colors,
@@ -48,6 +50,7 @@ const CANCEL_REASONS = [
 
 export default function OrdersScreen() {
   const router = useRouter();
+  const keyboardHeight = useKeyboardHeight();
   const { user, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
@@ -548,9 +551,20 @@ export default function OrdersScreen() {
         visible={isCancelModalOpen}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => setIsCancelModalOpen(false)}
       >
-        <View style={styles.modalOverlay}>
+        <View style={[styles.modalOverlay, keyboardHeight > 0 && { paddingBottom: keyboardHeight }]}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => {
+              if (keyboardHeight > 0) {
+                Keyboard.dismiss();
+              } else {
+                setIsCancelModalOpen(false);
+              }
+            }}
+          />
           <View style={styles.modalCard}>
             <View style={styles.modalHeader}>
               <View style={styles.modalIconCircle}>
