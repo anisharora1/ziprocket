@@ -178,11 +178,6 @@ export default function RestaurantDetailScreen() {
   const platformMsg = getPlatformStatusMessage();
   const isOrderingDisabled = !!platformMsg || !isRestaurantOpen;
 
-  const stickyHeaderIndices = useMemo(
-    () => [isOrderingDisabled ? 2 : 1],
-    [isOrderingDisabled]
-  );
-
   const openTimeFormatted = restaurant?.operatingHours?.open
     ? formatToAMPM(restaurant.operatingHours.open)
     : '';
@@ -258,7 +253,7 @@ export default function RestaurantDetailScreen() {
           { paddingBottom: insets.bottom + 80 },
         ]}
         showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={stickyHeaderIndices}
+        stickyHeaderIndices={[2]}
       >
         {/* Child 0: Restaurant Hero Card */}
         <View key="hero-card" style={styles.heroCard}>
@@ -328,33 +323,33 @@ export default function RestaurantDetailScreen() {
           </View>
         </View>
 
-        {/* Child 1: Ordering Warning Alert Banner (only when rendered, avoids null/false placeholder) */}
-        {...(isOrderingDisabled
-          ? [
-              <View key="warning-banner" style={styles.warningBanner}>
-                <MaterialIcons name="error" size={20} color={Colors.error} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.warningTitle}>
-                    {settings?.maintenanceMode
-                      ? 'Platform Maintenance Mode'
-                      : !isPlatformCurrentlyOpen()
-                        ? 'ZipRocket Orders Currently Closed'
-                        : 'Restaurant Currently Unavailable'}
-                  </Text>
-                  <Text style={styles.warningDesc}>
-                    {platformMsg ||
-                      (restaurant?.availabilityStatus === 'disabled'
-                        ? 'This restaurant is temporarily disabled by administration.'
-                        : !isWithinHours && openTimeFormatted
-                          ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
-                          : 'This restaurant is currently closed and not accepting online orders right now.')}
-                  </Text>
-                </View>
-              </View>,
-            ]
-          : [])}
+        {/* Child 1: banner slot (always rendered, so child indexes never shift) */}
+        <View>
+          {isOrderingDisabled ? (
+            <View style={styles.warningBanner}>
+              <MaterialIcons name="error" size={20} color={Colors.error} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.warningTitle}>
+                  {settings?.maintenanceMode
+                    ? 'Platform Maintenance Mode'
+                    : !isPlatformCurrentlyOpen()
+                      ? 'ZipRocket Orders Currently Closed'
+                      : 'Restaurant Currently Unavailable'}
+                </Text>
+                <Text style={styles.warningDesc}>
+                  {platformMsg ||
+                    (restaurant?.availabilityStatus === 'disabled'
+                      ? 'This restaurant is temporarily disabled by administration.'
+                      : !isWithinHours && openTimeFormatted
+                        ? `This restaurant is currently closed. It reopens at ${openTimeFormatted}.`
+                        : 'This restaurant is currently closed and not accepting online orders right now.')}
+                </Text>
+              </View>
+            </View>
+          ) : null}
+        </View>
 
-        {/* Child 2 (or 1): Sticky Search & Filter Toolbar */}
+        {/* Child 2: Sticky Search & Filter Toolbar */}
         <View key="toolbar-card" style={styles.toolbarCard}>
           <View style={styles.searchRow}>
             <View style={styles.searchBox}>
