@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -22,12 +22,18 @@ import { apiClient } from '../../src/services/api';
 import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
 import { searchFocusStore } from '../../src/services/searchFocusStore';
+import { useLocation } from '../../src/context/LocationContext';
+import { orderRestaurants } from '../../src/utils/orderRestaurants';
 
 export default function HomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const searchInputRef = useRef<TextInput>(null);
   const { focusSearch } = useLocalSearchParams<{ focusSearch?: string }>();
   const prevFocusSearchRef = useRef<string | undefined>(undefined);
+  const { zoneId } = useLocation();
+
+  // Seed that increments only on pull-to-refresh to trigger random reshuffle without re-render jumping
+  const [shuffleSeed, setShuffleSeed] = useState(0);
 
   useEffect(() => {
     if (focusSearch && focusSearch !== prevFocusSearchRef.current) {
@@ -49,18 +55,50 @@ export default function HomeScreen() {
     }, [])
   );
 
+  // Shared promotions query key with TopRated
+  const {
+    data: promotions = [],
+    refetch: refetchPromotions,
+    isRefetching: isPromotionsRefetching,
+  } = useQuery<any[]>({
+    queryKey: ['promotions'],
+    queryFn: async () => {
+      const res = await apiClient.get('/promotions');
+      const list = res.data?.promotions || res.data?.data?.promotions || [];
+      return list.filter((p: any) => p.isActive);
+    },
+  });
+
+  // Up to 50 restaurants filtered by deliveryZone if available
   const {
     data: restaurants = [],
     isLoading,
-    refetch,
-    isRefetching,
+    refetch: refetchRestaurants,
+    isRefetching: isRestaurantsRefetching,
   } = useQuery<Restaurant[]>({
-    queryKey: ['home-restaurants'],
+    queryKey: ['home-restaurants', zoneId || 'all'],
     queryFn: async () => {
-      const res = await apiClient.get('/restaurants?status=approved&isActive=true&limit=10');
+      const url = zoneId
+        ? `/restaurants?status=approved&isActive=true&limit=50&deliveryZone=${zoneId}`
+        : '/restaurants?status=approved&isActive=true&limit=50';
+      const res = await apiClient.get(url);
       return res.data?.restaurants || res.data?.data?.restaurants || [];
     },
   });
+
+  // Order restaurants: pinned group (featured + top-3 rated) + Fisher-Yates shuffled rest
+  const { pinned: pinnedRestaurants, ordered: orderedRestaurants } = useMemo(() => {
+    return orderRestaurants(restaurants, promotions);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurants, promotions, shuffleSeed]);
+
+  const handleRefresh = useCallback(() => {
+    setShuffleSeed((prev) => prev + 1);
+    refetchRestaurants();
+    refetchPromotions();
+  }, [refetchRestaurants, refetchPromotions]);
+
+  const isRefreshing = isRestaurantsRefetching || isPromotionsRefetching;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -74,8 +112,8 @@ export default function HomeScreen() {
         automaticallyAdjustKeyboardInsets={true}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
             colors={[Colors.primary]}
             tintColor={Colors.primary}
           />
@@ -85,13 +123,13 @@ export default function HomeScreen() {
           <SearchBar inputRef={searchInputRef} />
           <HeroCarousel />
           <Categories />
-          <TopRated />
+          <TopRated items={pinnedRestaurants} />
           {isLoading && restaurants.length === 0 ? (
             <View style={styles.centerLoading}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
           ) : (
-            <RestaurantList restaurants={restaurants} />
+            <RestaurantList restaurants={orderedRestaurants} />
           )}
           <PopularGroceries />
         </View>

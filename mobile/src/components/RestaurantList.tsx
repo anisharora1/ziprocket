@@ -77,19 +77,6 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
                   onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
                 />
 
-                {/* Status Badge */}
-                <View
-                  style={[
-                    styles.statusBadge,
-                    isCurrentlyOpen ? styles.openBadge : styles.closedBadge,
-                  ]}
-                  pointerEvents="none"
-                >
-                  <Text style={styles.statusBadgeText}>
-                    {isCurrentlyOpen ? 'OPEN NOW' : 'CLOSED'}
-                  </Text>
-                </View>
-
                 {/* Delivery Time Badge */}
                 <View style={styles.deliveryTimeBadge} pointerEvents="none">
                   <Text style={styles.deliveryTimeText}>25-35 mins</Text>
@@ -176,29 +163,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceMuted,
     position: 'relative',
     overflow: 'hidden',
-  },
-  statusBadge: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    zIndex: 20,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.md,
-  },
-  openBadge: {
-    backgroundColor: Colors.primary,
-  },
-  closedBadge: {
-    backgroundColor: Colors.error,
-  },
-  statusBadgeText: {
-    fontFamily: FontFamily.bold,
-    fontSize: 9,
-    fontWeight: Typography.fontWeight.bold,
-    color: Colors.white,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   deliveryTimeBadge: {
     position: 'absolute',

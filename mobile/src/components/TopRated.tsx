@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -7,20 +7,45 @@ import { apiClient } from '../services/api';
 import OptimizedImage from './OptimizedImage';
 import { Restaurant } from '../types';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
+import { orderRestaurants } from '../utils/orderRestaurants';
+import { useLocation } from '../context/LocationContext';
 
-export default function TopRated() {
+interface TopRatedProps {
+  items?: Restaurant[];
+}
+
+export default function TopRated({ items }: TopRatedProps = {}) {
   const router = useRouter();
+  const { zoneId } = useLocation();
 
-  const { data: topRestaurants = [] } = useQuery<Restaurant[]>({
-    queryKey: ['top-rated-restaurants'],
+  const { data: promotions = [] } = useQuery<any[]>({
+    queryKey: ['promotions'],
     queryFn: async () => {
-      const res = await apiClient.get('/restaurants?status=approved&isActive=true&limit=6');
-      const list: Restaurant[] = res.data?.restaurants || res.data?.data?.restaurants || [];
-      return list.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+      const res = await apiClient.get('/promotions');
+      const list = res.data?.promotions || res.data?.data?.promotions || [];
+      return list.filter((p: any) => p.isActive);
     },
+    enabled: !items,
   });
 
-  if (!topRestaurants || topRestaurants.length === 0) {
+  const { data: queriedRestaurants = [] } = useQuery<Restaurant[]>({
+    queryKey: ['home-restaurants', zoneId || 'all'],
+    queryFn: async () => {
+      const url = zoneId
+        ? `/restaurants?status=approved&isActive=true&limit=50&deliveryZone=${zoneId}`
+        : '/restaurants?status=approved&isActive=true&limit=50';
+      const res = await apiClient.get(url);
+      return res.data?.restaurants || res.data?.data?.restaurants || [];
+    },
+    enabled: !items,
+  });
+
+  const displayRestaurants = useMemo(() => {
+    if (items) return items;
+    return orderRestaurants(queriedRestaurants, promotions).pinned;
+  }, [items, queriedRestaurants, promotions]);
+
+  if (!displayRestaurants || displayRestaurants.length === 0) {
     return null;
   }
 
@@ -36,10 +61,14 @@ export default function TopRated() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollList}
       >
-        {topRestaurants.map((item) => {
+        {displayRestaurants.map((item) => {
           const bannerImg =
             item.popularItems?.[0]?.images?.[0] ||
-            'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4';
+            (typeof item.image === 'string'
+              ? item.image
+              : typeof item.image === 'object' && item.image?.url
+              ? item.image.url
+              : 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4');
 
           return (
             <Pressable
