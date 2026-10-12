@@ -174,15 +174,16 @@ export default function CartScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* 1. Header: White bar, bottom border 1px slate-100 */}
       <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <MaterialIcons name="arrow-back" size={20} color={Colors.slate700} />
-        </Pressable>
-
-        <Text style={styles.headerTitle}>Aapka Cart</Text>
+        <View style={styles.headerLeft}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialIcons name="arrow-back" size={22} color={Colors.slate800} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Aapka Cart</Text>
+        </View>
 
         {items.length > 0 ? (
           <Pressable
@@ -192,9 +193,7 @@ export default function CartScreen() {
           >
             <Text style={styles.clearAllText}>CLEAR ALL</Text>
           </Pressable>
-        ) : (
-          <View style={styles.headerSpacer} />
-        )}
+        ) : null}
       </View>
 
       {/* Main Content Area */}
@@ -457,7 +456,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   header: {
-    height: 52,
+    height: 54,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.slate100,
@@ -466,18 +465,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   backButton: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.slate50,
   },
   headerTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.slate800,
-    letterSpacing: -0.2,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.slate900,
+    letterSpacing: -0.3,
   },
   clearAllBtn: {
     paddingHorizontal: 10,
@@ -490,10 +496,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     color: Colors.rose500,
-    letterSpacing: 1,
-  },
-  headerSpacer: {
-    width: 32,
+    letterSpacing: 0.8,
   },
   scrollView: {
     flex: 1,
