@@ -2,12 +2,32 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
-import OptimizedImage from './OptimizedImage';
+import RestaurantCardCarousel from './RestaurantCardCarousel';
 import { Restaurant } from '../types';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
+import { formatToAMPM, isWithinOperatingHours } from '../utils/restaurantHours';
 
 interface RestaurantListProps {
   restaurants: Restaurant[];
+}
+
+function getFallbackImage(restaurant: Restaurant): string {
+  if (restaurant.image) {
+    if (typeof restaurant.image === 'string' && restaurant.image.trim()) {
+      return restaurant.image.trim();
+    }
+    if (
+      typeof restaurant.image === 'object' &&
+      restaurant.image?.url &&
+      typeof restaurant.image.url === 'string'
+    ) {
+      return restaurant.image.url.trim();
+    }
+  }
+  return (
+    restaurant.popularItems?.[0]?.images?.[0] ||
+    'https://images.unsplash.com/photo-1504674900247-0877df9cc836'
+  );
 }
 
 export default function RestaurantList({ restaurants }: RestaurantListProps) {
@@ -22,11 +42,21 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
       <Text style={styles.sectionTitle}>Restaurants</Text>
 
       <View style={styles.list}>
-        {restaurants.map((restaurant) => {
-          const isCurrentlyOpen = restaurant.isCurrentlyOpen !== false && restaurant.availabilityStatus !== 'closed';
-          const bannerImg =
-            restaurant.popularItems?.[0]?.images?.[0] ||
-            'https://images.unsplash.com/photo-1504674900247-0877df9cc836';
+        {restaurants.map((restaurant, index) => {
+          const isCurrentlyOpen =
+            restaurant.isCurrentlyOpen !== undefined
+              ? restaurant.isCurrentlyOpen
+              : (restaurant.isActive !== false &&
+                  restaurant.availabilityStatus !== 'closed' &&
+                  isWithinOperatingHours(
+                    restaurant.operatingHours?.open,
+                    restaurant.operatingHours?.close
+                  ));
+
+          const fallbackImg = getFallbackImage(restaurant);
+          const openTimeFormatted = restaurant.operatingHours?.open
+            ? formatToAMPM(restaurant.operatingHours.open)
+            : '';
 
           return (
             <Pressable
@@ -37,14 +67,14 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
               ]}
               onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
             >
-              {/* Image banner */}
+              {/* Image banner with dishes carousel */}
               <View style={styles.imageBox}>
-                <OptimizedImage
-                  src={bannerImg}
-                  alt={restaurant.name}
-                  preset="card"
-                  style={styles.cardImage}
-                  contentFit="cover"
+                <RestaurantCardCarousel
+                  items={restaurant.popularItems || []}
+                  fallbackImage={fallbackImg}
+                  restaurantName={restaurant.name}
+                  cardIndex={index}
+                  onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
                 />
 
                 {/* Status Badge */}
@@ -53,6 +83,7 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
                     styles.statusBadge,
                     isCurrentlyOpen ? styles.openBadge : styles.closedBadge,
                   ]}
+                  pointerEvents="none"
                 >
                   <Text style={styles.statusBadgeText}>
                     {isCurrentlyOpen ? 'OPEN NOW' : 'CLOSED'}
@@ -60,18 +91,9 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
                 </View>
 
                 {/* Delivery Time Badge */}
-                <View style={styles.deliveryTimeBadge}>
+                <View style={styles.deliveryTimeBadge} pointerEvents="none">
                   <Text style={styles.deliveryTimeText}>25-35 mins</Text>
                 </View>
-
-                {/* Closed dark overlay if not currently open */}
-                {!isCurrentlyOpen && (
-                  <View style={styles.closedOverlay}>
-                    <View style={styles.closedPill}>
-                      <Text style={styles.closedPillText}>Closed</Text>
-                    </View>
-                  </View>
-                )}
               </View>
 
               {/* Card info */}
@@ -103,6 +125,17 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
                   </Text>
                 </View>
               </View>
+
+              {/* Closed overlay covering whole card (image + info area) */}
+              {!isCurrentlyOpen && (
+                <View style={styles.closedOverlay} pointerEvents="none">
+                  <View style={styles.closedPill}>
+                    <Text style={styles.closedPillText}>
+                      Closed{openTimeFormatted ? ` · Opens at ${openTimeFormatted}` : ''}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </Pressable>
           );
         })}
@@ -131,25 +164,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.borderLight,
+    position: 'relative',
     ...Shadows.sm,
   },
   closedCard: {
-    opacity: 0.8,
+    opacity: 0.75,
   },
   imageBox: {
-    height: 160,
+    height: 176,
     backgroundColor: Colors.surfaceMuted,
     position: 'relative',
-  },
-  cardImage: {
-    width: '100%',
-    height: '100%',
   },
   statusBadge: {
     position: 'absolute',
     top: 10,
     left: 10,
-    zIndex: 10,
+    zIndex: 20,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: BorderRadius.md,
@@ -172,7 +202,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 10,
     right: 10,
-    zIndex: 10,
+    zIndex: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -191,20 +221,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 20,
+    zIndex: 30,
   },
   closedPill: {
-    backgroundColor: Colors.textPrimary,
+    backgroundColor: Colors.slate900,
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.xs,
+    paddingVertical: 7,
     borderRadius: BorderRadius.full,
+    ...Shadows.md,
   },
   closedPillText: {
     fontFamily: FontFamily.bold,
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.xs + 1,
+    fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
   },
   cardBody: {
@@ -262,3 +294,4 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
 });
+
