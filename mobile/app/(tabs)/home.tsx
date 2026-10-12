@@ -23,7 +23,10 @@ import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
 import { searchFocusStore } from '../../src/services/searchFocusStore';
 import { useLocation } from '../../src/context/LocationContext';
-import { orderRestaurants } from '../../src/utils/orderRestaurants';
+import {
+  getTopRatedSectionRestaurants,
+  getHomeRestaurantList,
+} from '../../src/utils/orderRestaurants';
 
 export default function HomeScreen() {
   const scrollRef = useRef<ScrollView>(null);
@@ -86,9 +89,14 @@ export default function HomeScreen() {
     },
   });
 
-  // Order restaurants: pinned group (featured + top-3 rated) + Fisher-Yates shuffled rest
-  const { pinned: pinnedRestaurants, ordered: orderedRestaurants } = useMemo(() => {
-    return orderRestaurants(restaurants, promotions);
+  // TopRated section: featured + top 3 rated (rating > 0, highest first)
+  const topRatedRestaurants = useMemo(() => {
+    return getTopRatedSectionRestaurants(restaurants, promotions);
+  }, [restaurants, promotions]);
+
+  // Main Restaurants list: featured first, then ALL other restaurants shuffled (Fisher-Yates)
+  const homeRestaurants = useMemo(() => {
+    return getHomeRestaurantList(restaurants, promotions);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurants, promotions, shuffleSeed]);
 
@@ -123,13 +131,13 @@ export default function HomeScreen() {
           <SearchBar inputRef={searchInputRef} />
           <HeroCarousel />
           <Categories />
-          <TopRated items={pinnedRestaurants} />
+          <TopRated items={topRatedRestaurants} />
           {isLoading && restaurants.length === 0 ? (
             <View style={styles.centerLoading}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>
           ) : (
-            <RestaurantList restaurants={orderedRestaurants} />
+            <RestaurantList restaurants={homeRestaurants} />
           )}
           <PopularGroceries />
         </View>

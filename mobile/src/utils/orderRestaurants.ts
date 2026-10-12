@@ -1,14 +1,5 @@
 import { Restaurant } from '../types';
 
-export interface OrderedRestaurantsResult {
-  featured: Restaurant[];
-  topRated: Restaurant[];
-  pinned: Restaurant[];
-  rest: Restaurant[];
-  ordered: Restaurant[];
-  featuredIds: string[];
-}
-
 /**
  * Standard Fisher-Yates (Knuth) in-place shuffle on a copied array.
  */
@@ -45,34 +36,20 @@ export function extractFeaturedRestaurantIds(promotions: any[] = []): string[] {
 }
 
 /**
- * Orders restaurants for the mobile Home screen:
- * 1. Pinned group:
- *    a) Sponsored (featured) restaurants matching active promotions, in promo order.
- *    b) Top 3 rated restaurants (rating > 0, highest first; tie-break: totalOrders desc)
- *       excluding any already in featured.
- * 2. Rest group:
- *    All remaining restaurants in random order (Fisher-Yates shuffled).
- *
- * Guarantees no duplicates.
+ * For the TopRated section:
+ * Sponsored (featured) restaurants matching active promotions in promo order,
+ * followed by up to 3 highest-rated restaurants (rating > 0, highest first; tie-break: totalOrders desc)
+ * that are not already featured.
  */
-export function orderRestaurants(
+export function getTopRatedSectionRestaurants(
   restaurants: Restaurant[] = [],
   promotions: any[] = []
-): OrderedRestaurantsResult {
+): Restaurant[] {
   if (!Array.isArray(restaurants) || restaurants.length === 0) {
-    return {
-      featured: [],
-      topRated: [],
-      pinned: [],
-      rest: [],
-      ordered: [],
-      featuredIds: [],
-    };
+    return [];
   }
 
   const featuredIds = extractFeaturedRestaurantIds(promotions);
-
-  // 1. Featured restaurants in promo order
   const featured: Restaurant[] = [];
   const featuredAddedSet = new Set<string>();
 
@@ -84,36 +61,65 @@ export function orderRestaurants(
     }
   }
 
-  // 2. Top-rated restaurants (rating > 0, not featured, sorted desc, max 3)
-  const topRatedCandidates = restaurants
+  const topRated = restaurants
     .filter((r) => !featuredAddedSet.has(r._id) && (Number(r.rating) || 0) > 0)
     .sort((a, b) => {
       const ratingDiff = (Number(b.rating) || 0) - (Number(a.rating) || 0);
       if (ratingDiff !== 0) return ratingDiff;
-      // Tie-breaker: totalOrders desc
       return (Number(b.totalOrders) || 0) - (Number(a.totalOrders) || 0);
-    });
+    })
+    .slice(0, 3);
 
-  const topRated = topRatedCandidates.slice(0, 3);
-  const topRatedAddedSet = new Set(topRated.map((r) => r._id));
+  return [...featured, ...topRated];
+}
 
-  // Pinned group (featured + topRated)
-  const pinned = [...featured, ...topRated];
-  const pinnedIdSet = new Set([...featuredAddedSet, ...topRatedAddedSet]);
+/**
+ * For the main Restaurants list (RestaurantList data):
+ * final list = [ ...featured restaurants, ...all other restaurants shuffled ]
+ *
+ * - featured = restaurants whose _id is in active restaurant-type promotions (in promo order).
+ * - rest = EVERY other restaurant (including highest-rated ones), shuffled with Fisher-Yates.
+ *   Top 3 rated restaurants are NOT pinned in this list. They are shuffled with everyone else.
+ * - No duplicates: a featured restaurant does not appear again in the random part.
+ */
+export function getHomeRestaurantList(
+  restaurants: Restaurant[] = [],
+  promotions: any[] = []
+): Restaurant[] {
+  if (!Array.isArray(restaurants) || restaurants.length === 0) {
+    return [];
+  }
 
-  // 3. Rest group: all other restaurants, shuffled with Fisher-Yates
-  const restCandidates = restaurants.filter((r) => !pinnedIdSet.has(r._id));
+  const featuredIds = extractFeaturedRestaurantIds(promotions);
+  const featured: Restaurant[] = [];
+  const featuredAddedSet = new Set<string>();
+
+  for (const id of featuredIds) {
+    const match = restaurants.find((r) => r._id === id);
+    if (match && !featuredAddedSet.has(match._id)) {
+      featured.push(match);
+      featuredAddedSet.add(match._id);
+    }
+  }
+
+  // Rest = every other restaurant (including rated ones), shuffled with Fisher-Yates
+  const restCandidates = restaurants.filter((r) => !featuredAddedSet.has(r._id));
   const rest = fisherYatesShuffle(restCandidates);
 
-  // Final combined list
-  const ordered = [...pinned, ...rest];
+  return [...featured, ...rest];
+}
 
+/**
+ * Backward-compatible helper returning structured groups if needed.
+ */
+export function orderRestaurants(
+  restaurants: Restaurant[] = [],
+  promotions: any[] = []
+) {
+  const topRated = getTopRatedSectionRestaurants(restaurants, promotions);
+  const homeList = getHomeRestaurantList(restaurants, promotions);
   return {
-    featured,
-    topRated,
-    pinned,
-    rest,
-    ordered,
-    featuredIds,
+    pinned: topRated,
+    ordered: homeList,
   };
 }

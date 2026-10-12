@@ -7,7 +7,7 @@ import { apiClient } from '../services/api';
 import OptimizedImage from './OptimizedImage';
 import { Restaurant } from '../types';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
-import { orderRestaurants } from '../utils/orderRestaurants';
+import { getTopRatedSectionRestaurants } from '../utils/orderRestaurants';
 import { useLocation } from '../context/LocationContext';
 
 interface TopRatedProps {
@@ -42,7 +42,7 @@ export default function TopRated({ items }: TopRatedProps = {}) {
 
   const displayRestaurants = useMemo(() => {
     if (items) return items;
-    return orderRestaurants(queriedRestaurants, promotions).pinned;
+    return getTopRatedSectionRestaurants(queriedRestaurants, promotions);
   }, [items, queriedRestaurants, promotions]);
 
   if (!displayRestaurants || displayRestaurants.length === 0) {
