@@ -8,8 +8,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Modal,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,12 +21,12 @@ import { apiClient } from '../../src/services/api';
 import { getHighAccuracyGPSFix } from '../../src/utils/geolocation';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import LocationSelectorModal from '../../src/components/LocationSelectorModal';
+import CheckoutAddressModal from '../../src/components/CheckoutAddressModal';
 import NotificationModal, { NotifCardData } from '../../src/components/NotificationModal';
 import {
   Colors,
   Spacing,
   BorderRadius,
-  Typography,
   FontFamily,
   Shadows,
 } from '../../src/constants/theme';
@@ -105,6 +103,7 @@ export default function CheckoutScreen() {
 
   // Address overrides and bottom sheet state
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
   const [addressStep, setAddressStep] = useState<'select' | 'form'>('select');
   const [addressLabel, setAddressLabel] = useState<'Home' | 'Work' | 'Other'>('Home');
   const [houseNo, setHouseNo] = useState('');
@@ -418,8 +417,38 @@ export default function CheckoutScreen() {
 
   // Address picker open helper
   const handleOpenAddressModal = () => {
+    setEditError(null);
+    setGpsCoords(customCoords || userCoords || null);
+    setEditedPhone(customPhone || user?.phone || '');
+    setEditedPincode(customPincode || userPincode || '');
+
+    // Prefill locality and village from context / active location
+    setMohalla(userAddress || '');
+    setVillage(userCity || '');
+
+    // Floor and House No
+    setHouseNo('');
+    setFloor('');
+    setStreet('');
+    setLandmark('');
+    setInstructions('');
+    setAddressLabel('Home');
+    setShowInstructions(false);
+
+    setAddressStep(savedAddresses.length > 0 ? 'select' : 'form');
     setIsAddressModalOpen(true);
   };
+
+  // Auto-sync context coordinates and address changes to form inputs
+  useEffect(() => {
+    if (isAddressModalOpen && addressStep === 'form') {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (userAddress) setMohalla(userAddress);
+      if (userCity) setVillage(userCity);
+      if (userPincode) setEditedPincode(userPincode);
+      if (userCoords) setGpsCoords(userCoords);
+    }
+  }, [userAddress, userCity, userPincode, userCoords, isAddressModalOpen, addressStep]);
 
   const handleSelectSavedAddress = async (addr: SavedAddress) => {
     await setSelectedAddress(addr);
@@ -472,7 +501,7 @@ export default function CheckoutScreen() {
   };
 
   const handleSaveAddressEdit = async () => {
-    if (!mohalla.trim()) return setEditError('Area / Locality zaroori hai.');
+    if (!mohalla.trim()) return setEditError("Area / Locality zaroori hai. Location select karne ke liye 'Change' par click karein.");
     if (!village.trim()) return setEditError('Gaon / Shehar (Village/City) enter karein.');
     if (!houseNo.trim()) return setEditError('Building / Floor / Makan No. enter karein.');
     if (!editedPhone.trim()) return setEditError('Mobile number daalna zaroori hai.');
@@ -498,7 +527,7 @@ export default function CheckoutScreen() {
     const activeLng = gpsCoords?.lng ?? userCoords?.lng;
 
     if (activeLat === undefined || activeLng === undefined) {
-      setEditError('Location coordinates missing hain. Kripya location dobara detect karein.');
+      setEditError('Location coordinates missing hain. Kripya location dobara select karein.');
       setValidatingEdit(false);
       return;
     }
@@ -1232,10 +1261,46 @@ export default function CheckoutScreen() {
         </Text>
       </View>
 
-      {/* Location Selector Modal */}
+      {/* Location Selector Modal (opened only via Area/Locality Change button) */}
       <LocationSelectorModal
-        visible={isAddressModalOpen}
+        visible={isLocationModalOpen}
+        onClose={() => setIsLocationModalOpen(false)}
+      />
+
+      {/* 2-Step Checkout Address Modal */}
+      <CheckoutAddressModal
+        visible={isAddressModalOpen && !isLocationModalOpen}
         onClose={() => setIsAddressModalOpen(false)}
+        step={addressStep}
+        setStep={setAddressStep}
+        savedAddresses={savedAddresses}
+        selectedAddressId={selectedAddressId}
+        onSelectSavedAddress={handleSelectSavedAddress}
+        addressLabel={addressLabel}
+        setAddressLabel={setAddressLabel}
+        houseNo={houseNo}
+        setHouseNo={setHouseNo}
+        floor={floor}
+        setFloor={setFloor}
+        street={street}
+        setStreet={setStreet}
+        mohalla={mohalla}
+        setMohalla={setMohalla}
+        village={village}
+        setVillage={setVillage}
+        editedPhone={editedPhone}
+        setEditedPhone={setEditedPhone}
+        instructions={instructions}
+        setInstructions={setInstructions}
+        showInstructions={showInstructions}
+        setShowInstructions={setShowInstructions}
+        editError={editError}
+        validatingEdit={validatingEdit}
+        onSaveAddress={handleSaveAddressEdit}
+        onChangeLocation={() => setIsLocationModalOpen(true)}
+        detectingGps={detectingGps}
+        onDetectGPS={handleDetectGPS}
+        userAddress={userAddress}
       />
 
       {/* Coupons Drawer Modal */}
