@@ -173,7 +173,7 @@ export default function RestaurantCardCarousel({
         <OptimizedImage
           src={fallbackImage}
           alt={restaurantName}
-          preset="card"
+          preset="large"
           style={styles.image}
           contentFit="cover"
         />
@@ -197,7 +197,7 @@ export default function RestaurantCardCarousel({
         <OptimizedImage
           src={imageUrl}
           alt={`${restaurantName} - ${item.name}`}
-          preset="card"
+          preset="large"
           style={styles.image}
           contentFit="cover"
         />
@@ -260,7 +260,7 @@ export default function RestaurantCardCarousel({
         <OptimizedImage
           src={fallbackImage}
           alt={restaurantName}
-          preset="card"
+          preset="large"
           style={styles.image}
           contentFit="cover"
         />
@@ -305,8 +305,8 @@ const styles = StyleSheet.create({
   },
   itemBadge: {
     position: 'absolute',
-    top: 40,
-    left: 10,
+    top: 44,
+    left: 12,
     maxWidth: '70%',
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderRadius: BorderRadius.md,
@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontFamily: FontFamily.bold,
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.white,
     flexShrink: 1,
@@ -331,14 +331,14 @@ const styles = StyleSheet.create({
   featuredChip: {
     backgroundColor: Colors.ratingGold,
     borderRadius: 4,
-    paddingHorizontal: 3,
+    paddingHorizontal: 4,
     paddingVertical: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   featuredEmoji: {
-    fontSize: 9,
-    lineHeight: 11,
+    fontSize: 10,
+    lineHeight: 12,
   },
   priceRow: {
     flexDirection: 'row',
@@ -348,26 +348,26 @@ const styles = StyleSheet.create({
   },
   discountedPrice: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: Typography.fontWeight.heavy,
     color: Colors.ratingGold,
   },
   originalPrice: {
     fontFamily: FontFamily.medium,
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: Typography.fontWeight.medium,
     color: 'rgba(255, 255, 255, 0.6)',
     textDecorationLine: 'line-through',
   },
   regularPrice: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: Typography.fontWeight.heavy,
     color: Colors.ratingGold,
   },
   dotsOverlay: {
     position: 'absolute',
-    bottom: 8,
+    bottom: 10,
     left: 0,
     right: 0,
     alignItems: 'center',

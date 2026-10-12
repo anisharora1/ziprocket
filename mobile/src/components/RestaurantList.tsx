@@ -47,11 +47,11 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
             restaurant.isCurrentlyOpen !== undefined
               ? restaurant.isCurrentlyOpen
               : (restaurant.isActive !== false &&
-                  restaurant.availabilityStatus !== 'closed' &&
-                  isWithinOperatingHours(
-                    restaurant.operatingHours?.open,
-                    restaurant.operatingHours?.close
-                  ));
+                restaurant.availabilityStatus !== 'closed' &&
+                isWithinOperatingHours(
+                  restaurant.operatingHours?.open,
+                  restaurant.operatingHours?.close
+                ));
 
           const fallbackImg = getFallbackImage(restaurant);
           const openTimeFormatted = restaurant.operatingHours?.open
@@ -171,14 +171,16 @@ const styles = StyleSheet.create({
     opacity: 0.75,
   },
   imageBox: {
-    height: 176,
+    width: '100%',
+    aspectRatio: 1.4,
     backgroundColor: Colors.surfaceMuted,
     position: 'relative',
+    overflow: 'hidden',
   },
   statusBadge: {
     position: 'absolute',
-    top: 10,
-    left: 10,
+    top: 12,
+    left: 12,
     zIndex: 20,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -200,8 +202,8 @@ const styles = StyleSheet.create({
   },
   deliveryTimeBadge: {
     position: 'absolute',
-    bottom: 10,
-    right: 10,
+    bottom: 12,
+    right: 12,
     zIndex: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     paddingHorizontal: 8,
@@ -240,7 +242,8 @@ const styles = StyleSheet.create({
     color: Colors.white,
   },
   cardBody: {
-    padding: Spacing.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 4,
   },
   titleRow: {
     flexDirection: 'row',
@@ -281,7 +284,7 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: Colors.borderLight,
-    marginVertical: Spacing.sm,
+    marginVertical: Spacing.xs + 2,
   },
   ordersRow: {
     flexDirection: 'row',
