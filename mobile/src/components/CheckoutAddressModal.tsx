@@ -307,7 +307,7 @@ export default function CheckoutAddressModal({
                   <TextInput
                     value={houseNo}
                     onChangeText={setHouseNo}
-                    placeholder="Makaan No. / Building / Floor *"
+                    placeholder="Ward No. / Building / Your name *"
                     placeholderTextColor={Colors.textMuted}
                     onFocus={() => setFocusedField('houseNo')}
                     onBlur={() => setFocusedField(null)}
@@ -366,16 +366,16 @@ export default function CheckoutAddressModal({
                       addressLabel === 'Home'
                         ? 'Home'
                         : addressLabel === 'Work'
-                        ? 'Work'
-                        : addressLabel
+                          ? 'Work'
+                          : addressLabel
                     }
                     onChangeText={(val) =>
                       setAddressLabel(
                         val === 'Work' || val === 'Office'
                           ? 'Work'
                           : val === 'Home' || val === 'House'
-                          ? 'Home'
-                          : 'Other'
+                            ? 'Home'
+                            : 'Other'
                       )
                     }
                     placeholder="Address ka Naam (Ghar, Dukan, Office) *"

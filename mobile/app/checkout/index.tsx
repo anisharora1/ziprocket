@@ -736,10 +736,16 @@ export default function CheckoutScreen() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <MaterialIcons name="arrow-back" size={20} color={Colors.primary} />
-          </Pressable>
-          <Text style={styles.headerTitle}>Checkout</Text>
+          <View style={styles.headerLeft}>
+            <Pressable
+              onPress={() => router.back()}
+              style={styles.backButton}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <MaterialIcons name="arrow-back" size={22} color={Colors.slate800} />
+            </Pressable>
+            <Text style={styles.headerTitle}>Checkout</Text>
+          </View>
           <Text style={styles.headerBrand}>ZipRocket</Text>
         </View>
 
@@ -764,14 +770,16 @@ export default function CheckoutScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       {/* 1. Top App Bar */}
       <View style={styles.header}>
-        <Pressable
-          onPress={() => router.back()}
-          style={styles.backButton}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <MaterialIcons name="arrow-back" size={20} color={Colors.primary} />
-        </Pressable>
-        <Text style={styles.headerTitle}>Checkout</Text>
+        <View style={styles.headerLeft}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.backButton}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialIcons name="arrow-back" size={22} color={Colors.slate800} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Checkout</Text>
+        </View>
         <Text style={styles.headerBrand}>ZipRocket</Text>
       </View>
 
@@ -1484,7 +1492,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   header: {
-    height: 52,
+    height: 54,
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.slate100,
@@ -1493,24 +1501,32 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   backButton: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: Colors.slate50,
   },
   headerTitle: {
-    fontFamily: FontFamily.bold,
-    fontSize: 17,
-    fontWeight: '700',
+    fontFamily: FontFamily.extraBold,
+    fontSize: 18,
+    fontWeight: '800',
     color: Colors.slate900,
-    letterSpacing: -0.2,
+    letterSpacing: -0.3,
   },
   headerBrand: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 17,
-    fontWeight: '800',
+    fontSize: 16,
+    fontWeight: '900',
     color: Colors.primary,
+    letterSpacing: -0.2,
   },
   emptyContainer: {
     flex: 1,
