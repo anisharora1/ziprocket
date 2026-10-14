@@ -6,6 +6,7 @@ import app from "./src/app";
 import dbConnect from "./src/config/dbConnect";
 import { initSocketServer } from "./src/services/socketService";
 import { startSettlementJob } from "./src/jobs/settlementJob";
+import { startNotificationJob } from "./src/jobs/notificationJob";
 import Address from "./src/models/Address";
 import Order from "./src/models/Order";
 
@@ -31,6 +32,7 @@ httpServer.listen(PORT, async () => {
         }
 
         startSettlementJob();
+        startNotificationJob();
     } catch (e: any) {
         console.log(e.message);
     }

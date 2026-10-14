@@ -10,6 +10,16 @@ export interface IPlatformSettings extends Document {
     groceryStatus: "open" | "closed" | "disabled";
     minOrderValueFood: number;
     minOrderValueGrocery: number;
+    notificationSettings: {
+        maxPromoPerDay: number;
+        quietHoursStart: string; // "HH:MM" e.g., "22:00"
+        quietHoursEnd: string;   // "HH:MM" e.g., "08:00"
+        inactiveDays: number;
+        newUserDays: number;
+        regularMinOrders30d: number;
+        foodLoverMinOrders60d: number;
+        foodLoverSharePct: number;
+    };
 }
 
 const platformSettingsSchema = new Schema<IPlatformSettings>({
@@ -21,7 +31,17 @@ const platformSettingsSchema = new Schema<IPlatformSettings>({
     },
     groceryStatus: { type: String, enum: ["open", "closed", "disabled"], default: "open" },
     minOrderValueFood: { type: Number, default: 0, min: 0 },
-    minOrderValueGrocery: { type: Number, default: 0, min: 0 }
+    minOrderValueGrocery: { type: Number, default: 0, min: 0 },
+    notificationSettings: {
+        maxPromoPerDay: { type: Number, default: 2, min: 1 },
+        quietHoursStart: { type: String, default: "22:00" },
+        quietHoursEnd: { type: String, default: "08:00" },
+        inactiveDays: { type: Number, default: 14, min: 1 },
+        newUserDays: { type: Number, default: 7, min: 1 },
+        regularMinOrders30d: { type: Number, default: 4, min: 1 },
+        foodLoverMinOrders60d: { type: Number, default: 2, min: 1 },
+        foodLoverSharePct: { type: Number, default: 60, min: 1, max: 100 }
+    }
 }, { timestamps: true });
 
 export default mongoose.model<IPlatformSettings>("PlatformSettings", platformSettingsSchema);
