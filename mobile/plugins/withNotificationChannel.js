@@ -3,7 +3,13 @@ const { withAndroidManifest, withMainApplication } = require('@expo/config-plugi
 const withNotificationChannel = (config) => {
   // 1. Android Manifest updates: add default FCM channel meta-data
   config = withAndroidManifest(config, (modConfig) => {
-    const mainApplication = modConfig.modResults.manifest.application?.[0];
+    const manifest = modConfig.modResults.manifest;
+    if (!manifest.$) {
+      manifest.$ = {};
+    }
+    manifest.$['xmlns:tools'] = 'http://schemas.android.com/tools';
+
+    const mainApplication = manifest.application?.[0];
     if (mainApplication) {
       if (!mainApplication['meta-data']) {
         mainApplication['meta-data'] = [];
@@ -13,11 +19,15 @@ const withNotificationChannel = (config) => {
         (m) => m.$?.['android:name'] === 'com.google.firebase.messaging.default_notification_channel_id'
       );
 
-      if (!existingMeta) {
+      if (existingMeta) {
+        existingMeta.$['android:value'] = 'promotions_high';
+        existingMeta.$['tools:replace'] = 'android:value';
+      } else {
         mainApplication['meta-data'].push({
           $: {
             'android:name': 'com.google.firebase.messaging.default_notification_channel_id',
             'android:value': 'promotions_high',
+            'tools:replace': 'android:value',
           },
         });
       }
