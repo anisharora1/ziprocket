@@ -8,11 +8,13 @@ import {
   Modal,
   StyleSheet,
   Alert,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import {
   Colors,
   Spacing,
@@ -35,6 +37,7 @@ const LEGAL_TABS: { id: LegalDocType; label: string }[] = [
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
+  const { marketingOptIn, setMarketingOptIn } = useNotification();
   const router = useRouter();
 
   const [legalModalVisible, setLegalModalVisible] = useState(false);
@@ -160,6 +163,25 @@ export default function ProfileScreen() {
                 </View>
                 <MaterialIcons name="chevron-right" size={22} color={Colors.textMuted} />
               </Pressable>
+
+              <View style={styles.divider} />
+
+              {/* Offers & Promotions Switch */}
+              <View style={styles.menuItem}>
+                <View style={[styles.menuIconCircle, { backgroundColor: Colors.primaryLight }]}>
+                  <MaterialIcons name="local-offer" size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.menuTextCol}>
+                  <Text style={styles.menuItemTitle}>Offers & Promotions</Text>
+                  <Text style={styles.menuItemSubtitle}>Deals and promotional updates</Text>
+                </View>
+                <Switch
+                  value={marketingOptIn}
+                  onValueChange={(val) => setMarketingOptIn(val)}
+                  trackColor={{ false: Colors.slate300, true: Colors.primary }}
+                  thumbColor={Colors.white}
+                />
+              </View>
             </View>
 
             {/* Partner Opportunities */}

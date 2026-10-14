@@ -28,7 +28,8 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "RECORD_AUDIO"
+        "RECORD_AUDIO",
+        "POST_NOTIFICATIONS"
       ]
     },
     "web": {
@@ -55,6 +56,8 @@
       ],
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
+      "@react-native-firebase/messaging",
+      "./plugins/withNotificationChannel",
       [
         "expo-build-properties",
         {

@@ -17,6 +17,7 @@ import { SocketProvider } from '../src/context/SocketContext';
 import { LocationProvider, useLocation } from '../src/context/LocationContext';
 import { PlatformProvider } from '../src/context/PlatformContext';
 import { CartProvider } from '../src/context/CartContext';
+import { NotificationProvider } from '../src/context/NotificationContext';
 import { Colors } from '../src/constants/theme';
 import LocationPromptModal from '../src/components/LocationPromptModal';
 import LocationSelectorModal from '../src/components/LocationSelectorModal';
@@ -66,23 +67,25 @@ export default function RootLayout() {
         <AuthProvider>
           <SocketProvider>
             <LocationProvider>
-              <LocationModals />
-              <PlatformProvider>
-                <CartProvider>
-                  <StatusBar style="dark" />
-                  <Stack screenOptions={{ headerShown: false }}>
-                    <Stack.Screen name="index" options={{ headerShown: false }} />
-                    <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
-                    <Stack.Screen name="grocery/index" options={{ headerShown: false }} />
-                    <Stack.Screen name="grocery/category/[categoryName]" options={{ headerShown: false }} />
-                    <Stack.Screen name="cart/index" options={{ headerShown: false }} />
-                    <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
-                    <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
-                  </Stack>
-                </CartProvider>
-              </PlatformProvider>
+              <NotificationProvider>
+                <LocationModals />
+                <PlatformProvider>
+                  <CartProvider>
+                    <StatusBar style="dark" />
+                    <Stack screenOptions={{ headerShown: false }}>
+                      <Stack.Screen name="index" options={{ headerShown: false }} />
+                      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                      <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
+                      <Stack.Screen name="grocery/index" options={{ headerShown: false }} />
+                      <Stack.Screen name="grocery/category/[categoryName]" options={{ headerShown: false }} />
+                      <Stack.Screen name="cart/index" options={{ headerShown: false }} />
+                      <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
+                      <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
+                    </Stack>
+                  </CartProvider>
+                </PlatformProvider>
+              </NotificationProvider>
             </LocationProvider>
           </SocketProvider>
         </AuthProvider>

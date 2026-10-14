@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { auth, ConfirmationResult } from '../../src/services/firebase';
 import { useAuth } from '../../src/context/AuthContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { apiClient } from '../../src/services/api';
 import { getFriendlyErrorMessage } from '../../src/utils/errorHandler';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../src/constants/theme';
@@ -22,6 +23,7 @@ import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../src/co
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
+  const { promptPermission } = useNotification();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [phone, setPhone] = useState('');
@@ -111,6 +113,7 @@ export default function LoginScreen() {
         }
 
         await login(res.data.token, verifiedUser);
+        promptPermission('login');
         router.replace('/(tabs)/home');
       } else {
         setError(res.data?.message || 'Verification fail ho gaya. Kripya dobara try karein.');

@@ -19,6 +19,7 @@ import { useAuth } from '../../src/context/AuthContext';
 import { useLocation, SavedAddress } from '../../src/context/LocationContext';
 import { usePlatform } from '../../src/context/PlatformContext';
 import { useSocket } from '../../src/context/SocketContext';
+import { useNotification } from '../../src/context/NotificationContext';
 import { apiClient } from '../../src/services/api';
 import { getHighAccuracyGPSFix } from '../../src/utils/geolocation';
 import OptimizedImage from '../../src/components/OptimizedImage';
@@ -88,6 +89,7 @@ export default function CheckoutScreen() {
   } = usePlatform();
 
   const { socket } = useSocket();
+  const { promptPermission } = useNotification();
 
   const [placingOrder, setPlacingOrder] = useState(false);
   const placingOrderRef = useRef(false);
@@ -710,6 +712,7 @@ export default function CheckoutScreen() {
       if (orderRes.data?.success) {
         setOrderPlaced(true);
         clearCart();
+        promptPermission('order_placed');
         showCard({
           type: 'success',
           title: '🎉 Order Confirm Ho Gaya!',
