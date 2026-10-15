@@ -103,6 +103,7 @@ export const sendCampaign = async (campaignId: string, overrideQuietHours = fals
                         notification: {
                             channelId: "promotions_high",
                             sound: "default",
+                            color: "#FF5C00",
                             ...(campaign.imageUrl ? { imageUrl: campaign.imageUrl } : {})
                         }
                     },
@@ -224,6 +225,7 @@ export const sendTestPush = async (
             notification: {
                 channelId: "promotions_high",
                 sound: "default",
+                color: "#FF5C00",
                 ...(payload.imageUrl ? { imageUrl: payload.imageUrl } : {})
             }
         },
