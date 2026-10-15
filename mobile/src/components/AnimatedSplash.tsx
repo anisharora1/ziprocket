@@ -5,6 +5,8 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withRepeat,
+  withSequence,
+  withDelay,
   Easing,
   runOnJS,
   cancelAnimation,
@@ -25,33 +27,43 @@ export default function AnimatedSplash({ ready, onFinish, onLayout }: AnimatedSp
   const wordmarkWidth = Math.min(screenWidth * 0.78, 360);
   const wordmarkHeight = wordmarkWidth / 3.6036;
 
-  // Pulse width for phase 2: about 35% of track width
+  // Pulse width for thin loading line: about 35% of track width
   const pulseWidth = Math.round(wordmarkWidth * 0.35);
 
+  // Sweep band configuration
+  const BAND_WIDTH = 70;
+  const BAND_OFFSET = 100; // Extra offset to account for skewX -20deg
+
   // Animation shared values
-  const revealWidth = useSharedValue(0);
-  const barOpacity = useSharedValue(1);
+  const zMarkOpacity = useSharedValue(1);
+  const wordmarkOpacity = useSharedValue(0);
   const trackOpacity = useSharedValue(0);
+  const sweepTranslateX = useSharedValue(-BAND_OFFSET);
   const pulseTranslateX = useSharedValue(-pulseWidth);
   const splashOpacity = useSharedValue(1);
 
-  // State to track timing conditions
-  const [phase1Done, setPhase1Done] = useState(false);
+  // Timing states
   const [minTimePassed, setMinTimePassed] = useState(false);
   const isFinishedRef = useRef(false);
 
   // Animated styles
-  const revealAnimatedStyle = useAnimatedStyle(() => ({
-    width: revealWidth.value,
+  const zMarkAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: zMarkOpacity.value,
   }));
 
-  const barAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: revealWidth.value - 28 }],
-    opacity: barOpacity.value,
+  const wordmarkAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: wordmarkOpacity.value,
   }));
 
   const trackAnimatedStyle = useAnimatedStyle(() => ({
     opacity: trackOpacity.value,
+  }));
+
+  const sweepAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: sweepTranslateX.value },
+      { skewX: '-20deg' },
+    ],
   }));
 
   const pulseAnimatedStyle = useAnimatedStyle(() => ({
@@ -62,12 +74,28 @@ export default function AnimatedSplash({ ready, onFinish, onLayout }: AnimatedSp
     opacity: splashOpacity.value,
   }));
 
-  // Handle completion of Phase 1
-  const handlePhase1Complete = useCallback(() => {
-    setPhase1Done(true);
+  // Start the sweep overlay & track pulse animations after crossfade
+  const startLoops = useCallback(() => {
+    // Sweep overlay: translates from -BAND_OFFSET to wordmarkWidth + BAND_OFFSET with 400ms pause
+    sweepTranslateX.value = -BAND_OFFSET;
+    sweepTranslateX.value = withRepeat(
+      withSequence(
+        withTiming(wordmarkWidth + BAND_OFFSET, {
+          duration: 1500,
+          easing: Easing.inOut(Easing.quad),
+        }),
+        withDelay(
+          400,
+          withTiming(-BAND_OFFSET, {
+            duration: 0,
+          })
+        )
+      ),
+      -1,
+      false
+    );
 
-    // Start Phase 2: Fade in track and loop orange gradient pulse left to right
-    trackOpacity.value = withTiming(1, { duration: 250 });
+    // Thin loading line pulse: runs left to right repeatedly (1100ms, linear, no reverse)
     pulseTranslateX.value = -pulseWidth;
     pulseTranslateX.value = withRepeat(
       withTiming(wordmarkWidth, {
@@ -77,44 +105,52 @@ export default function AnimatedSplash({ ready, onFinish, onLayout }: AnimatedSp
       -1,
       false
     );
-  }, [pulseWidth, wordmarkWidth, trackOpacity, pulseTranslateX]);
+  }, [wordmarkWidth, pulseWidth, sweepTranslateX, pulseTranslateX]);
 
-  // Phase 1 start & minimum 2200ms timer
   useEffect(() => {
-    // Reveal wordmark left to right in ~1400ms with Easing.out cubic
-    revealWidth.value = withTiming(
-      wordmarkWidth,
+    // Crossfade (300ms): Z mark fades out while wordmark and loading track fade in
+    zMarkOpacity.value = withTiming(0, {
+      duration: 300,
+      easing: Easing.inOut(Easing.quad),
+    });
+
+    wordmarkOpacity.value = withTiming(
+      1,
       {
-        duration: 1400,
-        easing: Easing.out(Easing.cubic),
+        duration: 300,
+        easing: Easing.inOut(Easing.quad),
       },
       (finished) => {
         if (finished) {
-          // Hide leading edge bar when phase 1 ends
-          barOpacity.value = withTiming(0, { duration: 150 });
-          runOnJS(handlePhase1Complete)();
+          runOnJS(startLoops)();
         }
       }
     );
 
-    // Minimum display duration: 2200ms since mount
-    const timer = setTimeout(() => {
+    trackOpacity.value = withTiming(1, {
+      duration: 300,
+      easing: Easing.inOut(Easing.quad),
+    });
+
+    // Minimum display duration: 2400ms since mount
+    const minTimer = setTimeout(() => {
       setMinTimePassed(true);
-    }, 2200);
+    }, 2400);
 
     return () => {
-      clearTimeout(timer);
-      cancelAnimation(revealWidth);
-      cancelAnimation(barOpacity);
+      clearTimeout(minTimer);
+      cancelAnimation(zMarkOpacity);
+      cancelAnimation(wordmarkOpacity);
       cancelAnimation(trackOpacity);
+      cancelAnimation(sweepTranslateX);
       cancelAnimation(pulseTranslateX);
       cancelAnimation(splashOpacity);
     };
-  }, [wordmarkWidth, revealWidth, barOpacity, trackOpacity, pulseTranslateX, splashOpacity, handlePhase1Complete]);
+  }, [zMarkOpacity, wordmarkOpacity, trackOpacity, sweepTranslateX, pulseTranslateX, splashOpacity, startLoops]);
 
-  // Finish: when phase 1 is done AND ready === true AND at least 2200ms have passed since mount
+  // Finish: when ready === true and at least 2400ms have passed since mount
   useEffect(() => {
-    if (phase1Done && minTimePassed && ready && !isFinishedRef.current) {
+    if (minTimePassed && ready && !isFinishedRef.current) {
       isFinishedRef.current = true;
       splashOpacity.value = withTiming(
         0,
@@ -129,7 +165,7 @@ export default function AnimatedSplash({ ready, onFinish, onLayout }: AnimatedSp
         }
       );
     }
-  }, [phase1Done, minTimePassed, ready, onFinish, splashOpacity]);
+  }, [minTimePassed, ready, onFinish, splashOpacity]);
 
   return (
     <Animated.View
@@ -141,64 +177,106 @@ export default function AnimatedSplash({ ready, onFinish, onLayout }: AnimatedSp
         splashAnimatedStyle,
       ]}
     >
-      {/* Centered Wordmark with reveal effect & glowing current bar */}
+      {/* Centered content box matching wordmark dimensions */}
       <View style={{ width: wordmarkWidth, height: wordmarkHeight, position: 'relative' }}>
-        {/* Overflow-hidden reveal container */}
-        <Animated.View style={[{ height: wordmarkHeight, overflow: 'hidden' }, revealAnimatedStyle]}>
+        {/* Full Wordmark (Fixed size, plain white background) */}
+        <Animated.View
+          style={[
+            {
+              width: wordmarkWidth,
+              height: wordmarkHeight,
+              position: 'relative',
+            },
+            wordmarkAnimatedStyle,
+          ]}
+        >
           <Image
             source={require('../../assets/images/splash-wordmark.png')}
             style={{ width: wordmarkWidth, height: wordmarkHeight }}
             contentFit="contain"
           />
+
+          {/* Running current sweep overlay across the wordmark */}
+          <View
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              { overflow: 'hidden' },
+            ]}
+          >
+            <Animated.View
+              style={[
+                styles.sweepBand,
+                {
+                  width: BAND_WIDTH,
+                  height: wordmarkHeight + 40,
+                  top: -20,
+                },
+                sweepAnimatedStyle,
+              ]}
+            >
+              <LinearGradient
+                colors={[
+                  'rgba(255, 255, 255, 0)',
+                  'rgba(255, 255, 255, 0)',
+                  'rgba(255, 255, 255, 0.85)',
+                  'rgba(255, 150, 40, 0.35)',
+                  'rgba(255, 255, 255, 0)',
+                ]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
+          </View>
         </Animated.View>
 
-        {/* Leading edge glowing current bar (56px wide) with centered 2px orange line */}
+        {/* Thin loading line under wordmark (3px high rounded track) */}
+        <Animated.View
+          style={[
+            styles.track,
+            {
+              width: wordmarkWidth,
+              top: wordmarkHeight + 24,
+            },
+            trackAnimatedStyle,
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.pulse,
+              { width: pulseWidth },
+              pulseAnimatedStyle,
+            ]}
+          >
+            <LinearGradient
+              colors={['rgba(255, 92, 0, 0)', '#FF5C00', 'rgba(255, 92, 0, 0)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 1, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
+          </Animated.View>
+        </Animated.View>
+
+        {/* Initial Z Mark (150dp wide, centered exactly where native splash is) */}
         <Animated.View
           pointerEvents="none"
           style={[
-            styles.currentBar,
-            barAnimatedStyle,
+            styles.zMarkContainer,
+            {
+              left: (wordmarkWidth - 150) / 2,
+              top: (wordmarkHeight - 150) / 2,
+            },
+            zMarkAnimatedStyle,
           ]}
         >
-          <LinearGradient
-            colors={[
-              'rgba(255, 92, 0, 0)',
-              'rgba(255, 92, 0, 0.9)',
-              '#FFFFFF',
-              'rgba(255, 92, 0, 0.9)',
-              'rgba(255, 92, 0, 0)',
-            ]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
+          <Image
+            source={require('../../assets/images/splash-icon.png')}
+            style={{ width: 150, height: 150 }}
+            contentFit="contain"
           />
-          <View style={styles.currentBarCenterLine} />
         </Animated.View>
       </View>
-
-      {/* PHASE 2: Thin loading line under wordmark (3px high rounded track) */}
-      <Animated.View
-        style={[
-          styles.track,
-          { width: wordmarkWidth },
-          trackAnimatedStyle,
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.pulse,
-            { width: pulseWidth },
-            pulseAnimatedStyle,
-          ]}
-        >
-          <LinearGradient
-            colors={['rgba(255, 92, 0, 0)', '#FF5C00', 'rgba(255, 92, 0, 0)']}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={StyleSheet.absoluteFill}
-          />
-        </Animated.View>
-      </Animated.View>
     </Animated.View>
   );
 }
@@ -211,26 +289,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  currentBar: {
+  zMarkContainer: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+  },
+  sweepBand: {
     position: 'absolute',
     left: 0,
-    top: 0,
-    bottom: 0,
-    width: 56,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  currentBarCenterLine: {
-    width: 2,
-    height: '100%',
-    backgroundColor: '#FF5C00',
   },
   track: {
+    position: 'absolute',
+    left: 0,
     height: 3,
     borderRadius: 1.5,
     backgroundColor: '#FFE3D2',
     overflow: 'hidden',
-    marginTop: 24,
   },
   pulse: {
     height: 3,
