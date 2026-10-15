@@ -22,6 +22,7 @@ import {
   MdChevronLeft,
   MdChevronRight,
   MdRocketLaunch,
+  MdNotificationsActive,
 } from 'react-icons/md';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -33,6 +34,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   directions_bike: MdDirectionsBike,
   shopping_cart: MdShoppingCart,
   campaign: MdCampaign,
+  notifications: MdNotificationsActive,
   payments: MdPayments,
   local_grocery_store: MdLocalGroceryStore,
   shield_person: MdAdminPanelSettings,
@@ -60,6 +62,7 @@ export default function AdminSidebar() {
     { name: 'Delivery Operations', href: '/admin/delivery-ops', iconKey: 'alt_route' },
     { name: 'Orders', href: '/admin/orders', iconKey: 'shopping_cart' },
     { name: 'Promotions', href: '/admin/promotions', iconKey: 'campaign' },
+    { name: 'Push Notifications', href: '/admin/notifications', iconKey: 'notifications' },
     { name: 'Coupons & Loyalty', href: '/admin/coupons', iconKey: 'payments' },
     { name: 'Grocery Audit', href: '/admin/grocery', iconKey: 'local_grocery_store' },
     { name: 'Grocery Moderators', href: '/admin/moderators', iconKey: 'shield_person' },

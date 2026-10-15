@@ -1,0 +1,257 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  Dimensions,
+  StyleSheet,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { apiClient } from '../services/api';
+import OptimizedImage from './OptimizedImage';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamily,
+  Shadows,
+} from '../constants/theme';
+
+export interface Promotion {
+  _id: string;
+  title: string;
+  description: string;
+  image: string;
+  targetType: 'restaurant' | 'grocery';
+  category?: string;
+  restaurant?: any;
+  isActive: boolean;
+}
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const BANNER_WIDTH = SCREEN_WIDTH - Spacing.md * 2;
+const BANNER_HEIGHT = BANNER_WIDTH * 0.44;
+
+export default function HeroCarousel() {
+  const router = useRouter();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
+
+  const { data: banners = [] } = useQuery<Promotion[]>({
+    queryKey: ['hero-promotions'],
+    queryFn: async () => {
+      const res = await apiClient.get('/promotions');
+      const list = res.data?.promotions || res.data?.data?.promotions || [];
+      return list.filter((p: Promotion) => p.isActive);
+    },
+  });
+
+  // Auto-scroll banners every 4 seconds
+  useEffect(() => {
+    if (banners.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => {
+        const next = (prev + 1) % banners.length;
+        scrollRef.current?.scrollTo({
+          x: next * BANNER_WIDTH,
+          animated: true,
+        });
+        return next;
+      });
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [banners.length]);
+
+  if (!banners || banners.length === 0) {
+    return null;
+  }
+
+  const handleBannerPress = (banner: Promotion) => {
+    let destination = banner.category || (banner.targetType === 'grocery' ? '/grocery' : '/restaurants');
+    if (destination === '/restaurant') {
+      destination = '/restaurants';
+    }
+
+    if (banner.restaurant) {
+      const restId = typeof banner.restaurant === 'object' ? banner.restaurant._id : banner.restaurant;
+      router.push(`/restaurants/${restId}` as any);
+      return;
+    }
+
+    if (destination === '/grocery' || banner.targetType === 'grocery') {
+      router.push('/grocery' as any);
+      return;
+    }
+
+    if (destination.startsWith('/grocery/category/')) {
+      router.push(destination as any);
+      return;
+    }
+
+    if (destination.startsWith('/restaurants/')) {
+      router.push(destination as any);
+      return;
+    }
+
+    if (destination === '/restaurants') {
+      router.push('/(tabs)/home' as any);
+      return;
+    }
+  };
+
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const contentOffset = event.nativeEvent.contentOffset.x;
+    const index = Math.round(contentOffset / BANNER_WIDTH);
+    if (index !== activeIndex && index >= 0 && index < banners.length) {
+      setActiveIndex(index);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        contentContainerStyle={styles.scrollContent}
+      >
+        {banners.map((item) => (
+          <Pressable
+            key={item._id}
+            style={styles.bannerWrapper}
+            onPress={() => handleBannerPress(item)}
+            accessibilityRole="button"
+            accessibilityLabel={item.title}
+          >
+            <OptimizedImage
+              src={item.image}
+              alt={item.title}
+              preset="large"
+              style={styles.bannerImage}
+              contentFit="cover"
+            />
+            {/* Dark gradient overlay for text readability */}
+            <View style={styles.overlay}>
+              <View style={styles.tagBadge}>
+                <Text style={styles.tagText}>
+                  {item.targetType === 'grocery' ? 'QUICK STORE' : 'MEGA DEAL'}
+                </Text>
+              </View>
+              <Text style={styles.bannerTitle} numberOfLines={2}>
+                {item.title}
+              </Text>
+              {item.description ? (
+                <Text style={styles.bannerDesc} numberOfLines={2}>
+                  {item.description}
+                </Text>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
+      </ScrollView>
+
+      {/* Pagination dots */}
+      {banners.length > 1 && (
+        <View style={styles.dotsRow}>
+          {banners.map((_, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.dot,
+                idx === activeIndex ? styles.activeDot : null,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    marginVertical: Spacing.sm,
+  },
+  scrollContent: {
+    gap: 0,
+  },
+  bannerWrapper: {
+    width: BANNER_WIDTH,
+    height: BANNER_HEIGHT,
+    borderRadius: BorderRadius.xxl,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceMuted,
+    position: 'relative',
+    ...Shadows.md,
+  },
+  bannerImage: {
+    width: '100%',
+    height: '100%',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  tagBadge: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.sm,
+    alignSelf: 'flex-start',
+    marginBottom: Spacing.xs,
+  },
+  tagText: {
+    color: Colors.white,
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  bannerTitle: {
+    color: Colors.white,
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.lg,
+    lineHeight: Typography.lineHeight.lg,
+    maxWidth: 240,
+  },
+  bannerDesc: {
+    color: 'rgba(255, 255, 255, 0.85)',
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.xs,
+    lineHeight: Typography.lineHeight.xs,
+    marginTop: Spacing.xs,
+    maxWidth: 240,
+  },
+  dotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
+  },
+  activeDot: {
+    width: 18,
+    backgroundColor: Colors.primary,
+  },
+});

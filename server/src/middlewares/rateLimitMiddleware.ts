@@ -183,3 +183,14 @@ export const adminLimiter = rateLimit({
     message: "Too many administrative requests. Please slow down.",
     handler: handleLimitReached("Admin"),
 });
+
+// 7. Notification Limiter: 60 requests per 15 minutes
+export const notificationLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 60,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new SafeDynamicStore("notifications"),
+    message: "Too many notification requests. Please try again later.",
+    handler: handleLimitReached("Notifications"),
+});

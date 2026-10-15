@@ -30,6 +30,8 @@ import recommendationRoutes from "./routes/recommendationRoutes";
 import searchRoutes from "./routes/searchRoutes";
 import promotionsRoutes from "./routes/promotionsRoutes";
 import platformRoutes from "./routes/platformRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
+import adminNotificationRoutes from "./routes/adminNotificationRoutes";
 import { responseStandardizer } from "./middlewares/responseStandardizer";
 
 const app = express();
@@ -92,6 +94,7 @@ app.use(globalLimiter);
 // API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/admin/notifications", adminNotificationRoutes);
 app.use("/api/admin/payouts", payoutRoutes);
 app.use("/api/payouts", payoutRoutes);
 app.use("/api/payments", paymentRoutes);
@@ -111,6 +114,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/promotions", promotionsRoutes);
 app.use("/api/platform", platformRoutes);
 app.use("/api/applications", applicationRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running 🚀");
