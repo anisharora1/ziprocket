@@ -255,7 +255,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         }
 
         if (coords?.lat && coords?.lng) {
-          payload.location = { lat: coords.lat, lng: coords.lng };
+          payload.lastLocation = { lat: coords.lat, lng: coords.lng };
         }
 
         await apiClient.post('/notifications/register-device', payload);
