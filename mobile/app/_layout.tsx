@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -12,15 +13,17 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
-import { AuthProvider } from '../src/context/AuthContext';
+import { AuthProvider, useAuth } from '../src/context/AuthContext';
 import { SocketProvider } from '../src/context/SocketContext';
 import { LocationProvider, useLocation } from '../src/context/LocationContext';
 import { PlatformProvider } from '../src/context/PlatformContext';
 import { CartProvider } from '../src/context/CartContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
-import { Colors } from '../src/constants/theme';
 import LocationPromptModal from '../src/components/LocationPromptModal';
 import LocationSelectorModal from '../src/components/LocationSelectorModal';
+import AnimatedSplash from '../src/components/AnimatedSplash';
+
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 function LocationModals() {
   const { isPickerOpen, closePicker } = useLocation();
@@ -32,6 +35,30 @@ function LocationModals() {
   );
 }
 
+function SplashGate({
+  fontsLoaded,
+  showSplash,
+  onFinish,
+}: {
+  fontsLoaded: boolean;
+  showSplash: boolean;
+  onFinish: () => void;
+}) {
+  const { isLoading: authLoading } = useAuth();
+
+  if (!showSplash) return null;
+
+  return (
+    <AnimatedSplash
+      ready={fontsLoaded && !authLoading}
+      onFinish={onFinish}
+      onLayout={() => {
+        SplashScreen.hideAsync().catch(() => {});
+      }}
+    />
+  );
+}
+
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     PlusJakartaSans_400Regular,
@@ -40,6 +67,8 @@ export default function RootLayout() {
     PlusJakartaSans_700Bold,
     PlusJakartaSans_800ExtraBold,
   });
+
+  const [showSplash, setShowSplash] = useState(true);
 
   const [queryClient] = useState(
     () =>
@@ -54,11 +83,7 @@ export default function RootLayout() {
   );
 
   if (!fontsLoaded) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
-        <ActivityIndicator size="large" color={Colors.primary} />
-      </View>
-    );
+    return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
   return (
@@ -83,6 +108,11 @@ export default function RootLayout() {
                       <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
                       <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
                     </Stack>
+                    <SplashGate
+                      fontsLoaded={fontsLoaded}
+                      showSplash={showSplash}
+                      onFinish={() => setShowSplash(false)}
+                    />
                   </CartProvider>
                 </PlatformProvider>
               </NotificationProvider>

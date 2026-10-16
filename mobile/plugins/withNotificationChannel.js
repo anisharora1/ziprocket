@@ -1,7 +1,50 @@
-const { withAndroidManifest, withMainApplication } = require('@expo/config-plugins');
+const path = require('path');
+const fs = require('fs');
+const {
+  withAndroidManifest,
+  withMainApplication,
+  withDangerousMod,
+  withAndroidColors,
+  AndroidConfig,
+} = require('@expo/config-plugins');
 
 const withNotificationChannel = (config) => {
-  // 1. Android Manifest updates: add default FCM channel meta-data
+  // 1. Copy notification icon to android/app/src/main/res/drawable/ic_notification.png
+  config = withDangerousMod(config, [
+    'android',
+    async (modConfig) => {
+      const projectRoot = modConfig.modRequest.projectRoot;
+      const srcPath = path.resolve(projectRoot, 'assets/images/notification-icon.png');
+      const destDir = path.resolve(
+        modConfig.modRequest.platformProjectRoot,
+        'app/src/main/res/drawable'
+      );
+      const destPath = path.resolve(destDir, 'ic_notification.png');
+
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+
+      if (fs.existsSync(srcPath)) {
+        fs.copyFileSync(srcPath, destPath);
+      } else {
+        console.warn(`[withNotificationChannel] Source notification icon not found at ${srcPath}`);
+      }
+
+      return modConfig;
+    },
+  ]);
+
+  // 2. Add notification_orange color entry to colors.xml
+  config = withAndroidColors(config, (modConfig) => {
+    modConfig.modResults = AndroidConfig.Colors.assignColorValue(modConfig.modResults, {
+      name: 'notification_orange',
+      value: '#FF5C00',
+    });
+    return modConfig;
+  });
+
+  // 3. Android Manifest updates: add default FCM channel, icon, and color meta-data
   config = withAndroidManifest(config, (modConfig) => {
     const manifest = modConfig.modResults.manifest;
     if (!manifest.$) {
@@ -15,22 +58,48 @@ const withNotificationChannel = (config) => {
         mainApplication['meta-data'] = [];
       }
 
-      const existingMeta = mainApplication['meta-data'].find(
-        (m) => m.$?.['android:name'] === 'com.google.firebase.messaging.default_notification_channel_id'
+      // Helper to idempotently add or update a meta-data entry
+      const setMetaData = (name, key, value, replaceAttr) => {
+        const existing = mainApplication['meta-data'].find(
+          (m) => m.$?.['android:name'] === name
+        );
+        if (existing) {
+          existing.$[key] = value;
+          existing.$['tools:replace'] = replaceAttr;
+        } else {
+          mainApplication['meta-data'].push({
+            $: {
+              'android:name': name,
+              [key]: value,
+              'tools:replace': replaceAttr,
+            },
+          });
+        }
+      };
+
+      // 1. Channel ID (uses android:value and tools:replace="android:value")
+      setMetaData(
+        'com.google.firebase.messaging.default_notification_channel_id',
+        'android:value',
+        'promotions_high',
+        'android:value'
       );
 
-      if (existingMeta) {
-        existingMeta.$['android:value'] = 'promotions_high';
-        existingMeta.$['tools:replace'] = 'android:value';
-      } else {
-        mainApplication['meta-data'].push({
-          $: {
-            'android:name': 'com.google.firebase.messaging.default_notification_channel_id',
-            'android:value': 'promotions_high',
-            'tools:replace': 'android:value',
-          },
-        });
-      }
+      // 2. Notification icon (uses android:resource and tools:replace="android:resource")
+      setMetaData(
+        'com.google.firebase.messaging.default_notification_icon',
+        'android:resource',
+        '@drawable/ic_notification',
+        'android:resource'
+      );
+
+      // 3. Notification color (uses android:resource and tools:replace="android:resource")
+      setMetaData(
+        'com.google.firebase.messaging.default_notification_color',
+        'android:resource',
+        '@color/notification_orange',
+        'android:resource'
+      );
     }
     return modConfig;
   });
