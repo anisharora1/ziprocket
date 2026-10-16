@@ -71,7 +71,9 @@
         {
           "microphonePermission": "ZipRocket aapki awaaz se search karne ke liye microphone use karta hai.",
           "speechRecognitionPermission": "ZipRocket aapki awaaz se search karne ke liye microphone use karta hai.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ]
     ],
