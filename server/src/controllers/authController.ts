@@ -160,16 +160,21 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         });
 
         if (!user) {
+            const allowedRoles = ["customer", "seller", "delivery"];
+            const assignedRole = typeof role === "string" && allowedRoles.includes(role)
+                ? role
+                : "customer";
+
             user = new User({
                 phone: cleanPhone10,
                 name,
-                role,
+                role: assignedRole,
                 firebaseUid,
                 isPhoneVerified: true,
-                approvalStatus: (role === "seller" || role === "delivery") ? "pending" : "approved"
+                approvalStatus: (assignedRole === "seller" || assignedRole === "delivery") ? "pending" : "approved"
             });
             await user.save();
-            console.log(`[verifyOtp] Created new user: ${user.phone} with role: ${role}`);
+            console.log(`[verifyOtp] Created new user: ${user.phone} with role: ${assignedRole}`);
         } else {
             let updated = false;
             if (firebaseUid && !user.firebaseUid) {
