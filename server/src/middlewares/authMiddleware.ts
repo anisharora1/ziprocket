@@ -36,7 +36,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
                 }
             }
 
-            if (!user) {
+            if (!user || user.isDeleted) {
                 res.status(401).json({ success: false, message: "Not authorized, user not found" });
                 return;
             }

@@ -1,11 +1,12 @@
 import express from "express";
 import { requestOtp, verifyOtp, logout, refreshToken } from "../controllers/authController";
+import { deleteMyAccount } from "../controllers/accountController";
 import { protect } from "../middlewares/authMiddleware";
 import { uploadSingle } from "../middlewares/uploadMiddleware";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
 import User from "../models/User";
 import { otpRequestLimiter, otpVerificationLimiter } from "../middlewares/otpRateLimitMiddleware";
-import { loginLimiter } from "../middlewares/rateLimitMiddleware";
+import { loginLimiter, accountDeletionLimiter } from "../middlewares/rateLimitMiddleware";
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ router.post("/request-otp", otpRequestLimiter, requestOtp);
 router.post("/verify-otp", otpVerificationLimiter, loginLimiter, verifyOtp);
 router.post("/logout", protect, logout);
 router.post("/refresh", protect, refreshToken);
+router.delete("/account", protect, accountDeletionLimiter, deleteMyAccount);
 
 // Protected route to get user profile details
 router.get("/me", protect, async (req, res) => {

@@ -194,3 +194,14 @@ export const notificationLimiter = rateLimit({
     message: "Too many notification requests. Please try again later.",
     handler: handleLimitReached("Notifications"),
 });
+
+// 8. Account Deletion Limiter: 5 attempts per 15 minutes
+export const accountDeletionLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 5,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: new SafeDynamicStore("account_deletion"),
+    message: "Too many account deletion attempts. Please try again after 15 minutes.",
+    handler: handleLimitReached("AccountDeletion"),
+});
