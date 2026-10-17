@@ -22,7 +22,7 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
                         }
                     }
 
-                    if (user && !user.isBlocked) {
+                    if (user && !user.isBlocked && !user.isDeleted) {
                         req.user = user;
                     }
                 }

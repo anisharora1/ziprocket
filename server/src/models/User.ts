@@ -29,6 +29,8 @@ export interface IUser extends BaseDocument {
         url: string;
         publicId: string;
     };
+    isDeleted: boolean;
+    deletedAt?: Date;
 }
 
 const userSchema = new Schema<IUser>({
@@ -74,7 +76,10 @@ const userSchema = new Schema<IUser>({
     profilePhoto: {
         url: String,
         publicId: String
-    }
+    },
+
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date }
 
 }, { 
     timestamps: true,
