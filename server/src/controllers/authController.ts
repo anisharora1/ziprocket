@@ -5,6 +5,8 @@ import admin from "../config/firebaseAdmin";
 import * as otpCacheService from "../services/otpCacheService";
 import * as sessionCacheService from "../services/sessionCacheService";
 
+const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH === "true";
+
 /**
  * Generate and store OTP in Redis for custom verification flow
  */
@@ -51,13 +53,11 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
             console.log(`[requestOtp] Generated OTP for +91${cleanPhone}: [REDACTED] (Expires in 5m)`);
         }
 
-        // Return OTP in response in development/test environment for easy client testing
-        const isDev = process.env.NODE_ENV !== "production";
-
+        // Return OTP in response only when dev auth bypass is explicitly enabled
         res.status(200).json({
             success: true,
             message: "OTP generated successfully",
-            otp: isDev ? otpCode : undefined
+            otp: DEV_AUTH_ENABLED ? otpCode : undefined
         });
     } catch (error: any) {
         console.error("requestOtp error:", error);
@@ -79,7 +79,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         if (token) {
             // Verify Firebase ID Token using Firebase Admin SDK
             let decodedToken: any;
-            if (process.env.NODE_ENV !== "production" && typeof token === "string" && token.startsWith("mock-")) {
+            if (DEV_AUTH_ENABLED && typeof token === "string" && token.startsWith("mock-")) {
                 const mockPhone = token.replace("mock-", "");
                 const formattedPhone = mockPhone.startsWith("+") ? mockPhone : `+91${mockPhone}`;
                 decodedToken = {
