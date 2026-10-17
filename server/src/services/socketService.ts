@@ -7,6 +7,7 @@ import jwt from "jsonwebtoken";
 import { getClient } from "./redisService";
 import User from "../models/User";
 import Restaurant from "../models/Restaurant";
+import { getJwtSecret } from "../config/jwt";
 
 let io: SocketIOServer | null = null;
 
@@ -63,7 +64,7 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
                 return next(new Error("Authentication error: No token"));
             }
 
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret") as any;
+            const decoded = jwt.verify(token, getJwtSecret()) as any;
             const user = await User.findById(decoded.id).select("-password").lean();
 
             if (!user) {

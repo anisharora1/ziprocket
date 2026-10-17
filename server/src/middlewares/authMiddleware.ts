@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import User, { IUser } from "../models/User";
 import * as sessionCacheService from "../services/sessionCacheService";
+import { getJwtSecret } from "../config/jwt";
 
 // Extend Express Request to include user
 declare global {
@@ -19,7 +20,7 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
         try {
             token = req.headers.authorization.split(" ")[1];
 
-            const decoded = jwt.verify(token, process.env.JWT_SECRET || "fallback_secret") as any;
+            const decoded = jwt.verify(token, getJwtSecret()) as any;
 
             // Try loading from Redis session cache first
             let cachedUser = await sessionCacheService.getSession(decoded.id);
