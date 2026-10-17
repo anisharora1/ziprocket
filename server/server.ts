@@ -9,6 +9,15 @@ import { startSettlementJob } from "./src/jobs/settlementJob";
 import { startNotificationJob } from "./src/jobs/notificationJob";
 import Address from "./src/models/Address";
 import Order from "./src/models/Order";
+import { getJwtSecret } from "./src/config/jwt";
+
+// Validate JWT secret immediately at server startup
+try {
+    getJwtSecret();
+} catch (error: any) {
+    console.error(`FATAL: ${error.message}`);
+    process.exit(1);
+}
 
 const PORT = process.env.PORT || 5000;
 

@@ -4,6 +4,7 @@ import User from "../models/User";
 import admin from "../config/firebaseAdmin";
 import * as otpCacheService from "../services/otpCacheService";
 import * as sessionCacheService from "../services/sessionCacheService";
+import { getJwtSecret } from "../config/jwt";
 
 const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH === "true";
 
@@ -192,7 +193,8 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         }
 
         // Admin override check
-        if (user.phone === "9117662441") {
+        const adminPhone = process.env.ADMIN_PHONE?.trim();
+        if (adminPhone && (user.phone === adminPhone || user.phone === adminPhone.replace(/\D/g, "").slice(-10))) {
             if (user.role !== "admin" || user.approvalStatus !== "approved") {
                 user.role = "admin";
                 user.approvalStatus = "approved";
@@ -223,7 +225,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         // 3. Generate Custom JWT
         const jwtToken = jwt.sign(
             { id: user._id, role: user.role, isPwa: !!isPwa },
-            process.env.JWT_SECRET || "fallback_secret",
+            getJwtSecret(),
             { expiresIn: isPwa ? "3650d" : "10d" }
         );
 
@@ -274,16 +276,16 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
 
         // Determine if PWA from request body, headers, or previous token payload
         let isPwa = req.body.isPwa;
-        
+
         // If not explicitly passed, try to infer from authorization token or User Agent
         if (isPwa === undefined && req.headers.authorization) {
             const token = req.headers.authorization.split(" ")[1];
             try {
                 const decoded = jwt.decode(token) as any;
                 isPwa = decoded?.isPwa;
-            } catch (e) {}
+            } catch (e) { }
         }
-        
+
         if (isPwa === undefined) {
             const userAgent = req.headers["user-agent"] || "";
             isPwa = /standalone|pwa/i.test(userAgent);
@@ -292,7 +294,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
         // Generate a fresh JWT
         const jwtToken = jwt.sign(
             { id: user._id, role: user.role, isPwa: !!isPwa },
-            process.env.JWT_SECRET || "fallback_secret",
+            getJwtSecret(),
             { expiresIn: isPwa ? "3650d" : "10d" }
         );
 
