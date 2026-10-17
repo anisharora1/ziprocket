@@ -9,6 +9,7 @@ const LEGAL_LINKS = [
   { href: "/contact-us", label: "Contact Us" },
   { href: "/terms-and-conditions", label: "Terms & Conditions" },
   { href: "/privacy-policy", label: "Privacy Policy" },
+  { href: "/delete-account", label: "Delete Account" },
   { href: "/refund-policy", label: "Refund Policy" },
   { href: "/shipping-policy", label: "Shipping Policy" },
 ];

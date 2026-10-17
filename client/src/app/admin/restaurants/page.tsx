@@ -674,7 +674,8 @@ export default function RestaurantsAdminPage() {
       <div className="flex flex-col sm:flex-row items-center justify-between text-[12px] text-slate-400 font-bold mt-auto border-t border-slate-100 pt-6 pb-2">
         <p>© 2026 ZipRocket Management Suite. All rights reserved.</p>
         <div className="flex gap-6 mt-4 sm:mt-0">
-          <a href="#" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Privacy Policy</a>
+          <a href="/privacy-policy" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Privacy Policy</a>
+          <a href="/delete-account" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Delete Account</a>
           <a href="#" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Partner Terms</a>
           <a href="#" className="hover:text-slate-800 transition-colors uppercase tracking-wider">Audit Logs</a>
         </div>
