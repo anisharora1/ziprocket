@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | ZipRocket",
@@ -22,6 +23,9 @@ export default function PrivacyPolicyPage() {
           <h2 className="text-lg font-black text-[#FF5C00]">Information We Collect</h2>
           <p>
             We collect the following information to operate ZipRocket: your name, phone number (verified via OTP), delivery address, and precise location (GPS) when you use the app, in order to show you nearby restaurants/stores and calculate accurate delivery times and fees.
+          </p>
+          <p>
+            Data we collect includes: phone number, name, saved addresses, location when you allow it, order history, device notification token, and voice input if the user uses voice search via the device&apos;s speech service.
           </p>
         </div>
 
@@ -56,6 +60,26 @@ export default function PrivacyPolicyPage() {
             >
               ziprocket.support@gmail.com
             </a>.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-lg font-black text-[#FF5C00]">Account Deletion</h2>
+          <p>
+            You can request the deletion of your account and personal data at any time. For full instructions on deleting your account in the app or submitting a request without the app, please visit our{" "}
+            <Link
+              href="/delete-account"
+              className="text-[#FF5C00] font-semibold underline"
+            >
+              Delete Account page
+            </Link>.
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <h2 className="text-lg font-black text-[#FF5C00]">Data Retention</h2>
+          <p>
+            Upon account deletion, your name, phone number, email, profile photo, saved addresses, notification settings and device tokens are permanently removed. Order and payment records may be kept only for the period required by applicable law, for accounting, tax and fraud prevention. Active orders must be completed before deletion.
           </p>
         </div>
 
