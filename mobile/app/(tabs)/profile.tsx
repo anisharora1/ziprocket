@@ -9,12 +9,17 @@ import {
   StyleSheet,
   Alert,
   Switch,
+  TextInput,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
+import { apiClient } from '../../src/services/api';
 import {
   Colors,
   Spacing,
@@ -37,11 +42,56 @@ const LEGAL_TABS: { id: LegalDocType; label: string }[] = [
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
-  const { marketingOptIn, setMarketingOptIn } = useNotification();
+  const { marketingOptIn, setMarketingOptIn, fcmToken } = useNotification();
   const router = useRouter();
 
   const [legalModalVisible, setLegalModalVisible] = useState(false);
   const [selectedLegalDoc, setSelectedLegalDoc] = useState<LegalDocType>('about');
+
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const handleConfirmDelete = async () => {
+    if (isDeleting || deleteConfirmText !== 'DELETE') return;
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      await apiClient.delete('/auth/account', {
+        data: { confirm: 'DELETE' },
+      });
+
+      setDeleteModalVisible(false);
+      setDeleteConfirmText('');
+      setDeleteError(null);
+
+      if (fcmToken) {
+        try {
+          await apiClient.post('/notifications/unlink-user', { token: fcmToken });
+        } catch {
+          // Best-effort cleanup
+        }
+      }
+
+      await logout();
+      router.replace('/(auth)/login');
+      Alert.alert('Account Deleted', 'Your account has been deleted.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+
+      if ((status === 409 || status === 403) && serverMsg) {
+        setDeleteError(serverMsg);
+      } else {
+        setDeleteError('Could not delete account. Please try again.');
+      }
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -225,6 +275,19 @@ export default function ProfileScreen() {
             <Pressable style={styles.logoutButton} onPress={handleLogout}>
               <MaterialIcons name="logout" size={20} color={Colors.error} />
               <Text style={styles.logoutText}>Log Out</Text>
+            </Pressable>
+
+            {/* Delete Account Button */}
+            <Pressable
+              style={styles.deleteAccountButton}
+              onPress={() => {
+                setDeleteConfirmText('');
+                setDeleteError(null);
+                setDeleteModalVisible(true);
+              }}
+            >
+              <MaterialIcons name="delete-forever" size={20} color={Colors.error} />
+              <Text style={styles.deleteAccountText}>Delete Account</Text>
             </Pressable>
           </>
         ) : (
@@ -664,6 +727,113 @@ export default function ProfileScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isDeleting) {
+            setDeleteModalVisible(false);
+            setDeleteConfirmText('');
+            setDeleteError(null);
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.confirmModalCard}>
+            <View style={styles.confirmModalHeader}>
+              <View style={styles.confirmModalIconCircle}>
+                <MaterialIcons name="warning" size={28} color={Colors.error} />
+              </View>
+              <Text style={styles.confirmModalTitle}>Delete Account?</Text>
+            </View>
+
+            <View style={styles.warningList}>
+              <View style={styles.warningItem}>
+                <Text style={styles.warningBullet}>•</Text>
+                <Text style={styles.warningText}>
+                  Your profile, saved addresses and notification settings will be permanently deleted.
+                </Text>
+              </View>
+              <View style={styles.warningItem}>
+                <Text style={styles.warningBullet}>•</Text>
+                <Text style={styles.warningText}>
+                  Past order records may be kept for accounting and legal reasons.
+                </Text>
+              </View>
+              <View style={styles.warningItem}>
+                <Text style={styles.warningBullet}>•</Text>
+                <Text style={[styles.warningText, styles.warningBold]}>
+                  This cannot be undone.
+                </Text>
+              </View>
+            </View>
+
+            <Text style={styles.inputPrompt}>
+              To confirm, type <Text style={styles.boldDelete}>DELETE</Text> below:
+            </Text>
+
+            <TextInput
+              style={styles.confirmInput}
+              value={deleteConfirmText}
+              onChangeText={(text) => {
+                setDeleteConfirmText(text);
+                if (deleteError) setDeleteError(null);
+              }}
+              placeholder="Type DELETE"
+              placeholderTextColor={Colors.textMuted}
+              autoCapitalize="characters"
+              autoCorrect={false}
+              editable={!isDeleting}
+            />
+
+            {deleteError ? (
+              <View style={styles.errorBox}>
+                <MaterialIcons name="error-outline" size={16} color={Colors.error} />
+                <Text style={styles.errorText}>{deleteError}</Text>
+              </View>
+            ) : null}
+
+            <View style={styles.modalBtnRow}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => {
+                  if (!isDeleting) {
+                    setDeleteModalVisible(false);
+                    setDeleteConfirmText('');
+                    setDeleteError(null);
+                  }
+                }}
+                disabled={isDeleting}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.confirmDeleteButton,
+                  deleteConfirmText !== 'DELETE' || isDeleting
+                    ? styles.confirmDeleteButtonDisabled
+                    : null,
+                ]}
+                onPress={handleConfirmDelete}
+                disabled={deleteConfirmText !== 'DELETE' || isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.confirmDeleteButtonText}>Delete my account</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1069,5 +1239,162 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs + 1,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  deleteAccountButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.errorLight,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing.sm,
+    ...Shadows.sm,
+  },
+  deleteAccountText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.error,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: Colors.overlay,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  confirmModalCard: {
+    width: '100%',
+    maxWidth: 400,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.xxl,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.borderLight,
+    ...Shadows.md,
+  },
+  confirmModalHeader: {
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  confirmModalIconCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.errorLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xs,
+  },
+  confirmModalTitle: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.lg,
+    color: Colors.textPrimary,
+  },
+  warningList: {
+    backgroundColor: Colors.surfaceSecondary,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+  },
+  warningItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  warningBullet: {
+    color: Colors.error,
+    fontSize: Typography.fontSize.sm,
+    marginRight: 6,
+    lineHeight: 18,
+  },
+  warningText: {
+    flex: 1,
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.textSecondary,
+    lineHeight: 18,
+  },
+  warningBold: {
+    fontFamily: FontFamily.bold,
+    color: Colors.error,
+  },
+  inputPrompt: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+  },
+  boldDelete: {
+    fontFamily: FontFamily.extraBold,
+    color: Colors.error,
+  },
+  confirmInput: {
+    borderWidth: 1.5,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textPrimary,
+    backgroundColor: Colors.surface,
+    marginBottom: Spacing.sm,
+  },
+  errorBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.errorLight,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+  },
+  errorText: {
+    flex: 1,
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.error,
+  },
+  modalBtnRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.textSecondary,
+  },
+  confirmDeleteButton: {
+    flex: 1.4,
+    backgroundColor: Colors.error,
+    paddingVertical: Spacing.sm + 4,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmDeleteButtonDisabled: {
+    backgroundColor: Colors.slate300,
+    opacity: 0.6,
+  },
+  confirmDeleteButtonText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.white,
   },
 });
