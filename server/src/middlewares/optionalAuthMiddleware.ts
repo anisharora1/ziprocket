@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User from "../models/User";
 import * as sessionCacheService from "../services/sessionCacheService";
 import { getJwtSecret } from "../config/jwt";
+import { isTokenDenied } from "../services/tokenDenylistService";
 
 export const optionalAuth = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
@@ -10,6 +11,11 @@ export const optionalAuth = async (req: Request, res: Response, next: NextFuncti
             const token = req.headers.authorization.split(" ")[1];
             if (token) {
                 const decoded = jwt.verify(token, getJwtSecret()) as any;
+
+                if (await isTokenDenied(token)) {
+                    res.status(401).json({ success: false, message: "Not authorized, token revoked" });
+                    return;
+                }
                 if (decoded && decoded.id) {
                     let cachedUser = await sessionCacheService.getSession(decoded.id);
                     let user;

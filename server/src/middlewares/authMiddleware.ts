@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import User, { IUser } from "../models/User";
 import * as sessionCacheService from "../services/sessionCacheService";
 import { getJwtSecret } from "../config/jwt";
+import { isTokenDenied } from "../services/tokenDenylistService";
 
 // Extend Express Request to include user
 declare global {
@@ -21,6 +22,11 @@ export const protect = async (req: Request, res: Response, next: NextFunction): 
             token = req.headers.authorization.split(" ")[1];
 
             const decoded = jwt.verify(token, getJwtSecret()) as any;
+
+            if (await isTokenDenied(token)) {
+                res.status(401).json({ success: false, message: "Not authorized, token revoked" });
+                return;
+            }
 
             // Try loading from Redis session cache first
             let cachedUser = await sessionCacheService.getSession(decoded.id);
