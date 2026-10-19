@@ -5,8 +5,10 @@ import admin from "../config/firebaseAdmin";
 import * as otpCacheService from "../services/otpCacheService";
 import * as sessionCacheService from "../services/sessionCacheService";
 import { getJwtSecret } from "../config/jwt";
+import { denyToken } from "../services/tokenDenylistService";
 
 const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH === "true";
+const PWA_TOKEN_EXPIRY = "90d";
 
 /**
  * Generate and store OTP in Redis for custom verification flow
@@ -226,7 +228,7 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
         const jwtToken = jwt.sign(
             { id: user._id, role: user.role, isPwa: !!isPwa },
             getJwtSecret(),
-            { expiresIn: isPwa ? "3650d" : "10d" }
+            { expiresIn: isPwa ? PWA_TOKEN_EXPIRY : "10d" }
         );
 
         res.status(200).json({
@@ -251,6 +253,14 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
  */
 export const logout = async (req: Request, res: Response): Promise<void> => {
     try {
+        let token: string | undefined;
+        if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
+            token = req.headers.authorization.split(" ")[1];
+        }
+        if (token) {
+            await denyToken(token);
+        }
+
         const userId = req.user?._id;
         if (userId) {
             await sessionCacheService.deleteSession(userId.toString());
@@ -295,7 +305,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
         const jwtToken = jwt.sign(
             { id: user._id, role: user.role, isPwa: !!isPwa },
             getJwtSecret(),
-            { expiresIn: isPwa ? "3650d" : "10d" }
+            { expiresIn: isPwa ? PWA_TOKEN_EXPIRY : "10d" }
         );
 
         res.status(200).json({

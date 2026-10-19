@@ -8,6 +8,7 @@ import { getClient } from "./redisService";
 import User from "../models/User";
 import Restaurant from "../models/Restaurant";
 import { getJwtSecret } from "../config/jwt";
+import { isTokenDenied } from "./tokenDenylistService";
 
 let io: SocketIOServer | null = null;
 
@@ -65,10 +66,18 @@ export const initSocketServer = (httpServer: HttpServer): SocketIOServer => {
             }
 
             const decoded = jwt.verify(token, getJwtSecret()) as any;
+
+            if (await isTokenDenied(token)) {
+                return next(new Error("Authentication error: Token revoked"));
+            }
+
             const user = await User.findById(decoded.id).select("-password").lean();
 
             if (!user) {
                 return next(new Error("Authentication error: User not found"));
+            }
+            if (user.isDeleted) {
+                return next(new Error("Authentication error: User account deleted"));
             }
             if (user.isBlocked) {
                 return next(new Error("Authentication error: User is blocked"));
