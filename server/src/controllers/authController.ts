@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import User from "../models/User";
 import admin from "../config/firebaseAdmin";
@@ -8,7 +9,12 @@ import { getJwtSecret } from "../config/jwt";
 import { denyToken } from "../services/tokenDenylistService";
 
 const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production" && process.env.ALLOW_DEV_AUTH === "true";
+const SHORT_TOKEN_EXPIRY = "10d";
 const PWA_TOKEN_EXPIRY = "90d";
+const MOBILE_TOKEN_EXPIRY = "180d"; // change this number to whatever you want for the app
+
+const getTokenExpiry = (isPwa: boolean, clientType?: unknown): string =>
+  clientType === "mobile" ? MOBILE_TOKEN_EXPIRY : isPwa ? PWA_TOKEN_EXPIRY : SHORT_TOKEN_EXPIRY;
 
 /**
  * Generate and store OTP in Redis for custom verification flow
@@ -35,7 +41,7 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
         }
 
         // Generate 6-digit OTP code
-        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const otpCode = crypto.randomInt(100000, 1000000).toString();
 
         // Save OTP code in Redis (TTL: 5 mins)
         await otpCacheService.saveOtp(cleanPhone, otpCode);
@@ -73,7 +79,7 @@ export const requestOtp = async (req: Request, res: Response): Promise<void> => 
  */
 export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { token, phone, otp, role = "customer", name = "User", isPwa = false } = req.body;
+        const { token, phone, otp, role = "customer", name = "User", isPwa = false, clientType } = req.body;
 
         let cleanPhone10 = "";
         let firebaseUid = undefined;
@@ -226,9 +232,9 @@ export const verifyOtp = async (req: Request, res: Response): Promise<void> => {
 
         // 3. Generate Custom JWT
         const jwtToken = jwt.sign(
-            { id: user._id, role: user.role, isPwa: !!isPwa },
+            { id: user._id, role: user.role, isPwa: !!isPwa, clientType: clientType === "mobile" ? "mobile" : undefined },
             getJwtSecret(),
-            { expiresIn: isPwa ? PWA_TOKEN_EXPIRY : "10d" }
+            { expiresIn: getTokenExpiry(!!isPwa, clientType) as any }
         );
 
         res.status(200).json({
@@ -305,7 +311,7 @@ export const refreshToken = async (req: Request, res: Response): Promise<void> =
         const jwtToken = jwt.sign(
             { id: user._id, role: user.role, isPwa: !!isPwa },
             getJwtSecret(),
-            { expiresIn: isPwa ? PWA_TOKEN_EXPIRY : "10d" }
+            { expiresIn: getTokenExpiry(!!isPwa) as any }
         );
 
         res.status(200).json({

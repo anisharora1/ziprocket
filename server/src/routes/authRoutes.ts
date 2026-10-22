@@ -19,7 +19,9 @@ router.delete("/account", protect, accountDeletionLimiter, deleteMyAccount);
 // Protected route to get user profile details
 router.get("/me", protect, async (req, res) => {
     try {
-        const user = await User.findById(req.user?._id).populate("assignedZones", "name center radiusKm pincodes");
+        const user = await User.findById(req.user?._id)
+            .select("-firebaseUid -isDeleted -deletedAt -__v")
+            .populate("assignedZones", "name center radiusKm pincodes");
         res.status(200).json({
             success: true,
             user
