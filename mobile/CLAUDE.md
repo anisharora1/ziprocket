@@ -4,7 +4,7 @@ This document outlines the strict guidelines for developing the React Native / E
 
 ## Core Rules & Isolation
 1. **Never edit `client/` or `server/`:** All mobile work strictly takes place inside `mobile/`. Never run npm commands or modify any file outside `mobile/`.
-2. **Never work on `main` branch:** All work happens on dedicated feature branches (e.g. `mobile-app`).
+2. **Branch from the latest main for each task and merge back into main through a pull request.**
 3. **No secrets in git:** Store secrets in `mobile/.env` (git-ignored) and document placeholder values in `mobile/.env.example`.
 4. **Zero Backend Changes:** Reuse existing backend API endpoints as-is. No backend changes unless explicitly requested.
 

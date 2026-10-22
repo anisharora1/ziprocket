@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "ZipRocket",
-    "slug": "mobile",
+    "slug": "ziprocket",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
-    "userInterfaceStyle": "automatic",
+    "scheme": "ziprocket",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.ziprocket.app",
       "googleServicesFile": "./GoogleService-Info.plist",
@@ -17,6 +17,8 @@
     },
     "android": {
       "package": "com.ziprocket.app",
+      "versionCode": 1,
+      "allowBackup": false,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
@@ -61,6 +63,10 @@
       [
         "expo-build-properties",
         {
+          "android": {
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36
+          },
           "ios": {
             "useFrameworks": "static"
           }

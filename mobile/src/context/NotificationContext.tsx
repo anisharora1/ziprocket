@@ -24,7 +24,7 @@ import NotificationPermissionPromptModal from '../components/NotificationPermiss
 try {
   messaging().setBackgroundMessageHandler(async (remoteMessage: RemoteMessage) => {
     if (__DEV__) {
-      console.log('[FCM Background Message Received]', remoteMessage.messageId);
+      console.log('[FCM] Background message received');
     }
   });
 } catch (e) {
@@ -196,7 +196,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         if (tokenVal) {
           setFcmToken(tokenVal);
           if (__DEV__) {
-            console.log('[FCM TOKEN]', tokenVal);
+            console.log('[FCM] Token retrieved successfully');
           }
         }
       } catch (err: any) {
@@ -210,7 +210,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           if (newToken) {
             setFcmToken(newToken);
             if (__DEV__) {
-              console.log('[FCM TOKEN]', newToken);
+              console.log('[FCM] Token refreshed');
             }
           }
         });
@@ -322,7 +322,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       await AsyncStorage.setItem(STORAGE_MARKETING_OPT_IN_KEY, String(value));
       await apiClient.put('/notifications/preferences', { marketingOptIn: value });
       if (__DEV__) {
-        console.log('[Notification API] Synced marketingOptIn:', value);
+        console.log('[Notification API] Synced marketing opt-in preference');
       }
     } catch (err: any) {
       if (__DEV__) {
@@ -341,7 +341,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     try {
       unsubscribeMessage = messaging().onMessage(async (remoteMessage: RemoteMessage) => {
         if (__DEV__) {
-          console.log('[FCM Foreground Message Received]', remoteMessage);
+          console.log('[FCM] Foreground message received');
         }
 
         const title =
@@ -388,7 +388,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     try {
       unsubscribeOpenedApp = messaging().onNotificationOpenedApp((remoteMessage: RemoteMessage) => {
         if (__DEV__) {
-          console.log('[FCM Notification Opened from Background]', remoteMessage);
+          console.log('[FCM] Notification opened from background');
         }
         const route = (remoteMessage.data?.route as string) || null;
         const campaignId = (remoteMessage.data?.campaignId as string) || null;
@@ -406,7 +406,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
       .then((remoteMessage: RemoteMessage | null) => {
         if (remoteMessage) {
           if (__DEV__) {
-            console.log('[FCM Initial Notification (Cold Start)]', remoteMessage);
+            console.log('[FCM] Initial notification (cold start) opened');
           }
           const route = (remoteMessage.data?.route as string) || null;
           const campaignId = (remoteMessage.data?.campaignId as string) || null;
@@ -488,7 +488,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         if (tokenVal) {
           setFcmToken(tokenVal);
           if (__DEV__) {
-            console.log('[FCM TOKEN]', tokenVal);
+            console.log('[FCM] Token retrieved successfully');
           }
         }
       } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
