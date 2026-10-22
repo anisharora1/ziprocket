@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import * as SecureStore from 'expo-secure-store';
 import { auth } from '../services/firebase';
 import { apiClient, setOnUnauthorized } from '../services/api';
+import { clearPersistedCache } from '../services/cache';
 
 export interface User {
   _id: string;
@@ -63,6 +64,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await auth().signOut();
     } catch {
       // Ignore if Firebase auth is already signed out
+    }
+    try {
+      await clearPersistedCache();
+    } catch (e) {
+      console.warn('[AuthContext] Error clearing persisted cache:', e);
     }
     setToken(null);
     setUser(null);

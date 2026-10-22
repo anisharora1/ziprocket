@@ -35,6 +35,37 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+export const isNetworkError = (err: any): boolean => {
+  if (!err) return false;
+  if (err.isNetworkError === true) return true;
+
+  // Firebase auth network error
+  if (
+    err.code === 'auth/network-request-failed' ||
+    (typeof err.message === 'string' && err.message.includes('auth/network-request-failed'))
+  ) {
+    return true;
+  }
+
+  // Axios or standard HTTP request network errors (no response)
+  if (err.response === undefined) {
+    const code = err.code;
+    const msg = typeof err.message === 'string' ? err.message.toLowerCase() : '';
+    if (
+      code === 'ERR_NETWORK' ||
+      code === 'ECONNABORTED' ||
+      code === 'ETIMEDOUT' ||
+      err.message === 'Network Error' ||
+      msg.includes('network error') ||
+      msg.includes('timeout')
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Response interceptor: Unpack envelope if backend returns { success, message, data: { ... } }
 apiClient.interceptors.response.use(
   (response) => {
@@ -53,6 +84,13 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    // Detect network errors: no response received and network/timeout related error
+    if (isNetworkError(error)) {
+      error.isNetworkError = true;
+      // Print NOTHING to the console and do not run unauthorized/logout logic
+      return Promise.reject(error);
+    }
+
     const status = error.response?.status;
     const url = error.config?.url || '';
     const isCart401 = status === 401 && url.includes('/cart');

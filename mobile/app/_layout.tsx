@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View } from 'react-native';
+import { View, AppState, type AppStateStatus, Platform } from 'react-native';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { onlineManager, focusManager } from '@tanstack/react-query';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   useFonts,
@@ -22,8 +23,37 @@ import { NotificationProvider } from '../src/context/NotificationContext';
 import LocationPromptModal from '../src/components/LocationPromptModal';
 import LocationSelectorModal from '../src/components/LocationSelectorModal';
 import AnimatedSplash from '../src/components/AnimatedSplash';
+import OfflineBanner from '../src/components/OfflineBanner';
+import { subscribeNetwork } from '../src/services/network';
+import {
+  queryClient,
+  asyncStoragePersister,
+  CACHE_BUSTER,
+  CACHE_MAX_AGE,
+  shouldDehydrateQuery,
+} from '../src/services/cache';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Wire React Query onlineManager to the network connectivity store
+onlineManager.setEventListener((setOnline) => {
+  return subscribeNetwork((isOnline) => {
+    setOnline(isOnline);
+  });
+});
+
+// Wire React Query focusManager to AppState for refetch on foreground
+focusManager.setEventListener((handleFocus) => {
+  const subscription = AppState.addEventListener('change', (status: AppStateStatus) => {
+    if (Platform.OS !== 'web') {
+      handleFocus(status === 'active');
+    }
+  });
+
+  return () => {
+    subscription.remove();
+  };
+});
 
 function LocationModals() {
   const { isPickerOpen, closePicker } = useLocation();
@@ -70,25 +100,23 @@ export default function RootLayout() {
 
   const [showSplash, setShowSplash] = useState(true);
 
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: 2,
-            staleTime: 1000 * 60 * 2, // 2 minutes
-          },
-        },
-      })
-  );
-
   if (!fontsLoaded) {
     return <View style={{ flex: 1, backgroundColor: '#FFFFFF' }} />;
   }
 
   return (
     <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: asyncStoragePersister,
+          maxAge: CACHE_MAX_AGE,
+          buster: CACHE_BUSTER,
+          dehydrateOptions: {
+            shouldDehydrateQuery,
+          },
+        }}
+      >
         <AuthProvider>
           <SocketProvider>
             <LocationProvider>
@@ -97,6 +125,7 @@ export default function RootLayout() {
                 <PlatformProvider>
                   <CartProvider>
                     <StatusBar style="dark" />
+                    <OfflineBanner />
                     <Stack screenOptions={{ headerShown: false }}>
                       <Stack.Screen name="index" options={{ headerShown: false }} />
                       <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
@@ -119,7 +148,7 @@ export default function RootLayout() {
             </LocationProvider>
           </SocketProvider>
         </AuthProvider>
-      </QueryClientProvider>
+      </PersistQueryClientProvider>
     </SafeAreaProvider>
   );
 }
