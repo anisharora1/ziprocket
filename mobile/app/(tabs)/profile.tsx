@@ -103,7 +103,7 @@ export default function ProfileScreen() {
           text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
-            await logout();
+            await logout({ remote: true });
             router.replace('/(tabs)/home');
           },
         },

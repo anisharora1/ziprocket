@@ -100,6 +100,7 @@ export default function LoginScreen() {
         role: 'customer',
         name: 'User',
         isPwa: false,
+        clientType: 'mobile',
       });
 
       if (res.data?.success && res.data?.token && res.data?.user) {

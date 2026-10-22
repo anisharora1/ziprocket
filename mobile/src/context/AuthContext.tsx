@@ -16,7 +16,7 @@ export interface AuthContextType {
   token: string | null;
   isLoading: boolean;
   login: (token: string, user: User) => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (options?: { remote?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -45,7 +45,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const logout = useCallback(async () => {
+  const logout = useCallback(async (options?: { remote?: boolean }) => {
+    if (options?.remote) {
+      try {
+        await apiClient.post('/auth/logout', undefined, { timeout: 4000 });
+      } catch {
+        // Ignore failures
+      }
+    }
     try {
       await SecureStore.deleteItemAsync('token');
       await SecureStore.deleteItemAsync('user');
