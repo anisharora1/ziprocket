@@ -1,6 +1,7 @@
 import { Request as AuthenticatedRequest, Response } from "express";
 import Address from "../models/Address";
 import { findApplicableZone } from "../services/deliveryRadiusService";
+import { parseCoordinates } from "../utils/coordinates";
 
 // Get all saved addresses of the authenticated user
 export const getMyAddresses = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -29,13 +30,15 @@ export const createAddress = async (req: AuthenticatedRequest, res: Response): P
         const { label, location, deliveryAddress, isDefault } = req.body;
 
         // Resolve coordinates
-        const lat = location?.lat !== undefined ? location.lat : req.body.lat;
-        const lng = location?.lng !== undefined ? location.lng : req.body.lng;
+        const rawLat = location?.lat !== undefined ? location.lat : req.body.lat;
+        const rawLng = location?.lng !== undefined ? location.lng : req.body.lng;
 
-        if (lat === undefined || lng === undefined) {
-            res.status(400).json({ success: false, message: "Coordinates (lat/lng) are required" });
+        const coords = parseCoordinates(rawLat, rawLng);
+        if (!coords) {
+            res.status(400).json({ success: false, message: "Valid coordinates (lat/lng) within India are required" });
             return;
         }
+        const { lat, lng } = coords;
 
         // Resolve deliveryAddress fields
         let houseNumber = deliveryAddress?.houseNumber || req.body.houseNumber || "";
@@ -117,14 +120,23 @@ export const updateAddress = async (req: AuthenticatedRequest, res: Response): P
         }
 
         // Resolve coordinates
-        const lat = location?.lat !== undefined ? location.lat : req.body.lat;
-        const lng = location?.lng !== undefined ? location.lng : req.body.lng;
+        const rawLat = location?.lat !== undefined ? location.lat : req.body.lat;
+        const rawLng = location?.lng !== undefined ? location.lng : req.body.lng;
+
+        let coords = null;
+        if (rawLat !== undefined || rawLng !== undefined || location !== undefined) {
+            coords = parseCoordinates(rawLat, rawLng);
+            if (!coords) {
+                res.status(400).json({ success: false, message: "Valid coordinates (lat/lng) within India are required" });
+                return;
+            }
+        }
 
         // Resolve geofence boundary zone if coordinates are updating
         let resolvedZoneId = address.deliveryZone;
-        if (lat !== undefined && lng !== undefined) {
+        if (coords) {
             const currentPin = deliveryAddress?.pincode || req.body.pincode || address.deliveryAddress?.pincode || address.pincode;
-            const applicableZone = await findApplicableZone(lat, lng, currentPin);
+            const applicableZone = await findApplicableZone(coords.lat, coords.lng, currentPin);
             resolvedZoneId = applicableZone ? applicableZone._id as any : undefined;
         }
 
@@ -133,8 +145,8 @@ export const updateAddress = async (req: AuthenticatedRequest, res: Response): P
         }
 
         address.label = label || address.label;
-        if (lat !== undefined && lng !== undefined) {
-            address.location = { lat, lng };
+        if (coords) {
+            address.location = { lat: coords.lat, lng: coords.lng };
         }
 
         // Handle nested or flat address updates

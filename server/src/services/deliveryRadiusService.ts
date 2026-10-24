@@ -92,6 +92,8 @@ export const findApplicableZone = async (
     return null;
 };
 
+import { quoteDelivery } from "./deliveryQuoteService";
+
 /**
  * Validates if restaurant serviceability limits cover the user coordinates
  */
@@ -107,38 +109,48 @@ export const checkRestaurantServiceability = async (
     durationMinutes: number;
     zone?: any;
     error?: string;
+    reason?: string;
 }> => {
     const restaurant = await Restaurant.findById(restaurantId);
     if (!restaurant) {
-        return { isDeliverable: false, distanceKm: 0, durationMinutes: 0, error: "Restaurant not found" };
+        return { isDeliverable: false, distanceKm: 0, durationMinutes: 0, reason: "restaurant_location_unverified", error: "Restaurant not found" };
     }
 
     if (!restaurant.isActive || restaurant.status !== "approved" || restaurant.isBlocked) {
         return { isDeliverable: false, distanceKm: 0, durationMinutes: 0, error: "Restaurant is currently inactive or blocked" };
     }
 
-    if (!restaurant.location || restaurant.location.lat === undefined || restaurant.location.lng === undefined) {
-        return { isDeliverable: false, distanceKm: 0, durationMinutes: 0, error: "Restaurant coordinates are not defined" };
-    }
+    const quote = await quoteDelivery({
+        orderType: "food",
+        restaurantId,
+        destLat: userLat,
+        destLng: userLng,
+        pincode,
+        addressText,
+        forOrder: true
+    });
 
-    // Identify applicable delivery zone of user location
-    const zone = await findApplicableZone(userLat, userLng, pincode, addressText);
-    if (!zone) {
-        return { isDeliverable: false, distanceKm: 0, durationMinutes: 0, error: "Location lies outside operational delivery limits" };
-    }
+    if (!quote.deliverable) {
+        let errorMsg = "Location lies outside operational delivery limits";
+        if (quote.reason === "invalid_location") errorMsg = "Invalid user coordinates";
+        if (quote.reason === "outside_zone") errorMsg = "Location lies outside operational delivery limits";
+        if (quote.reason === "outside_radius") errorMsg = "Location lies outside restaurant delivery radius";
+        if (quote.reason === "restaurant_location_unverified") errorMsg = "Restaurant coordinates are not defined or unverified";
 
-    // Call routing calculator
-    const routeMetrics = await getRouteDistanceAndDuration(
-        restaurant.location.lat,
-        restaurant.location.lng,
-        userLat,
-        userLng
-    );
+        return {
+            isDeliverable: false,
+            distanceKm: quote.distanceKm || 0,
+            durationMinutes: quote.durationMinutes || 0,
+            zone: quote.zone,
+            reason: quote.reason,
+            error: errorMsg
+        };
+    }
 
     return {
         isDeliverable: true,
-        distanceKm: routeMetrics.distanceKm,
-        durationMinutes: routeMetrics.durationMinutes,
-        zone
+        distanceKm: quote.distanceKm,
+        durationMinutes: quote.durationMinutes,
+        zone: quote.zone
     };
 };

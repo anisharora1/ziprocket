@@ -43,7 +43,7 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
         });
 
         if (!validation.success) {
-            res.status(400).json({ success: false, message: validation.message });
+            res.status(400).json({ success: false, message: validation.message, reason: validation.reason });
             return;
         }
 
@@ -55,6 +55,10 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
             deliveryFee,
             applicableZone,
             calculatedDistance,
+            distanceSource,
+            routeOrigin,
+            straightLineKm,
+            validatedCoordinates,
             discountAmount,
             assignedModerator,
             formattedDeliveryAddress,
@@ -86,8 +90,8 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
                 itemTotal: verifiedItemTotal,
                 address: {
                     fullAddress: address.fullAddress,
-                    lat: address.lat,
-                    lng: address.lng,
+                    lat: validatedCoordinates ? validatedCoordinates.lat : address.lat,
+                    lng: validatedCoordinates ? validatedCoordinates.lng : address.lng,
                     locationSource: address.locationSource === "gps" ? "gps" : "manual",
                     deliveryAddress: formattedDeliveryAddress
                 },
@@ -96,6 +100,9 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
                 grandTotalBeforeDiscount: verifiedBill?.grandTotal,
                 discountAmount,
                 distance: calculatedDistance,
+                distanceSource,
+                routeOrigin,
+                straightLineKm,
                 deliveryZone: applicableZone?._id,
                 moderator: assignedModerator,
                 whatsappOrder: !!whatsappOrder,

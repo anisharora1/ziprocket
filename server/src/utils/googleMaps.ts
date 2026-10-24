@@ -9,6 +9,7 @@ import {
     buildCombinedAddress,
     buildRuralAddressString
 } from "./ruralGeocoding";
+import { calculateDistance } from "../services/distanceService";
 
 const GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY;
 const FRONTEND_REFERER = "http://localhost:3000/";
@@ -351,37 +352,113 @@ export const getReverseGeocode = async (lat: number, lng: number) => {
     return details;
 };
 
-// 4. Google Distance Matrix API (Compute driving route parameters) with Haversine Fallback
-export const getRouteDistanceAndDuration = async (originLat: number, originLng: number, destLat: number, destLng: number) => {
+const ROAD_FACTOR = 1.4;
+
+export interface RouteMetrics {
+    distanceKm: number;
+    durationMinutes: number;
+    source: "google" | "estimated";
+}
+
+// 4. Google Routes API (Compute driving route parameters) with Road Factor Fallback
+export const getRouteDistanceAndDuration = async (
+    originLat: number,
+    originLng: number,
+    destLat: number,
+    destLng: number
+): Promise<RouteMetrics> => {
+    const getFallback = (): RouteMetrics => {
+        const straightKm = calculateDistance(originLat, originLng, destLat, destLng);
+        const distanceKm = parseFloat((straightKm * ROAD_FACTOR).toFixed(2));
+        const durationMinutes = Math.max(1, Math.ceil(distanceKm * 3));
+        return {
+            distanceKm,
+            durationMinutes,
+            source: "estimated"
+        };
+    };
+
+    const cacheKey = `route:${originLat.toFixed(4)}:${originLng.toFixed(4)}:${destLat.toFixed(4)}:${destLng.toFixed(4)}`;
+
     try {
-        const url = `https://maps.googleapis.com/maps/api/distancematrix/json?origins=${originLat},${originLng}&destinations=${destLat},${destLng}&key=${GOOGLE_API_KEY}`;
-        const res = await fetch(url, { headers: { "Referer": FRONTEND_REFERER } });
-        const data = await res.json() as any;
-        const element = data.rows?.[0]?.elements?.[0];
-        
-        if (element && element.status === "OK") {
+        const cached = await redisService.getJson<RouteMetrics>(cacheKey);
+        if (cached && typeof cached.distanceKm === "number" && typeof cached.durationMinutes === "number") {
             return {
-                distanceKm: parseFloat((element.distance.value / 1000).toFixed(2)),
-                durationMinutes: Math.ceil(element.duration.value / 60)
+                distanceKm: cached.distanceKm,
+                durationMinutes: cached.durationMinutes,
+                source: "google"
             };
         }
-    } catch (err) {
-        console.error("Distance Matrix failed, falling back to Haversine:", err);
+    } catch {
+        // Continue if cache check fails
     }
-    
-    // Haversine fallback if API fails
-    const R = 6371; // Earth radius in km
-    const dLat = (destLat - originLat) * (Math.PI / 180);
-    const dLon = (destLng - originLng) * (Math.PI / 180);
-    const a =
-        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-        Math.cos(originLat * (Math.PI / 180)) * Math.cos(destLat * (Math.PI / 180)) *
-        Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const dist = R * c;
-    
-    return {
-        distanceKm: parseFloat(dist.toFixed(2)),
-        durationMinutes: Math.ceil(dist * 3) // Estimated 3 mins per KM driving speed fallback
-    };
+
+    const apiKey = process.env.GOOGLE_MAPS_SERVER_KEY || process.env.GOOGLE_MAPS_API_KEY;
+    if (!apiKey) {
+        console.warn("[Route] google failed: missing API key");
+        return getFallback();
+    }
+
+    try {
+        const res = await fetch("https://routes.googleapis.com/directions/v2:computeRoutes", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": apiKey,
+                "X-Goog-FieldMask": "routes.distanceMeters,routes.duration"
+            },
+            body: JSON.stringify({
+                origin: {
+                    location: {
+                        latLng: {
+                            latitude: originLat,
+                            longitude: originLng
+                        }
+                    }
+                },
+                destination: {
+                    location: {
+                        latLng: {
+                            latitude: destLat,
+                            longitude: destLng
+                        }
+                    }
+                },
+                travelMode: "DRIVE"
+            })
+        });
+
+        if (!res.ok) {
+            console.warn(`[Route] google failed: HTTP ${res.status}`);
+            return getFallback();
+        }
+
+        const data = await res.json() as any;
+        const route = data?.routes?.[0];
+        if (!route || route.distanceMeters === undefined) {
+            console.warn(`[Route] google failed: ${data?.error?.message || "no route found"}`);
+            return getFallback();
+        }
+
+        const distanceKm = parseFloat((route.distanceMeters / 1000).toFixed(2));
+        const durationSeconds = parseFloat((route.duration || "").replace("s", "")) || 0;
+        const durationMinutes = Math.max(1, Math.ceil(durationSeconds / 60));
+
+        const result: RouteMetrics = {
+            distanceKm,
+            durationMinutes,
+            source: "google"
+        };
+
+        try {
+            await redisService.setJson(cacheKey, result, 86400); // 24 hours
+        } catch {
+            // Ignore redis cache write failures
+        }
+
+        return result;
+    } catch (err: any) {
+        console.warn(`[Route] google failed: ${err?.message || "network error"}`);
+        return getFallback();
+    }
 };

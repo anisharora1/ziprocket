@@ -35,6 +35,12 @@ export interface IOrder extends BaseDocument {
     orderStatus: OrderStatus;
 
     distance: number;
+    distanceSource?: "google" | "estimated";
+    routeOrigin?: {
+        lat: number;
+        lng: number;
+    };
+    straightLineKm?: number;
 
     address: {
         fullAddress: string;
@@ -117,6 +123,12 @@ const orderSchema = new Schema<IOrder>({
     },
 
     distance: Number,
+    distanceSource: { type: String, enum: ["google", "estimated"], required: false },
+    routeOrigin: {
+        lat: { type: Number },
+        lng: { type: Number }
+    },
+    straightLineKm: { type: Number, required: false },
 
     address: {
         fullAddress: { type: String, required: true },
