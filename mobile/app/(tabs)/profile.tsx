@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
@@ -40,6 +41,18 @@ const LEGAL_TABS: { id: LegalDocType; label: string }[] = [
   { id: 'refund', label: 'Refund Policy' },
   { id: 'shipping', label: 'Shipping Policy' },
 ];
+
+const openWebUrl = async (url: string) => {
+  try {
+    await WebBrowser.openBrowserAsync(url);
+  } catch {
+    try {
+      await Linking.openURL(url);
+    } catch {
+      // ignore
+    }
+  }
+};
 
 export default function ProfileScreen() {
   const { user, token, logout } = useAuth();
@@ -582,36 +595,26 @@ export default function ProfileScreen() {
                 <Text style={styles.policyTagline}>How we handle and protect your personal information</Text>
                 <View style={styles.policyDivider} />
 
-                <Text style={styles.policySubheading}>Information We Collect</Text>
                 <Text style={styles.policyParagraph}>
-                  We collect the following information to operate ZipRocket: your name, phone number (verified via OTP), delivery address, and precise location (GPS) when you use the app, in order to show you nearby restaurants/stores and calculate accurate delivery times and fees.
+                  Our full Privacy Policy explains what data ZipRocket collects (name, phone number, saved addresses, location when you allow it, order history, device notification token, and voice input if you use voice search), how we use it, how long we keep it, and how you can delete your account.
                 </Text>
 
-                <Text style={styles.policySubheading}>Payment Information</Text>
-                <Text style={styles.policyParagraph}>
-                  ZipRocket does not store your card, UPI, or banking details. All payments are processed directly and securely by Razorpay, our payment partner, in compliance with RBI and PCI-DSS standards.
-                </Text>
+                <Pressable
+                  style={styles.primaryPolicyButton}
+                  onPress={() => openWebUrl('https://ziprocket.in/privacy-policy')}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.primaryPolicyButtonText}>Read full Privacy Policy</Text>
+                  <MaterialIcons name="open-in-new" size={16} color={Colors.white} />
+                </Pressable>
 
-                <Text style={styles.policySubheading}>How We Use Your Data</Text>
-                <Text style={styles.policyParagraph}>
-                  To process and deliver your orders, communicate order updates, provide customer support, and improve our service. We do not sell your personal data to third parties.
-                </Text>
-
-                <Text style={styles.policySubheading}>Data Sharing</Text>
-                <Text style={styles.policyParagraph}>
-                  Your name, phone number, and delivery address are shared only with the restaurant/store fulfilling your order and the delivery partner assigned to it, solely for order fulfillment.
-                </Text>
-
-                <Text style={styles.policySubheading}>Your Rights</Text>
-                <Text style={styles.policyParagraph}>
-                  You can request access to, correction of, or deletion of your personal data by contacting{' '}
-                  <Text
-                    style={styles.linkText}
-                    onPress={() => Linking.openURL('mailto:ziprocket.support@gmail.com')}
-                  >
-                    ziprocket.support@gmail.com
-                  </Text>.
-                </Text>
+                <Pressable
+                  style={styles.secondaryPolicyLink}
+                  onPress={() => openWebUrl('https://ziprocket.in/delete-account')}
+                  accessibilityRole="link"
+                >
+                  <Text style={styles.secondaryPolicyLinkText}>How to delete your account</Text>
+                </Pressable>
 
                 <View style={styles.slateBox}>
                   <Text style={styles.slateBoxTitle}>Grievance Officer</Text>
@@ -1252,6 +1255,35 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs + 1,
     color: Colors.textSecondary,
     lineHeight: 20,
+  },
+  primaryPolicyButton: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm + 4,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing.md,
+    ...Shadows.sm,
+  },
+  primaryPolicyButtonText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.white,
+    letterSpacing: 0.3,
+  },
+  secondaryPolicyLink: {
+    alignSelf: 'center',
+    paddingVertical: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  secondaryPolicyLinkText: {
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.xs + 1,
+    color: Colors.primary,
+    textDecorationLine: 'underline',
   },
   deleteAccountButton: {
     flexDirection: 'row',
