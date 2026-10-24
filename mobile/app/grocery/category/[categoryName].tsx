@@ -18,6 +18,8 @@ import OptimizedImage from '../../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../../src/components/ProductCard';
 import FloatingCartButton from '../../../src/components/FloatingCartButton';
 import BrandFooter from '../../../src/components/BrandFooter';
+import { useIsOnline } from '../../../src/services/network';
+import OfflineState from '../../../src/components/OfflineState';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_SUBCATEGORY_ICONS,
@@ -49,10 +51,14 @@ export default function CategoryProductsScreen() {
   const subcategories = GROCERY_CATEGORIES_MAP[decodedCategory] || [];
   const [activeSub, setActiveSub] = useState<string>('All');
 
+  const isOnline = useIsOnline();
+
   // Fetch category products
   const {
     data: products = [],
     isLoading: loading,
+    isError,
+    fetchStatus,
     refetch,
   } = useQuery<Product[]>({
     queryKey: ['grocery-category-products', decodedCategory, activeSub],
@@ -166,7 +172,9 @@ export default function CategoryProductsScreen() {
 
         {/* Right 2-Column Product Grid */}
         <View style={styles.rightContent}>
-          {loading ? (
+          {products.length === 0 && (!isOnline || fetchStatus === 'paused' || isError) ? (
+            <OfflineState onRetry={refetch} />
+          ) : loading && products.length === 0 ? (
             <View style={styles.loadingBox}>
               <ActivityIndicator size="large" color={Colors.primary} />
               <Text style={styles.loadingText}>Loading products...</Text>

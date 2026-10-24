@@ -18,7 +18,9 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../src/context/AuthContext';
-import { apiClient } from '../../src/services/api';
+import { apiClient, isNetworkError } from '../../src/services/api';
+import { useIsOnline, getIsOnline } from '../../src/services/network';
+import OfflineState from '../../src/components/OfflineState';
 import { useCustomerOrders } from '../../src/hooks/useOrders';
 import { useOrderSocket } from '../../src/hooks/useOrderSocket';
 import { useKeyboardHeight } from '../../src/hooks';
@@ -60,10 +62,14 @@ export default function OrdersScreen() {
   const [otherReasonText, setOtherReasonText] = useState('');
   const [cancellingLoader, setCancellingLoader] = useState(false);
 
+  const isOnline = useIsOnline();
+
   // TanStack Query
   const {
     data: orders = [],
     isLoading: ordersLoading,
+    isError: ordersError,
+    fetchStatus: ordersFetchStatus,
     refetch,
     isRefetching,
   } = useCustomerOrders(user?._id);
@@ -170,6 +176,10 @@ export default function OrdersScreen() {
 
   const handleCancelOrderSubmit = async () => {
     if (!cancellingOrderId) return;
+    if (!getIsOnline()) {
+      Alert.alert('Offline', "You're offline. Connect to the internet to cancel your order.");
+      return;
+    }
     setCancellingLoader(true);
     try {
       const finalReason = cancelReason === 'Other' ? otherReasonText : cancelReason;
@@ -186,13 +196,25 @@ export default function OrdersScreen() {
         invalidateOrders();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Order cancel karne me samasya aayi.');
+      if (!isNetworkError(err)) {
+        console.warn('Failed to cancel order:', err);
+      }
+      Alert.alert(
+        'Error',
+        isNetworkError(err)
+          ? "You're offline. Connect to the internet to cancel your order."
+          : err.response?.data?.message || 'Order cancel karne me samasya aayi.'
+      );
     } finally {
       setCancellingLoader(false);
     }
   };
 
   const handleRateOrder = async (orderId: string, star: number) => {
+    if (!getIsOnline()) {
+      Alert.alert('Offline', "You're offline. Connect to the internet to rate your order.");
+      return;
+    }
     try {
       const res = await apiClient.patch(`/orders/${orderId}/rate`, { rating: star });
       if (res.data.success) {
@@ -202,7 +224,15 @@ export default function OrdersScreen() {
         invalidateOrders();
       }
     } catch (err: any) {
-      Alert.alert('Error', err.response?.data?.message || 'Rating submit nahi ho payi.');
+      if (!isNetworkError(err)) {
+        console.warn('Failed to rate order:', err);
+      }
+      Alert.alert(
+        'Error',
+        isNetworkError(err)
+          ? "You're offline. Connect to the internet to rate your order."
+          : err.response?.data?.message || 'Rating submit nahi ho payi.'
+      );
     }
   };
 
@@ -220,6 +250,15 @@ export default function OrdersScreen() {
   const activeStep = currentActiveOrder
     ? getStatusStep(currentActiveOrder.orderStatus || currentActiveOrder.status)
     : 0;
+
+  if (user && orders.length === 0 && (!isOnline || ordersFetchStatus === 'paused' || ordersError)) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <Header />
+        <OfflineState onRetry={refetch} />
+      </SafeAreaView>
+    );
+  }
 
   if (loading) {
     return (

@@ -16,7 +16,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { auth, ConfirmationResult } from '../../src/services/firebase';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { apiClient } from '../../src/services/api';
+import { apiClient, isNetworkError } from '../../src/services/api';
+import { getIsOnline } from '../../src/services/network';
 import { getFriendlyErrorMessage } from '../../src/utils/errorHandler';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../../src/constants/theme';
 
@@ -51,6 +52,11 @@ export default function LoginScreen() {
       return;
     }
 
+    if (!getIsOnline()) {
+      setError('No internet connection. Please check your connection and try again.');
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -61,7 +67,15 @@ export default function LoginScreen() {
       setTimer(30);
       setOtp(['', '', '', '', '', '']);
     } catch (err: any) {
-      setError(getFriendlyErrorMessage(err));
+      if (
+        isNetworkError(err) ||
+        err?.code === 'auth/network-request-failed' ||
+        err?.message?.includes('network')
+      ) {
+        setError('No internet connection. Please check your connection and try again.');
+      } else {
+        setError(getFriendlyErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }
@@ -76,6 +90,11 @@ export default function LoginScreen() {
 
     if (!confirmationResult) {
       setError('Session expire ho chuka hai. Kripya OTP dobara mangwayein.');
+      return;
+    }
+
+    if (!getIsOnline()) {
+      setError('No internet connection. Please check your connection and try again.');
       return;
     }
 
@@ -120,7 +139,15 @@ export default function LoginScreen() {
         setError(res.data?.message || 'Verification fail ho gaya. Kripya dobara try karein.');
       }
     } catch (err: any) {
-      setError(getFriendlyErrorMessage(err));
+      if (
+        isNetworkError(err) ||
+        err?.code === 'auth/network-request-failed' ||
+        err?.message?.includes('network')
+      ) {
+        setError('No internet connection. Please check your connection and try again.');
+      } else {
+        setError(getFriendlyErrorMessage(err));
+      }
     } finally {
       setLoading(false);
     }

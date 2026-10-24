@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSocket } from '../context/SocketContext';
 
 export interface OrderSocketHandlers {
@@ -56,8 +57,11 @@ export interface OrderSocketHandlers {
 
 export function useOrderSocket(handlers: OrderSocketHandlers) {
   const { socket, isConnected } = useSocket();
+  const queryClient = useQueryClient();
   const handlersRef = useRef(handlers);
-  handlersRef.current = handlers;
+  useEffect(() => {
+    handlersRef.current = handlers;
+  });
 
   const wasDisconnectedRef = useRef(false);
 
@@ -103,6 +107,7 @@ export function useOrderSocket(handlers: OrderSocketHandlers) {
     const handleConnect = () => {
       if (wasDisconnectedRef.current) {
         wasDisconnectedRef.current = false;
+        queryClient.invalidateQueries({ queryKey: ['orders'] });
         handlersRef.current.onReconnect?.();
       }
     };
@@ -130,7 +135,7 @@ export function useOrderSocket(handlers: OrderSocketHandlers) {
       socket.off('disconnect', handleDisconnect);
       socket.off('connect', handleConnect);
     };
-  }, [socket]);
+  }, [socket, queryClient]);
 
   return { isConnected, socket };
 }

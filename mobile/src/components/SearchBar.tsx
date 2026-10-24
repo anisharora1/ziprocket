@@ -17,10 +17,12 @@ import {
   ExpoSpeechRecognitionModule,
   useSpeechRecognitionEvent,
 } from 'expo-speech-recognition';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
+import { getIsOnline, onReconnect } from '../services/network';
 import { useLocation } from '../context/LocationContext';
 import { searchFocusStore } from '../services/searchFocusStore';
 import OptimizedImage from './OptimizedImage';
+import OfflineState from './OfflineState';
 import {
   Colors,
   Spacing,
@@ -53,6 +55,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
     menuItems: [],
   });
   const [loading, setLoading] = useState(false);
+  const [isOfflineError, setIsOfflineError] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const isListeningRef = useRef(false);
@@ -62,6 +65,16 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  // Re-search when connection returns
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      if (query.trim().length >= 2) {
+        setIsOfflineError(false);
+      }
+    });
+    return unsub;
+  }, [query]);
 
   // Soft pulsing red circle animation while listening
   useEffect(() => {
@@ -203,6 +216,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
 
     const timer = setTimeout(async () => {
       setLoading(true);
+      setIsOfflineError(false);
       try {
         const url = `/search/global?q=${encodeURIComponent(query.trim())}${
           zoneId ? `&zoneId=${zoneId}` : ''
@@ -217,8 +231,12 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
             }
           );
         }
-      } catch (err) {
-        console.warn('[SearchBar] Global search query failed:', err);
+      } catch (err: any) {
+        if (isNetworkError(err) || !getIsOnline()) {
+          setIsOfflineError(true);
+        } else {
+          console.warn('[SearchBar] Global search query failed:', err);
+        }
       } finally {
         setLoading(false);
       }
@@ -362,10 +380,12 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
               <ActivityIndicator size="small" color={Colors.primary} />
               <Text style={styles.loadingText}>Searching live catalog...</Text>
             </View>
+          ) : isOfflineError && !hasResults ? (
+            <OfflineState compact />
           ) : !hasResults ? (
             <View style={styles.emptyBox}>
               <MaterialIcons name="search-off" size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No matches found for "{query}"</Text>
+              <Text style={styles.emptyTitle}>{`No matches found for "${query}"`}</Text>
               <Text style={styles.emptySubtitle}>
                 Try searching for other dishes, groceries, or cuisines.
               </Text>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +15,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useCart } from '../../src/context/CartContext';
 import { usePlatform } from '../../src/context/PlatformContext';
 import { useSocket } from '../../src/context/SocketContext';
-import { apiClient } from '../../src/services/api';
+import { apiClient, isNetworkError } from '../../src/services/api';
+import { getIsOnline, onReconnect } from '../../src/services/network';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import {
   Colors,
@@ -68,32 +70,42 @@ export default function CartScreen() {
   }, [socket, cart.vendorId, cart.orderType]);
 
   // Initial fetch for food vendor availability
-  useEffect(() => {
-    const fetchVendorStatus = async () => {
-      if (cart.orderType === 'food' && cart.vendorId) {
-        try {
-          const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
-          if (res.data?.success && res.data?.restaurant) {
-            const rest = res.data.restaurant;
-            if (
-              rest.isActive === false ||
-              rest.availabilityStatus === 'closed' ||
-              rest.availabilityStatus === 'disabled' ||
-              rest.isCurrentlyOpen === false
-            ) {
-              setVendorAvailability(rest.availabilityStatus === 'disabled' ? 'disabled' : 'closed');
-            } else {
-              setVendorAvailability('open');
-            }
+  const fetchVendorStatus = useCallback(async () => {
+    if (cart.orderType === 'food' && cart.vendorId) {
+      try {
+        const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
+        if (res.data?.success && res.data?.restaurant) {
+          const rest = res.data.restaurant;
+          if (
+            rest.isActive === false ||
+            rest.availabilityStatus === 'closed' ||
+            rest.availabilityStatus === 'disabled' ||
+            rest.isCurrentlyOpen === false
+          ) {
+            setVendorAvailability(rest.availabilityStatus === 'disabled' ? 'disabled' : 'closed');
+          } else {
+            setVendorAvailability('open');
           }
-        } catch (err) {
+        }
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
           console.warn('[Cart] Failed to check restaurant status:', err);
         }
       }
-    };
+    }
+  }, [cart.orderType, cart.vendorId]);
 
+  useEffect(() => {
     fetchVendorStatus();
-  }, [cart.vendorId, cart.orderType]);
+  }, [fetchVendorStatus]);
+
+  // Reload vendor status on network reconnect
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      fetchVendorStatus();
+    });
+    return unsub;
+  }, [fetchVendorStatus]);
 
   const platformMsg = getPlatformStatusMessage();
 
@@ -120,31 +132,41 @@ export default function CartScreen() {
   const items = cart?.items || [];
 
   // Fetch recommendations whenever cart items change
-  useEffect(() => {
-    const fetchRecommendations = async () => {
-      if (items.length === 0) {
-        setRecommendations([]);
-        return;
+  const fetchRecommendations = useCallback(async () => {
+    if (items.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+    try {
+      setLoadingRecs(true);
+      const res = await apiClient.post('/recommendations', {
+        orderType: cart.orderType,
+        vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
+        cartItemIds: items.map((i) => i.id),
+      });
+      if (res.data?.success) {
+        setRecommendations(res.data.recommendations || []);
       }
-      try {
-        setLoadingRecs(true);
-        const res = await apiClient.post('/recommendations', {
-          orderType: cart.orderType,
-          vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-          cartItemIds: items.map((i) => i.id),
-        });
-        if (res.data?.success) {
-          setRecommendations(res.data.recommendations || []);
-        }
-      } catch (err) {
+    } catch (err: any) {
+      if (!isNetworkError(err)) {
         console.warn('[Cart] Failed to load recommendations:', err);
-      } finally {
-        setLoadingRecs(false);
       }
-    };
-
-    fetchRecommendations();
+    } finally {
+      setLoadingRecs(false);
+    }
   }, [items, cart.orderType, cart.vendorId]);
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, [fetchRecommendations]);
+
+  // Reload recommendations on network reconnect
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      fetchRecommendations();
+    });
+    return unsub;
+  }, [fetchRecommendations]);
 
   const handleAddRecommendedItem = (item: any) => {
     const isGrocery = cart.orderType === 'grocery';
@@ -438,7 +460,13 @@ export default function CartScreen() {
           ) : (
             <Pressable
               style={styles.checkoutBtn}
-              onPress={() => router.push('/checkout' as any)}
+              onPress={() => {
+                if (!getIsOnline()) {
+                  Alert.alert('Offline', "You're offline. Connect to the internet to proceed to checkout.");
+                  return;
+                }
+                router.push('/checkout' as any);
+              }}
             >
               <Text style={styles.checkoutBtnText}>NEXT: CHECKOUT</Text>
               <MaterialIcons name="arrow-forward" size={16} color={Colors.white} />

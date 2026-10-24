@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,7 +20,8 @@ import { useLocation, SavedAddress } from '../../src/context/LocationContext';
 import { usePlatform } from '../../src/context/PlatformContext';
 import { useSocket } from '../../src/context/SocketContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { apiClient } from '../../src/services/api';
+import { apiClient, isNetworkError } from '../../src/services/api';
+import { getIsOnline, onReconnect } from '../../src/services/network';
 import { getHighAccuracyGPSFix } from '../../src/utils/geolocation';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import LocationSelectorModal from '../../src/components/LocationSelectorModal';
@@ -178,31 +179,34 @@ export default function CheckoutScreen() {
   }, [socket, cart.vendorId, cart.orderType]);
 
   // Initial fetch for food vendor availability
-  useEffect(() => {
-    const fetchVendorStatus = async () => {
-      if (cart.orderType === 'food' && cart.vendorId) {
-        try {
-          const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
-          if (res.data?.success && res.data?.restaurant) {
-            const rest = res.data.restaurant;
-            if (
-              rest.isActive === false ||
-              rest.availabilityStatus === 'closed' ||
-              rest.availabilityStatus === 'disabled' ||
-              rest.isCurrentlyOpen === false
-            ) {
-              setVendorAvailability(rest.availabilityStatus === 'disabled' ? 'disabled' : 'closed');
-            } else {
-              setVendorAvailability('open');
-            }
+  const fetchVendorStatus = useCallback(async () => {
+    if (cart.orderType === 'food' && cart.vendorId) {
+      try {
+        const res = await apiClient.get(`/restaurants/${cart.vendorId}`);
+        if (res.data?.success && res.data?.restaurant) {
+          const rest = res.data.restaurant;
+          if (
+            rest.isActive === false ||
+            rest.availabilityStatus === 'closed' ||
+            rest.availabilityStatus === 'disabled' ||
+            rest.isCurrentlyOpen === false
+          ) {
+            setVendorAvailability(rest.availabilityStatus === 'disabled' ? 'disabled' : 'closed');
+          } else {
+            setVendorAvailability('open');
           }
-        } catch (err) {
+        }
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
           console.warn('[Checkout] Failed checking restaurant status:', err);
         }
       }
-    };
-    fetchVendorStatus();
+    }
   }, [cart.vendorId, cart.orderType]);
+
+  useEffect(() => {
+    fetchVendorStatus();
+  }, [fetchVendorStatus]);
 
   const platformMsg = getPlatformStatusMessage();
   const isCheckoutDisabled = useMemo(() => {
@@ -247,73 +251,73 @@ export default function CheckoutScreen() {
   const grandTotalFallback = itemTotal + taxesFallback + deliveryFeeFallback;
 
   // Calculate bill from backend
-  useEffect(() => {
-    const fetchBillDetails = async () => {
-      if (cart.items.length === 0) return;
-      try {
-        setLoadingBill(true);
-        setCheckoutError(null);
+  const fetchBillDetails = useCallback(async () => {
+    if (cart.items.length === 0) return;
+    try {
+      setLoadingBill(true);
+      setCheckoutError(null);
 
-        const activeLat = customCoords?.lat || userCoords?.lat;
-        const activeLng = customCoords?.lng || userCoords?.lng;
+      const activeLat = customCoords?.lat || userCoords?.lat;
+      const activeLng = customCoords?.lng || userCoords?.lng;
 
-        if (!activeLat || !activeLng) {
-          setLoadingBill(false);
-          setCheckoutError('Koi delivery location select nahi hai. Kripya address chunein.');
-          setBillDetails(null);
-          return;
-        }
-
-        const payload = {
-          vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-          items: cart.items.map((c) => ({
-            menuItem: cart.orderType === 'food' ? c.id.replace('food-', '') : undefined,
-            groceryItem: cart.orderType === 'grocery' ? c.id.replace('groc-', '') : undefined,
-            price: c.price,
-            quantity: c.quantity,
-          })),
-          userLat: activeLat,
-          userLng: activeLng,
-          orderType: cart.orderType || 'food',
-          pincode: customPincode || userPincode || '',
-          address: {
-            fullAddress: customAddressText || userAddress || '',
-            pincode: customPincode || userPincode || '',
-            lat: activeLat,
-            lng: activeLng,
-          },
-          couponCode: appliedCouponCode || undefined,
-          userId: user?._id || undefined,
-        };
-
-        const res = await apiClient.post('/delivery-zones/calculate-bill', payload);
-        if (res.data?.success && res.data?.isDeliverable !== false) {
-          setBillDetails(res.data);
-          if (appliedCouponCode && res.data.couponError) {
-            setCouponError(res.data.couponError);
-            setCouponSuccessMessage(null);
-            setAppliedCouponCode('');
-          } else if (appliedCouponCode && res.data.couponApplied) {
-            setCouponSuccessMessage(`Coupon '${appliedCouponCode}' lag gaya! Badi bachat 🎉`);
-            setCouponError(null);
-          }
-          setCheckoutError(null);
-        } else {
-          setCheckoutError(res.data?.message || 'Aapka address hamare delivery service area se bahar hai.');
-          setBillDetails(null);
-        }
-      } catch (err: any) {
-        console.warn('Failed to calculate bill details:', err);
-        setCheckoutError(
-          err.response?.data?.message || 'Aapka address hamare delivery service area se bahar hai.'
-        );
-        setBillDetails(null);
-      } finally {
+      if (!activeLat || !activeLng) {
         setLoadingBill(false);
+        setCheckoutError('Koi delivery location select nahi hai. Kripya address chunein.');
+        setBillDetails(null);
+        return;
       }
-    };
 
-    fetchBillDetails();
+      const payload = {
+        vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
+        items: cart.items.map((c) => ({
+          menuItem: cart.orderType === 'food' ? c.id.replace('food-', '') : undefined,
+          groceryItem: cart.orderType === 'grocery' ? c.id.replace('groc-', '') : undefined,
+          price: c.price,
+          quantity: c.quantity,
+        })),
+        userLat: activeLat,
+        userLng: activeLng,
+        orderType: cart.orderType || 'food',
+        pincode: customPincode || userPincode || '',
+        address: {
+          fullAddress: customAddressText || userAddress || '',
+          pincode: customPincode || userPincode || '',
+          lat: activeLat,
+          lng: activeLng,
+        },
+        couponCode: appliedCouponCode || undefined,
+        userId: user?._id || undefined,
+      };
+
+      const res = await apiClient.post('/delivery-zones/calculate-bill', payload);
+      if (res.data?.success && res.data?.isDeliverable !== false) {
+        setBillDetails(res.data);
+        if (appliedCouponCode && res.data.couponError) {
+          setCouponError(res.data.couponError);
+          setCouponSuccessMessage(null);
+          setAppliedCouponCode('');
+        } else if (appliedCouponCode && res.data.couponApplied) {
+          setCouponSuccessMessage(`Coupon '${appliedCouponCode}' lag gaya! Badi bachat 🎉`);
+          setCouponError(null);
+        }
+        setCheckoutError(null);
+      } else {
+        setCheckoutError(res.data?.message || 'Aapka address hamare delivery service area se bahar hai.');
+        setBillDetails(null);
+      }
+    } catch (err: any) {
+      if (!isNetworkError(err)) {
+        console.warn('Failed to calculate bill details:', err);
+      }
+      setCheckoutError(
+        isNetworkError(err) || !getIsOnline()
+          ? "You're offline. Connect to the internet to calculate your bill."
+          : err.response?.data?.message || 'Aapka address hamare delivery service area se bahar hai.'
+      );
+      setBillDetails(null);
+    } finally {
+      setLoadingBill(false);
+    }
   }, [
     cart.items,
     cart.vendorId,
@@ -328,32 +332,52 @@ export default function CheckoutScreen() {
     user?._id,
   ]);
 
-  // Fetch available coupons
   useEffect(() => {
-    const fetchAvailableCoupons = async () => {
-      if (!billDetails?.zoneId) return;
-      try {
-        const res = await apiClient.post('/coupons/available', {
-          userId: user?._id,
-          subtotal: itemTotal,
-          zoneId: billDetails.zoneId,
-          restaurantId: cart.orderType === 'food' ? cart.vendorId : undefined,
-          orderType: cart.orderType || 'food',
-        });
-        if (res.data?.success) {
-          setAvailableCoupons(res.data.applicable || []);
-          setUnapplicableCoupons(res.data.unapplicable || []);
-        }
-      } catch (err) {
+    fetchBillDetails();
+  }, [fetchBillDetails]);
+
+  // Fetch available coupons
+  const fetchAvailableCoupons = useCallback(async () => {
+    if (!billDetails?.zoneId) return;
+    try {
+      const res = await apiClient.post('/coupons/available', {
+        userId: user?._id,
+        subtotal: itemTotal,
+        zoneId: billDetails.zoneId,
+        restaurantId: cart.orderType === 'food' ? cart.vendorId : undefined,
+        orderType: cart.orderType || 'food',
+      });
+      if (res.data?.success) {
+        setAvailableCoupons(res.data.applicable || []);
+        setUnapplicableCoupons(res.data.unapplicable || []);
+      }
+    } catch (err: any) {
+      if (!isNetworkError(err)) {
         console.warn('Failed fetching available coupons:', err);
       }
-    };
-
-    fetchAvailableCoupons();
+    }
   }, [billDetails?.zoneId, itemTotal, user?._id, cart.orderType, cart.vendorId]);
+
+  useEffect(() => {
+    fetchAvailableCoupons();
+  }, [fetchAvailableCoupons]);
+
+  // Auto-reload data when connection returns
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      fetchVendorStatus();
+      fetchBillDetails();
+      fetchAvailableCoupons();
+    });
+    return unsub;
+  }, [fetchVendorStatus, fetchBillDetails, fetchAvailableCoupons]);
 
   const handleApplyCoupon = async (code: string) => {
     if (!code.trim()) return;
+    if (!getIsOnline()) {
+      setCouponError("You're offline. Connect to the internet to apply coupon.");
+      return;
+    }
     setApplyingCoupon(true);
     setCouponError(null);
     setCouponSuccessMessage(null);
@@ -373,7 +397,14 @@ export default function CheckoutScreen() {
         setIsCouponDrawerOpen(false);
       }
     } catch (err: any) {
-      setCouponError(err.response?.data?.message || 'Invalid coupon code.');
+      if (!isNetworkError(err)) {
+        console.warn('Coupon apply error:', err);
+      }
+      setCouponError(
+        isNetworkError(err)
+          ? "You're offline. Connect to the internet to apply coupon."
+          : err.response?.data?.message || 'Invalid coupon code.'
+      );
     } finally {
       setApplyingCoupon(false);
     }
@@ -508,6 +539,10 @@ export default function CheckoutScreen() {
   };
 
   const handleSaveAddressEdit = async () => {
+    if (!getIsOnline()) {
+      setEditError("You're offline. Connect to the internet to save your address.");
+      return;
+    }
     if (!mohalla.trim()) return setEditError("Area / Locality zaroori hai. Location select karne ke liye 'Change' par click karein.");
     if (!village.trim()) return setEditError('Gaon / Shehar (Village/City) enter karein.');
     if (!houseNo.trim()) return setEditError('Building / Floor / Makan No. enter karein.');
@@ -570,7 +605,14 @@ export default function CheckoutScreen() {
           setIsAddressModalOpen(false);
         }
       } catch (err: any) {
-        setEditError(err.response?.data?.message || 'Address save nahi ho paya.');
+        if (!isNetworkError(err)) {
+          console.warn('Save address error:', err);
+        }
+        setEditError(
+          isNetworkError(err)
+            ? "You're offline. Connect to the internet to save your address."
+            : err.response?.data?.message || 'Address save nahi ho paya.'
+        );
       } finally {
         setValidatingEdit(false);
       }
@@ -603,6 +645,15 @@ export default function CheckoutScreen() {
   const handlePlaceOrder = async () => {
     if (placingOrderRef.current || placingOrder) return;
 
+    if (!getIsOnline()) {
+      showCard({
+        type: 'error',
+        title: 'Offline',
+        message: "You're offline. Connect to the internet to place your order.",
+      });
+      return;
+    }
+
     if (isCheckoutDisabled) {
       showCard({
         type: 'error',
@@ -633,6 +684,14 @@ export default function CheckoutScreen() {
     }
 
     if (checkoutError) {
+      if (!getIsOnline()) {
+        showCard({
+          type: 'error',
+          title: 'Offline',
+          message: "You're offline. Connect to the internet to place your order.",
+        });
+        return;
+      }
       try {
         const zonesRes = await apiClient.get('/delivery-zones');
         const zones = zonesRes.data?.zones || zonesRes.data || [];
@@ -727,11 +786,15 @@ export default function CheckoutScreen() {
         throw new Error(orderRes.data?.message || 'Order place nahi ho paya.');
       }
     } catch (err: any) {
-      console.warn('Place order error:', err);
+      if (!isNetworkError(err)) {
+        console.warn('Place order error:', err);
+      }
       showCard({
         type: 'error',
-        title: 'Order Fail Ho Gaya',
-        message: err.response?.data?.message || err.message || 'Order place karne me dikkat aayi.',
+        title: isNetworkError(err) ? 'Offline' : 'Order Fail Ho Gaya',
+        message: isNetworkError(err)
+          ? "You're offline. Connect to the internet to place your order."
+          : err.response?.data?.message || err.message || 'Order place karne me dikkat aayi.',
       });
     } finally {
       placingOrderRef.current = false;

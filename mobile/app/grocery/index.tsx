@@ -19,6 +19,8 @@ import OptimizedImage from '../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../src/components/ProductCard';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
 import BrandFooter from '../../src/components/BrandFooter';
+import { useIsOnline } from '../../src/services/network';
+import OfflineState from '../../src/components/OfflineState';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_CATEGORY_DISPLAY,
@@ -53,8 +55,16 @@ export default function GroceryIndexScreen() {
     }
   }, [q]);
 
+  const isOnline = useIsOnline();
+
   // Fetch featured & recent grocery products
-  const { data: featuredProducts = [], isLoading: featuredLoading } = useQuery<Product[]>({
+  const {
+    data: featuredProducts = [],
+    isLoading: featuredLoading,
+    isError: featuredError,
+    fetchStatus: featuredFetchStatus,
+    refetch: refetchFeatured,
+  } = useQuery<Product[]>({
     queryKey: ['grocery-featured'],
     queryFn: async () => {
       const res = await apiClient.get('/grocery?isFeatured=true&limit=8');
@@ -62,7 +72,13 @@ export default function GroceryIndexScreen() {
     },
   });
 
-  const { data: recentProducts = [], isLoading: recentLoading } = useQuery<Product[]>({
+  const {
+    data: recentProducts = [],
+    isLoading: recentLoading,
+    isError: recentError,
+    fetchStatus: recentFetchStatus,
+    refetch: refetchRecent,
+  } = useQuery<Product[]>({
     queryKey: ['grocery-recent'],
     queryFn: async () => {
       const res = await apiClient.get('/grocery?limit=10');
@@ -70,10 +86,18 @@ export default function GroceryIndexScreen() {
     },
   });
 
-  const isInitialLoading = featuredLoading || recentLoading;
+  const isInitialLoading =
+    (featuredLoading && featuredProducts.length === 0 && isOnline && featuredFetchStatus !== 'paused') ||
+    (recentLoading && recentProducts.length === 0 && isOnline && recentFetchStatus !== 'paused');
 
   // Search query
-  const { data: searchResults = [], isFetching: isSearching } = useQuery<Product[]>({
+  const {
+    data: searchResults = [],
+    isFetching: isSearching,
+    isError: searchError,
+    fetchStatus: searchFetchStatus,
+    refetch: refetchSearch,
+  } = useQuery<Product[]>({
     queryKey: ['grocery-search', searchQuery],
     queryFn: async () => {
       if (!searchQuery.trim()) return [];
@@ -156,13 +180,15 @@ export default function GroceryIndexScreen() {
         {searchQuery.trim().length > 0 ? (
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Search Results for "{searchQuery}"</Text>
+              <Text style={styles.sectionTitle}>{`Search Results for "${searchQuery}"`}</Text>
               <Pressable onPress={() => setSearchQuery('')}>
                 <Text style={styles.clearSearchText}>Clear</Text>
               </Pressable>
             </View>
 
-            {isSearching ? (
+            {searchResults.length === 0 && (!isOnline || searchFetchStatus === 'paused' || searchError) ? (
+              <OfflineState compact onRetry={refetchSearch} />
+            ) : isSearching ? (
               <View style={styles.loadingBox}>
                 <ActivityIndicator size="small" color={Colors.primary} />
                 <Text style={styles.loadingText}>Searching groceries...</Text>
@@ -171,7 +197,7 @@ export default function GroceryIndexScreen() {
               <View style={styles.emptySearchBox}>
                 <MaterialIcons name="shopping-bag" size={40} color={Colors.textMuted} />
                 <Text style={styles.emptySearchText}>
-                  No grocery items match your search. Try "milk" or "oil".
+                  {'No grocery items match your search. Try "milk" or "oil".'}
                 </Text>
               </View>
             ) : (
@@ -229,7 +255,9 @@ export default function GroceryIndexScreen() {
                 </Pressable>
               </View>
 
-              {featuredLoading ? (
+              {featuredProducts.length === 0 && (!isOnline || featuredFetchStatus === 'paused' || featuredError) ? (
+                <OfflineState compact onRetry={refetchFeatured} />
+              ) : featuredLoading && featuredProducts.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={Colors.primary} />
                 </View>
@@ -253,7 +281,9 @@ export default function GroceryIndexScreen() {
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionLabel}>NEW ARRIVALS IN STORE</Text>
 
-              {recentLoading ? (
+              {recentProducts.length === 0 && (!isOnline || recentFetchStatus === 'paused' || recentError) ? (
+                <OfflineState compact onRetry={refetchRecent} />
+              ) : recentLoading && recentProducts.length === 0 ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={Colors.primary} />
                 </View>

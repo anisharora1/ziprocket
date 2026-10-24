@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocation, SavedAddress, LocationCoords } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
+import { getIsOnline, onReconnect } from '../services/network';
 import { getHighAccuracyGPSFix, GPSError } from '../utils/geolocation';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
@@ -84,8 +85,10 @@ export default function LocationSelectorModal({
         if (res.data?.success) {
           setSuggestions(res.data.suggestions || []);
         }
-      } catch (err) {
-        console.warn('Autocomplete search failed:', err);
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
+          console.warn('Autocomplete search failed:', err);
+        }
       } finally {
         setSearching(false);
       }
@@ -107,6 +110,16 @@ export default function LocationSelectorModal({
       setAddressError(null);
       setErrorCanAskAgain(undefined);
     }
+  }, [isModalVisible, token, loadSavedAddresses]);
+
+  // Re-fetch saved addresses when connection returns
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      if (isModalVisible && token) {
+        loadSavedAddresses();
+      }
+    });
+    return unsub;
   }, [isModalVisible, token, loadSavedAddresses]);
 
   // Handle GPS Auto-Detect signal check
@@ -142,8 +155,10 @@ export default function LocationSelectorModal({
           country = details.country || 'India';
           fullAddress = details.fullAddress || 'Address unavailable';
         }
-      } catch (err) {
-        console.warn('Reverse geocode failed:', err);
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
+          console.warn('Reverse geocode failed:', err);
+        }
       }
 
       await setCustomLocation(
@@ -156,8 +171,12 @@ export default function LocationSelectorModal({
       );
       onClose();
     } catch (err: any) {
-      console.error('GPS detection failed:', err);
-      const msg = err.message || 'Failed to detect stable GPS signal.';
+      if (!isNetworkError(err)) {
+        console.error('GPS detection failed:', err);
+      }
+      const msg = isNetworkError(err)
+        ? "You're offline. Connect to the internet to detect your location."
+        : err.message || 'Failed to detect stable GPS signal.';
       setAddressError(msg);
       if (err.canAskAgain === false) {
         setErrorCanAskAgain(false);
@@ -189,8 +208,14 @@ export default function LocationSelectorModal({
         onClose();
       }
     } catch (err: any) {
-      console.error('Failed to select place suggestion:', err);
-      setAddressError('Unable to load details for the selected address.');
+      if (!isNetworkError(err)) {
+        console.error('Failed to select place suggestion:', err);
+      }
+      setAddressError(
+        isNetworkError(err)
+          ? "You're offline. Connect to the internet to load address details."
+          : 'Unable to load details for the selected address.'
+      );
     } finally {
       setSearching(false);
     }
@@ -204,6 +229,11 @@ export default function LocationSelectorModal({
 
   // Save manual address form (lines 176-255 of web modal)
   const handleSaveAddressForm = async () => {
+    if (!getIsOnline()) {
+      setAddressError("You're offline. Connect to the internet to save your address.");
+      return;
+    }
+
     if (!houseNumber.trim()) {
       setAddressError('House Number / Name is required');
       return;
@@ -261,8 +291,14 @@ export default function LocationSelectorModal({
           onClose();
         }
       } catch (err: any) {
-        console.error('Failed to save address:', err);
-        setAddressError(err.response?.data?.message || 'Failed to save address details.');
+        if (!isNetworkError(err)) {
+          console.error('Failed to save address:', err);
+        }
+        setAddressError(
+          isNetworkError(err)
+            ? "You're offline. Connect to the internet to save your address."
+            : err.response?.data?.message || 'Failed to save address details.'
+        );
       } finally {
         setSavingForm(false);
       }

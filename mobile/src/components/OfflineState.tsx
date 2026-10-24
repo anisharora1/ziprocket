@@ -20,7 +20,7 @@ import {
 import { checkConnectivity } from '@/services/network';
 
 export interface OfflineStateProps {
-  onRetry?: () => void | Promise<void>;
+  onRetry?: () => void | Promise<any>;
   compact?: boolean;
   style?: StyleProp<ViewStyle>;
 }

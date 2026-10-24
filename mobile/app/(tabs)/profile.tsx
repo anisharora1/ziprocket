@@ -19,7 +19,8 @@ import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/context/AuthContext';
 import { useNotification } from '../../src/context/NotificationContext';
-import { apiClient } from '../../src/services/api';
+import { apiClient, isNetworkError } from '../../src/services/api';
+import { getIsOnline } from '../../src/services/network';
 import {
   Colors,
   Spacing,
@@ -56,6 +57,11 @@ export default function ProfileScreen() {
   const handleConfirmDelete = async () => {
     if (isDeleting || deleteConfirmText !== 'DELETE') return;
 
+    if (!getIsOnline()) {
+      setDeleteError("You're offline. Connect to the internet to delete your account.");
+      return;
+    }
+
     setIsDeleting(true);
     setDeleteError(null);
 
@@ -80,13 +86,20 @@ export default function ProfileScreen() {
       router.replace('/(auth)/login');
       Alert.alert('Account Deleted', 'Your account has been deleted.');
     } catch (err: any) {
-      const status = err?.response?.status;
-      const serverMsg = err?.response?.data?.message;
-
-      if ((status === 409 || status === 403) && serverMsg) {
-        setDeleteError(serverMsg);
+      if (!isNetworkError(err)) {
+        console.warn('Delete account error:', err);
+      }
+      if (isNetworkError(err)) {
+        setDeleteError("You're offline. Connect to the internet to delete your account.");
       } else {
-        setDeleteError('Could not delete account. Please try again.');
+        const status = err?.response?.status;
+        const serverMsg = err?.response?.data?.message;
+
+        if ((status === 409 || status === 403) && serverMsg) {
+          setDeleteError(serverMsg);
+        } else {
+          setDeleteError('Could not delete account. Please try again.');
+        }
       }
     } finally {
       setIsDeleting(false);
@@ -423,7 +436,7 @@ export default function ProfileScreen() {
             {selectedLegalDoc === 'contact' && (
               <View>
                 <Text style={styles.policyHeading}>Contact Us</Text>
-                <Text style={styles.policyTagline}>We're here to help you</Text>
+                <Text style={styles.policyTagline}>{"We're here to help you"}</Text>
                 <View style={styles.policyDivider} />
 
                 <Text style={styles.policySubheading}>Support Details</Text>
@@ -478,7 +491,7 @@ export default function ProfileScreen() {
 
                 <Text style={styles.policySubheading}>How to Reach Us</Text>
                 <Text style={styles.policyParagraph}>
-                  For order issues, refunds, or partnership queries (restaurant/grocery/delivery partner onboarding), please reach out via WhatsApp for the fastest response, or email us and we'll get back within 24 hours.
+                  {"For order issues, refunds, or partnership queries (restaurant/grocery/delivery partner onboarding), please reach out via WhatsApp for the fastest response, or email us and we'll get back within 24 hours."}
                 </Text>
               </View>
             )}

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
+import { onReconnect } from '../services/network';
 
 export interface PlatformSettings {
   isPlatformOpen: boolean;
@@ -51,7 +52,7 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
         setSettings(res.data.settings);
       }
     } catch (err) {
-      if (__DEV__) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Failed to fetch platform settings:', err);
       }
     } finally {
@@ -61,6 +62,10 @@ export function PlatformProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     fetchSettings();
+    const unsub = onReconnect(() => {
+      fetchSettings();
+    });
+    return unsub;
   }, []);
 
   const computeIsOpen = useCallback((): boolean => {

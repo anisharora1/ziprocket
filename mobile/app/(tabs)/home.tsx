@@ -23,6 +23,8 @@ import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
 import { searchFocusStore } from '../../src/services/searchFocusStore';
 import { useLocation } from '../../src/context/LocationContext';
+import { useIsOnline } from '../../src/services/network';
+import OfflineState from '../../src/components/OfflineState';
 import {
   getTopRatedSectionRestaurants,
   getHomeRestaurantList,
@@ -72,10 +74,14 @@ export default function HomeScreen() {
     },
   });
 
+  const isOnline = useIsOnline();
+
   // Up to 50 restaurants filtered by deliveryZone if available
   const {
     data: restaurants = [],
     isLoading,
+    isError: isRestaurantsError,
+    fetchStatus: restaurantsFetchStatus,
     refetch: refetchRestaurants,
     isRefetching: isRestaurantsRefetching,
   } = useQuery<Restaurant[]>({
@@ -132,7 +138,9 @@ export default function HomeScreen() {
           <HeroCarousel />
           <Categories />
           <TopRated items={topRatedRestaurants} />
-          {isLoading && restaurants.length === 0 ? (
+          {restaurants.length === 0 && (isRestaurantsError || restaurantsFetchStatus === 'paused' || !isOnline) ? (
+            <OfflineState compact onRetry={handleRefresh} />
+          ) : isLoading && restaurants.length === 0 ? (
             <View style={styles.centerLoading}>
               <ActivityIndicator size="large" color={Colors.primary} />
             </View>

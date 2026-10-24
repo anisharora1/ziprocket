@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { auth } from '../services/firebase';
 import { apiClient, setOnUnauthorized } from '../services/api';
 import { clearPersistedCache } from '../services/cache';
+import { onReconnect } from '../services/network';
 
 export interface User {
   _id: string;
@@ -141,6 +142,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     bootstrapAuth();
   }, [logout]);
+
+  // Silently revalidate profile with backend when network reconnects
+  useEffect(() => {
+    if (!token) return;
+    const unsub = onReconnect(() => {
+      apiClient
+        .get('/auth/me')
+        .then(async (res) => {
+          if (res.data?.success && res.data?.user) {
+            const freshUser = res.data.user;
+            setUser(freshUser);
+            await SecureStore.setItemAsync('user', JSON.stringify(freshUser));
+          }
+        })
+        .catch(async (err) => {
+          if (err.response?.status === 401 || err.response?.status === 403) {
+            await logout();
+          }
+        });
+    });
+    return unsub;
+  }, [token, logout]);
 
   const value = useMemo(
     () => ({

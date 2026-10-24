@@ -7,11 +7,12 @@ import React, {
   useCallback,
   useRef,
 } from 'react';
-import { Platform } from 'react-native';
+import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocationApi from 'expo-location';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
 import { getHighAccuracyGPSFix } from '../utils/geolocation';
+import { getIsOnline, onReconnect } from '../services/network';
 import { useAuth } from './AuthContext';
 
 export interface LocationCoords {
@@ -249,7 +250,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         }
       }
     } catch (err) {
-      console.error('Failed to load saved addresses:', err);
+      if (!isNetworkError(err)) {
+        console.error('Failed to load saved addresses:', err);
+      }
     }
   }, []);
 
@@ -312,6 +315,10 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
   // 4. Save and select address immediately
   const saveAndSelectAddress = useCallback(
     async (addrPayload: any): Promise<boolean> => {
+      if (!getIsOnline()) {
+        Alert.alert('Offline', "You're offline. Connect to the internet to save addresses.");
+        return false;
+      }
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         const res = await apiClient.post('/addresses', addrPayload);
@@ -322,7 +329,11 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         }
         return false;
       } catch (err: any) {
-        console.error('Failed to save and select address:', err);
+        if (isNetworkError(err)) {
+          Alert.alert('Offline', "You're offline. Connect to the internet to save addresses.");
+        } else {
+          console.error('Failed to save and select address:', err);
+        }
         return false;
       } finally {
         dispatch({ type: 'SET_LOADING', payload: false });
@@ -387,7 +398,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           dispatch({ type: 'SET_BATCH', payload: { address: 'Address unavailable' } });
         }
       } catch (geoErr) {
-        console.error('Reverse geocode failed:', geoErr);
+        if (!isNetworkError(geoErr)) {
+          console.error('Reverse geocode failed:', geoErr);
+        }
         dispatch({ type: 'SET_BATCH', payload: { address: 'Address unavailable' } });
       }
 
@@ -421,7 +434,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           });
         }
       } catch (zErr: any) {
-        console.error('Zone feasibility check failed:', zErr);
+        if (!isNetworkError(zErr)) {
+          console.error('Zone feasibility check failed:', zErr);
+        }
         dispatch({
           type: 'SET_ZONE',
           payload: {
@@ -617,7 +632,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
             }
           }
         } catch (err) {
-          console.error('Failed to load saved addresses:', err);
+          if (!isNetworkError(err)) {
+            console.error('Failed to load saved addresses:', err);
+          }
         }
       }
 
@@ -665,6 +682,16 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
       loadSavedAddresses();
     }
     prevTokenRef.current = token;
+  }, [token, loadSavedAddresses]);
+
+  // Reload saved addresses on reconnect
+  useEffect(() => {
+    const unsub = onReconnect(() => {
+      if (token) {
+        loadSavedAddresses();
+      }
+    });
+    return unsub;
   }, [token, loadSavedAddresses]);
 
   const openPicker = useCallback(() => {

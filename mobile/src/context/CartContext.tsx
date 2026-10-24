@@ -8,11 +8,12 @@ import React, {
   useRef,
   useCallback,
 } from 'react';
-import { Modal, View, Text, Pressable, StyleSheet } from 'react-native';
+import { Modal, View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from './AuthContext';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
+import { getIsOnline, onReconnect } from '../services/network';
 import { Colors, Spacing, BorderRadius, Typography, Shadows } from '../constants/theme';
 
 export interface CartItem {
@@ -208,7 +209,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             });
           }
         } catch (err: any) {
-          if (!hasWarnedSyncFailure) {
+          if (!hasWarnedSyncFailure && !isNetworkError(err)) {
             hasWarnedSyncFailure = true;
             console.warn('[Cart] Sync on login failed (operating in offline fallback):', err?.message);
           }
@@ -218,6 +219,42 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       syncOnLogin();
     }
+  }, [token, saveToLocalStorage]);
+
+  // Resync cart from backend when connection returns
+  useEffect(() => {
+    if (!token) return;
+    const unsub = onReconnect(async () => {
+      try {
+        const res = await apiClient.get('/cart');
+        if (res.data?.success && res.data?.cart) {
+          const backendCart = res.data.cart;
+          const backendItems: CartItem[] = (backendCart.items || []).map((i: any) => ({
+            id: i.itemId || i.id,
+            name: i.name,
+            price: Number(i.price),
+            quantity: Number(i.quantity),
+            img: i.img,
+          }));
+          if (backendItems.length > 0) {
+            setCart((currentLocalCart) => {
+              if (currentLocalCart.items.length === 0) {
+                const newCartState: CartState = {
+                  items: backendItems,
+                  vendorId: backendCart.vendorId || null,
+                  vendorName: backendCart.vendorName || null,
+                  orderType: backendCart.orderType || null,
+                };
+                saveToLocalStorage(newCartState);
+                return newCartState;
+              }
+              return currentLocalCart;
+            });
+          }
+        }
+      } catch {}
+    });
+    return unsub;
   }, [token, saveToLocalStorage]);
 
   // 3. Debounced backend sync on cart changes (Only when real token exists)
@@ -240,7 +277,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           orderType: cart.orderType,
         });
       } catch (err: any) {
-        if (cartVersionRef.current === currentVersion && !hasWarnedSyncFailure) {
+        if (cartVersionRef.current === currentVersion && !hasWarnedSyncFailure && !isNetworkError(err)) {
           hasWarnedSyncFailure = true;
           console.warn('[Cart] Background sync failed (retaining local state):', err?.message);
         }
@@ -251,6 +288,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart, token, saveToLocalStorage]);
 
   const addToCart = (payload: AddToCartPayload) => {
+    if (!getIsOnline()) {
+      Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
+      return;
+    }
     cartVersionRef.current += 1;
 
     // If cart is empty, simply initialize
@@ -309,6 +350,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = (itemId: string) => {
+    if (!getIsOnline()) {
+      Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
+      return;
+    }
     cartVersionRef.current += 1;
     setCart((prev) => {
       const nextItems = prev.items.filter((i) => i.id !== itemId);
@@ -320,6 +365,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    if (!getIsOnline()) {
+      Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
+      return;
+    }
     cartVersionRef.current += 1;
     if (quantity <= 0) {
       removeFromCart(itemId);

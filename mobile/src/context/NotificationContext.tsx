@@ -13,7 +13,8 @@ import Constants from 'expo-constants';
 import { useRouter } from 'expo-router';
 import { useAuth } from './AuthContext';
 import { useLocation } from './LocationContext';
-import { apiClient } from '../services/api';
+import { apiClient, isNetworkError } from '../services/api';
+import { onReconnect } from '../services/network';
 import { messaging, RemoteMessage } from '../services/firebase';
 import InAppNotificationBanner, {
   InAppNotificationData,
@@ -117,7 +118,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     apiClient
       .post('/notifications/opened', { campaignId })
       .catch((err) => {
-        if (__DEV__) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('[Notification API] /notifications/opened failed silently:', err.message);
         }
       });
@@ -263,7 +264,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           console.log('[Notification API] Registered device token successfully');
         }
       } catch (err: any) {
-        if (__DEV__) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn(
             '[Notification API] /notifications/register-device failed silently:',
             err.message
@@ -279,6 +280,30 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
     };
   }, [fcmToken, user, token, zoneId, coords?.lat, coords?.lng]);
 
+  // Re-register device token on network reconnection
+  useEffect(() => {
+    const unsub = onReconnect(async () => {
+      if (!fcmToken) return;
+      try {
+        const payload: Record<string, any> = {
+          token: fcmToken,
+          platform: 'android',
+          appVersion: Constants.expoConfig?.version || '1.0.0',
+        };
+        if (zoneId) payload.zoneId = zoneId;
+        if (coords?.lat && coords?.lng) {
+          payload.lastLocation = { lat: coords.lat, lng: coords.lng };
+        }
+        await apiClient.post('/notifications/register-device', payload);
+      } catch (err: any) {
+        if (__DEV__ && !isNetworkError(err)) {
+          console.warn('[Notification API] Reconnect register-device failed:', err.message);
+        }
+      }
+    });
+    return unsub;
+  }, [fcmToken, zoneId, coords?.lat, coords?.lng]);
+
   // 6. On user logout: call POST /notifications/unlink-user { token }
   useEffect(() => {
     if (prevUserRef.current && !user && fcmToken) {
@@ -290,7 +315,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
           }
         })
         .catch((err: any) => {
-          if (__DEV__) {
+          if (__DEV__ && !isNetworkError(err)) {
             console.warn(
               '[Notification API] /notifications/unlink-user failed silently:',
               err.message
@@ -325,7 +350,7 @@ export const NotificationProvider = ({ children }: { children: React.ReactNode }
         console.log('[Notification API] Synced marketing opt-in preference');
       }
     } catch (err: any) {
-      if (__DEV__) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn(
           '[Notification API] /notifications/preferences failed silently:',
           err.message

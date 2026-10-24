@@ -20,6 +20,8 @@ import { usePlatform } from '../../src/context/PlatformContext';
 import { isWithinOperatingHours, formatToAMPM } from '../../src/utils/restaurantHours';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
+import { useIsOnline } from '../../src/services/network';
+import OfflineState from '../../src/components/OfflineState';
 import {
   Colors,
   Spacing,
@@ -56,11 +58,14 @@ export default function RestaurantDetailScreen() {
   const [vegOnly, setVegOnly] = useState<boolean>(false);
   const [selectedItem, setSelectedItem] = useState<MenuItemType | null>(null);
 
+  const isOnline = useIsOnline();
+
   // Parallel fetch restaurant details & menu
   const {
     data: restData,
     isLoading: restLoading,
     isError: restError,
+    fetchStatus: restFetchStatus,
     refetch: refetchRest,
   } = useQuery({
     queryKey: ['restaurant', id],
@@ -75,6 +80,7 @@ export default function RestaurantDetailScreen() {
     data: menuData = [],
     isLoading: menuLoading,
     isError: menuError,
+    fetchStatus: menuFetchStatus,
     refetch: refetchMenu,
   } = useQuery<MenuItemType[]>({
     queryKey: ['restaurant-menu', id],
@@ -86,7 +92,6 @@ export default function RestaurantDetailScreen() {
   });
 
   const loading = restLoading || menuLoading;
-  const isError = restError || menuError;
 
   const restaurant = restData;
   const menuItems = menuData;
@@ -182,25 +187,45 @@ export default function RestaurantDetailScreen() {
     ? formatToAMPM(restaurant.operatingHours.open)
     : '';
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.backBtn}>
-            <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
-          </Pressable>
-          <Text style={styles.topBarTitle}>Loading Restaurant...</Text>
-          <View style={{ width: 36 }} />
-        </View>
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading delicious menu items...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const handleRetry = () => {
+    refetchRest();
+    refetchMenu();
+  };
 
-  if (isError || !restaurant) {
+  if (!restaurant) {
+    if (!isOnline || restFetchStatus === 'paused' || restError || menuFetchStatus === 'paused') {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.topBar}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
+            </Pressable>
+            <Text style={styles.topBarTitle}>Offline</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          <OfflineState onRetry={handleRetry} />
+        </SafeAreaView>
+      );
+    }
+
+    if (loading) {
+      return (
+        <SafeAreaView style={styles.container}>
+          <View style={styles.topBar}>
+            <Pressable onPress={() => router.back()} style={styles.backBtn}>
+              <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
+            </Pressable>
+            <Text style={styles.topBarTitle}>Loading Restaurant...</Text>
+            <View style={{ width: 36 }} />
+          </View>
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading delicious menu items...</Text>
+          </View>
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.topBar}>
@@ -216,13 +241,7 @@ export default function RestaurantDetailScreen() {
           <Text style={styles.errorSubtitle}>
             {"We couldn't load this restaurant's menu. It may be temporarily deactivated or offline."}
           </Text>
-          <Pressable
-            style={styles.retryBtn}
-            onPress={() => {
-              refetchRest();
-              refetchMenu();
-            }}
-          >
+          <Pressable style={styles.retryBtn} onPress={handleRetry}>
             <Text style={styles.retryBtnText}>RETRY</Text>
           </Pressable>
         </View>
@@ -424,13 +443,17 @@ export default function RestaurantDetailScreen() {
         {/* Child 3 (or 2): Menu Items Content List */}
         <View key="menu-container" style={styles.menuContainer}>
           {!menuItems || menuItems.length === 0 ? (
-            <View style={styles.emptyStateBox}>
-              <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No Menu Items Available</Text>
-              <Text style={styles.emptySubtitle}>
-                This restaurant has not listed any dishes on their menu yet.
-              </Text>
-            </View>
+            !isOnline || menuFetchStatus === 'paused' || menuError ? (
+              <OfflineState compact onRetry={refetchMenu} />
+            ) : (
+              <View style={styles.emptyStateBox}>
+                <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
+                <Text style={styles.emptyTitle}>No Menu Items Available</Text>
+                <Text style={styles.emptySubtitle}>
+                  This restaurant has not listed any dishes on their menu yet.
+                </Text>
+              </View>
+            )
           ) : filteredMenuItems.length === 0 ? (
             <View style={styles.emptyStateBox}>
               <MaterialIcons name="search" size={48} color={Colors.textMuted} />
