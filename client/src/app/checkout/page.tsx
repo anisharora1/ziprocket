@@ -52,6 +52,8 @@ const LocationSelectorModal = dynamic(() => import("@/components/LocationSelecto
 
 interface BillDetails {
     success?: boolean;
+    isDeliverable?: boolean;
+    reason?: string;
     zoneId?: string;
     zoneName?: string;
     itemTotal: number;
@@ -73,6 +75,21 @@ interface BillDetails {
     isBelowMinimum?: boolean;
     amountNeededForMinOrder?: number;
 }
+
+const getFeasibilityErrorMessage = (reason?: string, fallbackMessage?: string): string => {
+    switch (reason) {
+        case "outside_radius":
+            return "Delivery address is outside the maximum delivery radius for this vendor.";
+        case "outside_zone":
+            return "Selected location lies outside our operational delivery zones.";
+        case "invalid_location":
+            return "Please provide valid delivery coordinates. Select your location on the map.";
+        case "restaurant_location_unverified":
+            return "Restaurant location is unverified. Delivery cannot be fulfilled at this time.";
+        default:
+            return fallbackMessage || "Selected location is currently not serviceable for delivery.";
+    }
+};
 
 export default function CheckoutPage() {
     const router = useRouter();
@@ -476,22 +493,49 @@ export default function CheckoutPage() {
         }
     };
 
-    // Default calculations fallback
     const itemTotal = cart.items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
-    const distanceFallback = 2.5;
-    const deliveryFeeFallback = itemTotal > 0 ? (cart.orderType === 'grocery' ? (itemTotal >= 200 ? 0 : Math.round(15 * distanceFallback)) : 40) : 0;
-    const taxesFallback = Math.round(itemTotal * 0.05);
-    const grandTotalFallback = itemTotal + taxesFallback + deliveryFeeFallback;
+
+    // Single source of truth for target coordinates across bill calculation and order submission
+    const targetCoords = customCoords || userCoords || null;
+    const hasValidLocation = Boolean(
+        targetCoords &&
+        typeof targetCoords.lat === 'number' &&
+        typeof targetCoords.lng === 'number' &&
+        Number.isFinite(targetCoords.lat) &&
+        Number.isFinite(targetCoords.lng) &&
+        Math.abs(targetCoords.lat) <= 90 &&
+        Math.abs(targetCoords.lng) <= 180 &&
+        !(targetCoords.lat === 0 && targetCoords.lng === 0)
+    );
+    const targetAddress = customAddressText || userAddress || "";
+    const targetPincode = customPincode || userPincode || "";
 
     const [billDetails, setBillDetails] = useState<BillDetails | null>(null);
-    const [loadingBill, setLoadingBill] = useState(true);
+    const [loadingBill, setLoadingBill] = useState(false);
     const [checkoutError, setCheckoutError] = useState<string | null>(null);
+    const [checkoutReason, setCheckoutReason] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchBillDetails = async () => {
+            if (cart.items.length === 0) {
+                setBillDetails(null);
+                setLoadingBill(false);
+                return;
+            }
+
+            // Do not call /delivery-zones/calculate-bill without a valid selected location
+            if (!hasValidLocation || !targetCoords) {
+                setBillDetails(null);
+                setLoadingBill(false);
+                setCheckoutError(null);
+                setCheckoutReason(null);
+                return;
+            }
+
             try {
                 setLoadingBill(true);
                 setCheckoutError(null);
+                setCheckoutReason(null);
                 const payload = {
                     vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
                     items: cart.items.map(c => ({
@@ -500,22 +544,25 @@ export default function CheckoutPage() {
                         price: c.price,
                         quantity: c.quantity
                     })),
-                    userLat: customCoords?.lat || userCoords?.lat || 28.7041,
-                    userLng: customCoords?.lng || userCoords?.lng || 77.1025,
+                    userLat: targetCoords.lat,
+                    userLng: targetCoords.lng,
                     orderType: cart.orderType || 'food',
-                    pincode: customPincode || userPincode || "",
+                    pincode: targetPincode,
                     address: {
-                        fullAddress: customAddressText || userAddress || "",
-                        pincode: customPincode || userPincode || "",
-                        lat: customCoords?.lat || userCoords?.lat || 28.7041,
-                        lng: customCoords?.lng || userCoords?.lng || 77.1025
+                        fullAddress: targetAddress,
+                        pincode: targetPincode,
+                        lat: targetCoords.lat,
+                        lng: targetCoords.lng
                     },
                     couponCode: appliedCouponCode || undefined,
                     userId: user?._id || undefined
                 };
                 const res = await apiClient.post("/delivery-zones/calculate-bill", payload);
                 if (res.data.success && res.data.isDeliverable !== false) {
-                    setBillDetails(res.data);
+                    setBillDetails({
+                        ...res.data,
+                        isDeliverable: true
+                    });
                     if (appliedCouponCode && res.data.couponError) {
                         setCouponError(res.data.couponError);
                         setCouponSuccessMessage(null);
@@ -525,23 +572,39 @@ export default function CheckoutPage() {
                         setCouponError(null);
                     }
                     setCheckoutError(null);
+                    setCheckoutReason(null);
                 } else {
-                    setCheckoutError(res.data.message || "Aapka address hamare delivery service area se bahar hai.");
+                    const reason = res.data.reason;
+                    const message = getFeasibilityErrorMessage(reason, res.data.message);
+                    setCheckoutError(message);
+                    setCheckoutReason(reason || null);
                     setBillDetails(null);
                 }
             } catch (err: any) {
                 console.error("Failed to calculate dynamic checkout fares:", err);
-                setCheckoutError(err.response?.data?.message || "Aapka address hamare delivery service area se bahar hai.");
+                const reason = err.response?.data?.reason;
+                const message = getFeasibilityErrorMessage(reason, err.response?.data?.message);
+                setCheckoutError(message);
+                setCheckoutReason(reason || null);
                 setBillDetails(null);
             } finally {
                 setLoadingBill(false);
             }
         };
 
-        if (cart.items.length > 0) {
-            fetchBillDetails();
-        }
-    }, [cart.items, cart.vendorId, cart.orderType, userCoords, customCoords, customPincode, userPincode, customAddressText, userAddress, appliedCouponCode, user?._id]);
+        fetchBillDetails();
+    }, [
+        cart.items,
+        cart.vendorId,
+        cart.orderType,
+        targetCoords?.lat,
+        targetCoords?.lng,
+        hasValidLocation,
+        targetAddress,
+        targetPincode,
+        appliedCouponCode,
+        user?._id
+    ]);
 
     useEffect(() => {
         const fetchAvailableCoupons = async () => {
@@ -600,16 +663,19 @@ export default function CheckoutPage() {
         setCouponError(null);
     };
 
-    const activeDeliveryFee = Number(billDetails?.deliveryFee ?? deliveryFeeFallback) || 0;
-    const activeGST = Number(billDetails?.gst ?? taxesFallback) || 0;
-    const activeGrandTotal = Number(billDetails?.grandTotal ?? grandTotalFallback) || 0;
-    const activeDistance = Number(billDetails?.distanceKm ?? distanceFallback) || 0;
+    // Dynamic values from server response only
+    const serverDeliveryFee = billDetails?.deliveryFee !== undefined ? Number(billDetails.deliveryFee) : null;
+    const serverGST = billDetails?.gst !== undefined ? Number(billDetails.gst) : null;
+    const serverGrandTotal = billDetails?.grandTotal !== undefined ? Number(billDetails.grandTotal) : null;
+    const serverDistanceKm = billDetails?.distanceKm !== undefined ? Number(billDetails.distanceKm) : null;
+    const serverDurationMinutes = billDetails?.durationMinutes !== undefined ? Number(billDetails.durationMinutes) : null;
+
     const activeFreeDeliveryThreshold = Number(billDetails?.freeDeliveryThreshold) || 0;
     const amountNeededForFreeDelivery = activeFreeDeliveryThreshold - itemTotal;
-    const isEligibleForFreeDeliveryNudge = activeDeliveryFee > 0 && amountNeededForFreeDelivery > 0 && activeFreeDeliveryThreshold > 0;
+    const isEligibleForFreeDeliveryNudge = (serverDeliveryFee ?? 0) > 0 && amountNeededForFreeDelivery > 0 && activeFreeDeliveryThreshold > 0;
 
     const activeMinOrderValue = billDetails?.minOrderValue !== undefined ? Number(billDetails.minOrderValue) : (cart.orderType === 'food' ? (settings?.minOrderValueFood || 0) : (settings?.minOrderValueGrocery || 0));
-    const isBelowMinimum = billDetails?.isBelowMinimum !== undefined ? Boolean(billDetails.isBelowMinimum) : (itemTotal < activeMinOrderValue);
+    const isBelowMinimum = billDetails?.isBelowMinimum !== undefined ? Boolean(billDetails.isBelowMinimum) : (activeMinOrderValue > 0 && itemTotal < activeMinOrderValue);
     const amountNeededForMinOrder = billDetails?.amountNeededForMinOrder !== undefined ? Number(billDetails.amountNeededForMinOrder) : (isBelowMinimum ? Math.max(0, activeMinOrderValue - itemTotal) : 0);
 
     // Auto-redirect after notification card with a delay
@@ -654,20 +720,31 @@ export default function CheckoutPage() {
             showCard({ type: 'error', title: 'Login Zaroori Hai', message: 'Order karne ke liye kripya pehle login karein.', onAction: () => router.push('/auth/login'), actionLabel: 'Login Karein' });
             return;
         }
-        if (checkoutError) {
+        if (!hasValidLocation || !targetCoords) {
+            showCard({
+                type: 'warning',
+                title: 'Address Zaroori Hai',
+                message: 'Kripya delivery ke liye sahi address chunein ya naya address daalein.',
+                onAction: () => handleOpenAddressEditModal(),
+                actionLabel: 'Select Delivery Location'
+            });
+            return;
+        }
+
+        if (checkoutError || !billDetails || billDetails.isDeliverable !== true) {
             // Fetch active zones to show in overlay
             try {
                 const zonesRes = await apiClient.get("/delivery-zones");
                 const zones = zonesRes.data?.zones || zonesRes.data || [];
-                setActiveZones(zones.map((z: any) => z.name || z.zoneName).filter(Boolean));
+                setActiveZones(Array.isArray(zones)
+                    ? zones.map((z: any) => z.name || z.zoneName).filter(Boolean)
+                    : []);
             } catch { setActiveZones([]); }
             setShowOutOfZoneOverlay(true);
             return;
         }
-        const targetAddress = customAddressText || userAddress;
-        const targetCoords = customCoords || userCoords;
 
-        if (!targetAddress || !targetCoords) {
+        if (!targetAddress) {
             showCard({ type: 'warning', title: 'Address Zaroori Hai', message: 'Kripya delivery ke liye sahi address chunein ya naya address daalein.' });
             return;
         }
@@ -707,10 +784,10 @@ export default function CheckoutPage() {
                     user: user._id,
                     restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
                     items: orderItems,
-                    totalAmount: activeGrandTotal + (billDetails?.discountAmount || 0),
-                    deliveryCharge: activeDeliveryFee,
+                    totalAmount: Number(billDetails.grandTotal) + (billDetails.discountAmount || 0),
+                    deliveryCharge: Number(billDetails.deliveryFee) || 0,
                     paymentMethod: "COD",
-                    distance: activeDistance,
+                    distance: Number(billDetails.distanceKm) || 0,
                     address: {
                         fullAddress: targetAddress,
                         lat: targetCoords.lat,
@@ -883,10 +960,21 @@ export default function CheckoutPage() {
 
         } catch (error: any) {
             console.error("Order completion failure:", error);
-            const errMsg: string = error.response?.data?.message || error.message || '';
+            const serverReason = error.response?.data?.reason;
+            const errMsg: string = serverReason
+                ? getFeasibilityErrorMessage(serverReason, error.response?.data?.message)
+                : (error.response?.data?.message || error.message || '');
+
+            if (serverReason) {
+                setCheckoutReason(serverReason);
+            }
 
             // ── Backend delivery zone rejection → show beautiful overlay card ──
             const isZoneError =
+                serverReason === "outside_zone" ||
+                serverReason === "outside_radius" ||
+                serverReason === "invalid_location" ||
+                serverReason === "restaurant_location_unverified" ||
                 errMsg.toLowerCase().includes('unavailable in your area') ||
                 errMsg.toLowerCase().includes('outside') ||
                 errMsg.toLowerCase().includes('delivery zone') ||
@@ -1054,12 +1142,30 @@ export default function CheckoutPage() {
                                     </span>
                                 </div>
                             </div>
-                            <h2 className="font-black text-[22px] text-center leading-tight">डिलीवरी उपलब्ध नहीं है</h2>
-                            <p className="text-[13px] text-white/80 text-center mt-1 font-medium">Delivery Not Available in this Area</p>
+                            <h2 className="font-black text-[22px] text-center leading-tight">
+                                {checkoutReason === "outside_radius"
+                                    ? "डिलीवरी रेडियस से बाहर"
+                                    : checkoutReason === "restaurant_location_unverified"
+                                        ? "लोकेशन अनवेरिफाइड"
+                                        : checkoutReason === "invalid_location"
+                                            ? "अमान्य लोकेशन"
+                                            : "डिलीवरी उपलब्ध नहीं है"}
+                            </h2>
+                            <p className="text-[13px] text-white/80 text-center mt-1 font-medium">
+                                {checkoutReason === "outside_radius"
+                                    ? "Outside Maximum Delivery Radius"
+                                    : checkoutReason === "restaurant_location_unverified"
+                                        ? "Restaurant Location Unverified"
+                                        : checkoutReason === "invalid_location"
+                                            ? "Invalid Delivery Coordinates"
+                                            : "Delivery Not Available in this Area"}
+                            </p>
                         </div>
                         <div className="px-6 pt-5 pb-2">
                             <p className="text-[14px] text-slate-700 font-semibold text-center leading-relaxed">
-                                Maaf karein, aapki current location hamare <span className="text-rose-600 font-black">active delivery area se bahar hai</span>. Hum filhal in chune hue areas mein deliver karte hain:
+                                {checkoutError || (
+                                    <>Maaf karein, aapki current location hamare <span className="text-rose-600 font-black">active delivery area se bahar hai</span>. Hum filhal in chune hue areas mein deliver karte hain:</>
+                                )}
                             </p>
                             {activeZones.length > 0 && (
                                 <div className="mt-4">
@@ -1127,14 +1233,50 @@ export default function CheckoutPage() {
                         </div>
                         <div>
                             <h2 className="font-medium text-[15px] text-slate-900 leading-tight">Delivery ki Jankari</h2>
-                            <p className="text-[12px] text-slate-700 mt-1 leading-relaxed font-bold">{customAddressText || userAddress || "Koi location select nahi hai"}</p>
+                            <p className="text-[12px] text-slate-700 mt-1 leading-relaxed font-bold">
+                                {hasValidLocation && targetAddress
+                                    ? targetAddress
+                                    : "Select your delivery location"}
+                            </p>
                             <p className="text-[10px] text-slate-450 font-extrabold mt-1 uppercase tracking-wider">
                                 Phone: +91 {customPhone || user?.phone || "Uplabdh nahi"}
                             </p>
                         </div>
                     </div>
-                    <MdEdit className="text-slate-400 text-sm shrink-0" />
+                    <div className="flex items-center gap-1 text-[#FF5C00] font-bold text-xs shrink-0">
+                        <span>{hasValidLocation ? "Change" : "Select"}</span>
+                        <MdEdit className="text-sm" />
+                    </div>
                 </div>
+
+                {!hasValidLocation && (
+                    <div
+                        onClick={handleOpenAddressEditModal}
+                        className="bg-orange-50 border border-orange-200 rounded-xl p-3.5 flex items-center justify-between gap-3 cursor-pointer hover:bg-orange-100/60 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-[#FF5C00] shrink-0">
+                                <MdLocationOn className="text-[20px]" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-900 text-[14px]">Select your delivery location</h3>
+                                <p className="text-[12px] text-slate-600 mt-0.5 font-medium">
+                                    Pata chunein taaki delivery fee aur delivery time calculate ho sake.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenAddressEditModal();
+                            }}
+                            className="px-3.5 py-1.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-bold rounded-lg shrink-0 shadow-sm transition-colors"
+                        >
+                            Select
+                        </button>
+                    </div>
+                )}
 
                 {/* Feasibility Warn Banners */}
                 {checkoutError && (
@@ -1143,7 +1285,17 @@ export default function CheckoutPage() {
                             <MdWarning className="text-[16px]" />
                         </div>
                         <div>
-                            <h3 className="font-bold text-rose-850 text-[14px]">Delivery Seema se Bahar</h3>
+                            <h3 className="font-bold text-rose-850 text-[14px]">
+                                {checkoutReason === "outside_radius"
+                                    ? "Outside Delivery Radius"
+                                    : checkoutReason === "outside_zone"
+                                        ? "Outside Delivery Zone"
+                                        : checkoutReason === "invalid_location"
+                                            ? "Invalid Delivery Location"
+                                            : checkoutReason === "restaurant_location_unverified"
+                                                ? "Restaurant Location Unverified"
+                                                : "Delivery Seema se Bahar"}
+                            </h3>
                             <p className="text-[12px] text-rose-600 mt-0.5 leading-relaxed font-semibold">
                                 {checkoutError}
                             </p>
@@ -1167,7 +1319,7 @@ export default function CheckoutPage() {
                 )}
 
                 {/* Route-Based Distance & ETA */}
-                {!loadingBill && billDetails && !checkoutError && (
+                {!loadingBill && billDetails && billDetails.isDeliverable === true && serverDistanceKm !== null && !checkoutError && (
                     <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100 flex justify-between items-center gap-3">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
@@ -1175,11 +1327,11 @@ export default function CheckoutPage() {
                             </div>
                             <div>
                                 <h3 className="font-bold text-[14px] text-slate-800 leading-tight">Delivery ka Samay</h3>
-                                <p className="text-[12px] text-slate-500 mt-1 leading-none font-medium">Fulfillment Distance: {activeDistance} km</p>
+                                <p className="text-[12px] text-slate-500 mt-1 leading-none font-medium">Fulfillment Distance: {serverDistanceKm} km</p>
                             </div>
                         </div>
                         <div className="text-right shrink-0">
-                            <span className="font-extrabold text-slate-900 text-base block">{billDetails.durationMinutes || 25} min me</span>
+                            <span className="font-extrabold text-slate-900 text-base block">{serverDurationMinutes || 25} min me</span>
                             <span className="text-[9px] text-emerald-650 font-bold uppercase tracking-wider leading-none block mt-1">Sabse tez delivery</span>
                         </div>
                     </div>
@@ -1187,8 +1339,10 @@ export default function CheckoutPage() {
 
                 {/* Offer / Zone Banner */}
                 {loadingBill ? (
-                    <div className="h-16 bg-slate-50 rounded-xl animate-pulse" />
-                ) : activeDeliveryFee === 0 && !checkoutError ? (
+                    <div className="h-16 bg-slate-50 rounded-xl animate-pulse flex items-center justify-center text-slate-400 text-xs font-medium">
+                        Calculating...
+                    </div>
+                ) : serverDeliveryFee === 0 && !checkoutError && billDetails?.isDeliverable === true ? (
                     <div className="bg-emerald-50 rounded-xl p-3.5 border border-emerald-100 flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0 mt-0.5">
                             <MdCelebration className="text-[16px]" />
@@ -1198,7 +1352,7 @@ export default function CheckoutPage() {
                             <p className="text-[12px] text-emerald-600 mt-0.5 font-medium">Aapke order par delivery charge bilkul FREE hai.</p>
                         </div>
                     </div>
-                ) : !checkoutError ? (
+                ) : !checkoutError && billDetails?.isDeliverable === true && serverDistanceKm !== null ? (
                     <div className="bg-[#fff5f0] rounded-xl p-3.5 border border-[#fdeadd] flex items-start gap-3">
                         <div className="w-8 h-8 rounded-full bg-[#fdeadd] flex items-center justify-center text-[#a73a00] shrink-0 mt-0.5">
                             <MdLocalShipping className="text-[16px]" />
@@ -1206,7 +1360,7 @@ export default function CheckoutPage() {
                         <div className="flex-1">
                             <h3 className="font-bold text-[#a73a00] text-[14px]">Surakshit & Superfast Delivery</h3>
                             <p className="text-[12px] text-slate-600 mt-0.5 leading-relaxed font-semibold">
-                                {activeDistance} km doori se seedha aapke ghar tak ({billDetails?.zoneName || "ZipRocket Zone"}).
+                                {serverDistanceKm} km doori se seedha aapke ghar tak ({billDetails?.zoneName || "ZipRocket Zone"}).
                             </p>
                         </div>
                     </div>
@@ -1367,18 +1521,35 @@ export default function CheckoutPage() {
                 {/* Bill Details */}
                 <section className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
                     <h2 className="font-medium text-[15px] text-slate-900 mb-4">Bill Details</h2>
-                    {loadingBill ? (
-                        <div className="space-y-3.5">
+                    {!hasValidLocation ? (
+                        <div className="text-center py-6 px-4">
+                            <p className="text-slate-600 text-sm font-semibold mb-3">
+                                Select your delivery location to view bill details and delivery fees.
+                            </p>
+                            <button
+                                type="button"
+                                onClick={handleOpenAddressEditModal}
+                                className="px-4 py-2 bg-[#FF5C00] hover:bg-[#e05200] text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                            >
+                                Select Delivery Location
+                            </button>
+                        </div>
+                    ) : loadingBill ? (
+                        <div className="space-y-3.5 py-2">
+                            <div className="flex items-center justify-between text-slate-500 text-sm font-medium">
+                                <span>Calculating bill...</span>
+                                <span className="text-xs text-[#FF5C00] font-bold animate-pulse">Calculating...</span>
+                            </div>
                             <div className="h-4 bg-slate-50 rounded animate-pulse" />
                             <div className="h-4 bg-slate-50 rounded animate-pulse w-5/6" />
                             <div className="h-4 bg-slate-50 rounded animate-pulse w-3/4" />
                             <div className="h-6 bg-slate-100 rounded animate-pulse pt-2" />
                         </div>
                     ) : checkoutError ? (
-                        <div className="text-center py-6 text-slate-400 text-xs font-semibold">
-                            Chuni hui location service area se bahar hai, isliye bill calculate nahi ho paya.
+                        <div className="text-center py-6 px-4 text-rose-600 text-xs font-semibold">
+                            {checkoutError}
                         </div>
-                    ) : (
+                    ) : billDetails && billDetails.isDeliverable === true ? (
                         <>
                             {isEligibleForFreeDeliveryNudge && (
                                 <div className="flex items-center gap-2.5 bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 mb-3">
@@ -1407,45 +1578,53 @@ export default function CheckoutPage() {
                             <div className="space-y-2.5 text-[13px]">
                                 <div className="flex justify-between text-slate-600">
                                     <span>Item Total</span>
-                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
+                                    <span className="text-slate-900 font-medium">₹{(Number(billDetails.itemTotal ?? itemTotal) || 0).toFixed(2)}</span>
                                 </div>
 
                                 <div className="flex justify-between text-slate-600">
                                     <span>Delivery Charge</span>
                                     <span className="text-slate-900 font-medium">
-                                        {Number(activeDeliveryFee) === 0 ? <span className="text-emerald-600 font-bold uppercase">FREE</span> : `₹${(Number(activeDeliveryFee) || 0).toFixed(2)}`}
+                                        {serverDeliveryFee !== null ? (
+                                            serverDeliveryFee === 0 ? (
+                                                <span className="text-emerald-600 font-bold uppercase">FREE</span>
+                                            ) : (
+                                                `₹${serverDeliveryFee.toFixed(2)}`
+                                            )
+                                        ) : (
+                                            <span className="text-slate-400">Calculating...</span>
+                                        )}
                                     </span>
                                 </div>
 
-                                {billDetails && Number(billDetails.smallOrderFee) > 0 && (
+                                {Number(billDetails.smallOrderFee) > 0 && (
                                     <div className="flex justify-between text-[#FF5C00]">
                                         <span>Small Order Handling Fee</span>
                                         <span className="font-medium">₹{(Number(billDetails.smallOrderFee) || 0).toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {billDetails && Number(billDetails.platformFee) > 0 && (
+                                {Number(billDetails.platformFee) > 0 && (
                                     <div className="flex justify-between text-slate-600">
                                         <span>Platform Fee</span>
                                         <span className="text-slate-900 font-medium">₹{(Number(billDetails.platformFee) || 0).toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {billDetails && Number(billDetails.packagingCharge) > 0 && (
+                                {Number(billDetails.packagingCharge) > 0 && (
                                     <div className="flex justify-between text-slate-600">
                                         <span>Packaging Charge</span>
                                         <span className="text-slate-900 font-medium">₹{(Number(billDetails.packagingCharge) || 0).toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {billDetails && Number(billDetails.convenienceFee) > 0 && (
+                                {Number(billDetails.convenienceFee) > 0 && (
                                     <div className="flex justify-between text-slate-600">
                                         <span>Convenience Fee</span>
                                         <span className="text-slate-900 font-medium">₹{(Number(billDetails.convenienceFee) || 0).toFixed(2)}</span>
                                     </div>
                                 )}
 
-                                {billDetails && Number(billDetails.surgeCharge) > 0 && (
+                                {Number(billDetails.surgeCharge) > 0 && (
                                     <div className="flex justify-between text-[#c2410c] font-semibold animate-pulse">
                                         <span className="flex items-center gap-1">
                                             <MdThunderstorm className="text-[15px]" />
@@ -1457,10 +1636,12 @@ export default function CheckoutPage() {
 
                                 <div className="flex justify-between text-slate-600">
                                     <span>Govt Tax (GST)</span>
-                                    <span className="text-slate-900 font-medium">₹{(Number(activeGST) || 0).toFixed(2)}</span>
+                                    <span className="text-slate-900 font-medium">
+                                        {serverGST !== null ? `₹${serverGST.toFixed(2)}` : <span className="text-slate-400">Calculating...</span>}
+                                    </span>
                                 </div>
 
-                                {billDetails && billDetails.discountAmount !== undefined && Number(billDetails.discountAmount) > 0 && (
+                                {billDetails.discountAmount !== undefined && Number(billDetails.discountAmount) > 0 && (
                                     <div className="flex justify-between text-emerald-600 font-extrabold animate-pulse bg-emerald-50/50 p-2.5 rounded-xl border border-dashed border-emerald-200">
                                         <span className="flex items-center gap-1.5">
                                             <MdSell className="text-[16px]" />
@@ -1473,17 +1654,19 @@ export default function CheckoutPage() {
                                 <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex justify-between">
                                     <div>
                                         <span className="font-medium text-[15px] text-slate-900 block">Total To Pay</span>
-                                        {billDetails?.zoneName && (
+                                        {billDetails.zoneName && (
                                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                                                 Calculated at {billDetails.zoneName}
                                             </span>
                                         )}
                                     </div>
-                                    <span className="font-medium text-[16px] text-[#FF5C00]">₹{(Number(activeGrandTotal) || 0).toFixed(2)}</span>
+                                    <span className="font-medium text-[16px] text-[#FF5C00]">
+                                        {serverGrandTotal !== null ? `₹${serverGrandTotal.toFixed(2)}` : <span className="text-slate-400 text-sm">Calculating...</span>}
+                                    </span>
                                 </div>
                             </div>
                         </>
-                    )}
+                    ) : null}
                 </section>
             </main>
 
@@ -1491,24 +1674,59 @@ export default function CheckoutPage() {
             <div className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 p-4 pb-safe z-50">
                 <button
                     onClick={handlePlaceOrder}
-                    disabled={placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled || isBelowMinimum}
-                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${placingOrder || loadingBill || !!checkoutError || isCheckoutDisabled || isBelowMinimum ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350' : ''
-                        }`}
+                    disabled={
+                        placingOrder ||
+                        loadingBill ||
+                        !hasValidLocation ||
+                        !billDetails ||
+                        billDetails.isDeliverable !== true ||
+                        !!checkoutError ||
+                        isCheckoutDisabled ||
+                        isBelowMinimum
+                    }
+                    className={`w-full bg-[#FF5C00] hover:bg-[#e05200] text-white rounded-xl py-3.5 flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-sm font-bold ${
+                        placingOrder ||
+                        loadingBill ||
+                        !hasValidLocation ||
+                        !billDetails ||
+                        billDetails.isDeliverable !== true ||
+                        !!checkoutError ||
+                        isCheckoutDisabled ||
+                        isBelowMinimum
+                            ? 'opacity-70 cursor-not-allowed bg-slate-350 hover:bg-slate-350'
+                            : ''
+                    }`}
                 >
                     <span className="font-medium text-[15px]">
                         {isCheckoutDisabled
                             ? 'Order abhi band hai'
-                            : checkoutError
-                                ? 'Delivery Seema se Bahar'
-                                : isBelowMinimum
-                                    ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
-                                    : loadingBill
-                                        ? 'Bill calculate ho raha hai...'
-                                        : placingOrder
-                                            ? 'Order confirm ho raha hai...'
-                                            : (paymentMethod === 'ONLINE' ? 'Online Pay Karein & Order Place Karein' : 'Order Confirm Karein')}
+                            : !hasValidLocation
+                                ? 'Select your delivery location'
+                                : loadingBill
+                                    ? 'Calculating...'
+                                    : checkoutError
+                                        ? (checkoutReason === 'outside_radius'
+                                            ? 'Outside Delivery Radius'
+                                            : checkoutReason === 'outside_zone'
+                                                ? 'Outside Delivery Zone'
+                                                : checkoutReason === 'invalid_location'
+                                                    ? 'Invalid Delivery Location'
+                                                    : checkoutReason === 'restaurant_location_unverified'
+                                                        ? 'Restaurant Location Unverified'
+                                                        : 'Delivery Seema se Bahar')
+                                        : isBelowMinimum
+                                            ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
+                                            : placingOrder
+                                                ? 'Order confirm ho raha hai...'
+                                                : (paymentMethod === 'ONLINE' ? 'Online Pay Karein & Order Place Karein' : 'Order Confirm Karein')}
                     </span>
-                    {!placingOrder && !loadingBill && !checkoutError && !isCheckoutDisabled && !isBelowMinimum && <MdArrowForward className="text-[20px]" />}
+                    {!placingOrder &&
+                        !loadingBill &&
+                        hasValidLocation &&
+                        billDetails?.isDeliverable === true &&
+                        !checkoutError &&
+                        !isCheckoutDisabled &&
+                        !isBelowMinimum && <MdArrowForward className="text-[20px]" />}
                 </button>
                 <p className="text-center text-[10px] text-slate-500 mt-2.5">
                     By placing this order, you agree to our Terms & Conditions
