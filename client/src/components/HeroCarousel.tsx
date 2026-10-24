@@ -133,17 +133,6 @@ export default function HeroCarousel({ initialBanners = [] }: HeroCarouselProps)
                   priority={idx === 0}
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 90vw, 1200px"
                 />
-                <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent flex flex-col justify-center p-md md:p-lg">
-                  <span className="bg-[#FF5C00] text-white text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded w-fit mb-2">
-                    {banner.targetType === "grocery" ? "Quick Store" : "Mega Deal"}
-                  </span>
-                  <h3 className="text-white font-h1 text-h1 md:text-2xl leading-tight max-w-[240px] md:max-w-[420px]">
-                    {banner.title}
-                  </h3>
-                  <p className="text-white/80 text-label-sm font-bold mt-1">
-                    {banner.description}
-                  </p>
-                </div>
               </div>
             </Link>
           );

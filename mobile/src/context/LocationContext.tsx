@@ -234,29 +234,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     }
   }, []);
 
-  // 2. Load saved addresses of authenticated user
-  const loadSavedAddresses = useCallback(async () => {
-    try {
-      const res = await apiClient.get('/addresses');
-      if (res.data?.success) {
-        const list: SavedAddress[] = res.data.addresses || [];
-        dispatch({ type: 'SET_SAVED_ADDRESSES', payload: list });
-
-        // Auto-select default address if no coordinates are active in session
-        const defaultAddr = list.find((a: SavedAddress) => a.isDefault);
-        const storedLoc = await AsyncStorage.getItem(STORAGE_LOCATION_KEY);
-        if (defaultAddr && !storedLoc) {
-          await setSelectedAddress(defaultAddr);
-        }
-      }
-    } catch (err) {
-      if (!isNetworkError(err)) {
-        console.error('Failed to load saved addresses:', err);
-      }
-    }
-  }, []);
-
-  // 3. Set address based on user action
+  // 2. Set address based on user action
   const setSelectedAddress = useCallback(
     async (addr: SavedAddress | null) => {
       if (!addr) {
@@ -311,6 +289,28 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     },
     [resolveOperationalZone, dismissPrompt]
   );
+
+  // 3. Load saved addresses of authenticated user
+  const loadSavedAddresses = useCallback(async () => {
+    try {
+      const res = await apiClient.get('/addresses');
+      if (res.data?.success) {
+        const list: SavedAddress[] = res.data.addresses || [];
+        dispatch({ type: 'SET_SAVED_ADDRESSES', payload: list });
+
+        // Auto-select default address if no coordinates are active in session
+        const defaultAddr = list.find((a: SavedAddress) => a.isDefault);
+        const storedLoc = await AsyncStorage.getItem(STORAGE_LOCATION_KEY);
+        if (defaultAddr && !storedLoc) {
+          await setSelectedAddress(defaultAddr);
+        }
+      }
+    } catch (err) {
+      if (!isNetworkError(err)) {
+        console.error('Failed to load saved addresses:', err);
+      }
+    }
+  }, [setSelectedAddress]);
 
   // 4. Save and select address immediately
   const saveAndSelectAddress = useCallback(

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
-  Text,
   Pressable,
   ScrollView,
   Dimensions,
@@ -17,8 +16,6 @@ import {
   Colors,
   Spacing,
   BorderRadius,
-  Typography,
-  FontFamily,
   Shadows,
 } from '../constants/theme';
 
@@ -138,22 +135,6 @@ export default function HeroCarousel() {
               style={styles.bannerImage}
               contentFit="cover"
             />
-            {/* Dark gradient overlay for text readability */}
-            <View style={styles.overlay}>
-              <View style={styles.tagBadge}>
-                <Text style={styles.tagText}>
-                  {item.targetType === 'grocery' ? 'QUICK STORE' : 'MEGA DEAL'}
-                </Text>
-              </View>
-              <Text style={styles.bannerTitle} numberOfLines={2}>
-                {item.title}
-              </Text>
-              {item.description ? (
-                <Text style={styles.bannerDesc} numberOfLines={2}>
-                  {item.description}
-                </Text>
-              ) : null}
-            </View>
           </Pressable>
         ))}
       </ScrollView>
@@ -195,47 +176,6 @@ const styles = StyleSheet.create({
   bannerImage: {
     width: '100%',
     height: '100%',
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.48)',
-    justifyContent: 'center',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-  },
-  tagBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: BorderRadius.sm,
-    alignSelf: 'flex-start',
-    marginBottom: Spacing.xs,
-  },
-  tagText: {
-    color: Colors.white,
-    fontFamily: FontFamily.extraBold,
-    fontSize: 9,
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  bannerTitle: {
-    color: Colors.white,
-    fontFamily: FontFamily.bold,
-    fontSize: Typography.fontSize.lg,
-    lineHeight: Typography.lineHeight.lg,
-    maxWidth: 240,
-  },
-  bannerDesc: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontFamily: FontFamily.medium,
-    fontSize: Typography.fontSize.xs,
-    lineHeight: Typography.lineHeight.xs,
-    marginTop: Spacing.xs,
-    maxWidth: 240,
   },
   dotsRow: {
     flexDirection: 'row',
