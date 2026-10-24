@@ -42,7 +42,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         });
 
         if (!validation.success) {
-            res.status(400).json({ success: false, message: validation.message });
+            res.status(400).json({ success: false, message: validation.message, reason: validation.reason });
             return;
         }
 
@@ -54,6 +54,10 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             deliveryFee,
             applicableZone,
             calculatedDistance,
+            distanceSource,
+            routeOrigin,
+            straightLineKm,
+            validatedCoordinates,
             discountAmount,
             assignedModerator,
             formattedDeliveryAddress,
@@ -72,10 +76,13 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
             paymentStatus: paymentMethod === "ONLINE" ? "paid" : "pending",
             orderStatus: "placed",
             distance: calculatedDistance!,
+            distanceSource,
+            routeOrigin,
+            straightLineKm,
             address: {
                 fullAddress: address.fullAddress,
-                lat: address.lat,
-                lng: address.lng,
+                lat: validatedCoordinates ? validatedCoordinates.lat : address.lat,
+                lng: validatedCoordinates ? validatedCoordinates.lng : address.lng,
                 locationSource: address.locationSource === "gps" ? "gps" : "manual",
                 deliveryAddress: formattedDeliveryAddress
             },

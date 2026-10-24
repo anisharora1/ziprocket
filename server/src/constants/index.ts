@@ -4,8 +4,6 @@
 
 export const DELIVERY_CONSTANTS = {
     FLAT_EARNING_RATE: 45, // INR earned per delivery by courier
-    DEFAULT_DISTANCE_KM: 2.5,
-    MAX_RADIUS_DETOUR_FACTOR: 1.5,
     MAX_DELIVERY_RADIUS_KM: 15,
 };
 

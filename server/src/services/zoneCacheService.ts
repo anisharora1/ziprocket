@@ -55,4 +55,5 @@ export const invalidateZoneCache = async (): Promise<void> => {
     await redisService.del("zone:all");
     await redisService.deletePattern("zone:serviceable:*");
     await redisService.deletePattern("zone:feasibility:*");
+    await redisService.deletePattern("route:*");
 };

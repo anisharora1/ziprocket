@@ -14,6 +14,8 @@ import { emitToRooms } from "../services/socketService";
 import { computeBillFromZone } from "./billCalculator";
 import { checkRestaurantAcceptingOrders } from "./restaurantHours";
 import { verifyItemPrices } from "./itemVerification";
+import { parseCoordinates } from "./coordinates";
+import { quoteDelivery } from "../services/deliveryQuoteService";
 
 export interface OrderValidationInput {
     items: any[];
@@ -36,6 +38,7 @@ export interface OrderValidationInput {
 export interface OrderValidationResult {
     success: boolean;
     message?: string;
+    reason?: string;
     verifiedItems?: any[];
     verifiedItemTotal?: number;
     verifiedBill?: any;
@@ -44,6 +47,10 @@ export interface OrderValidationResult {
     deliveryFee?: number;
     applicableZone?: any;
     calculatedDistance?: number;
+    distanceSource?: "google" | "estimated";
+    routeOrigin?: { lat: number; lng: number };
+    straightLineKm?: number;
+    validatedCoordinates?: { lat: number; lng: number };
     discountAmount?: number;
     couponDoc?: any;
     assignedModerator?: any;
@@ -172,60 +179,42 @@ export async function validateAndPriceOrder(input: OrderValidationInput): Promis
         }
     }
 
-    // 4. Strict Geofence Delivery Zone Validation
-    if (!address || address.lat === undefined || address.lng === undefined) {
-        return { success: false, message: "Sahi delivery coordinates (lat/lng) zaroori hain." };
-    }
+    // 4. Delivery Feasibility, Zone Resolution, and Distance Calculation via quoteDelivery
+    const quote = await quoteDelivery({
+        orderType,
+        restaurantId: orderType === "food" ? restaurant : undefined,
+        destLat: address?.lat,
+        destLng: address?.lng,
+        pincode: address?.pincode,
+        addressText: address?.fullAddress,
+        forOrder: true
+    });
 
-    const DeliveryZone = mongoose.model("DeliveryZone");
-    const activeZones = await DeliveryZone.find({ isActive: true });
-    
-    if (activeZones.length === 0) {
-        return { success: false, message: "Filhal koi delivery zone uplabdh nahi hai." };
-    }
-
-    let applicableZone: any = null;
-    for (const zone of activeZones) {
-        const dist = calculateDistance(zone.center.lat, zone.center.lng, address.lat, address.lng);
-        if (dist <= zone.radiusKm) {
-            applicableZone = zone;
-            break; 
+    if (!quote.deliverable) {
+        let errorMsg = "Maaf karein, aapke area mein abhi delivery uplabdh nahi hai.";
+        if (quote.reason === "invalid_location") {
+            errorMsg = "Sahi delivery coordinates (lat/lng) zaroori hain.";
+        } else if (quote.reason === "outside_zone") {
+            errorMsg = "Maaf karein, aapke area mein abhi delivery uplabdh nahi hai.";
+        } else if (quote.reason === "outside_radius") {
+            errorMsg = `Maaf karein, aapka distance (${quote.distanceKm || quote.straightKm}km) hamari delivery limit se bahar hai.`;
+        } else if (quote.reason === "restaurant_location_unverified") {
+            errorMsg = "Restaurant ki location verify nahi hai.";
         }
-        if (address.pincode && zone.pincodes && zone.pincodes.includes(address.pincode)) {
-            applicableZone = zone;
-            break;
-        }
-    }
 
-    if (!applicableZone) {
-        return { 
-            success: false, 
-            message: "Maaf karein, aapke area mein abhi delivery uplabdh nahi hai." 
-        };
-    }
-
-    // 5. Dynamic Route-Based Distance Recalculation
-    let originLat = applicableZone.center.lat;
-    let originLng = applicableZone.center.lng;
-
-    if (orderType === "food" && fetchedRestaurant) {
-        if (fetchedRestaurant.location && fetchedRestaurant.location.lat !== undefined && fetchedRestaurant.location.lng !== undefined) {
-            originLat = fetchedRestaurant.location.lat;
-            originLng = fetchedRestaurant.location.lng;
-        }
-    }
-
-    const routeMetrics = await getRouteDistanceAndDuration(originLat, originLng, address.lat, address.lng);
-    const calculatedDistance = routeMetrics.distanceKm;
-
-    // Strict limit check: route distance cannot exceed max radius * 1.5
-    const maxRadius = applicableZone.radiusKm || 15;
-    if (calculatedDistance > maxRadius * 1.5) {
         return {
             success: false,
-            message: `Maaf karein, aapka road distance (${calculatedDistance}km) hamari delivery limit se bahar hai.`
+            reason: quote.reason,
+            message: errorMsg
         };
     }
+
+    const applicableZone = quote.zone;
+    const calculatedDistance = quote.distanceKm;
+    const distanceSource = quote.source || undefined;
+    const routeOrigin = quote.origin || undefined;
+    const straightLineKm = quote.straightKm;
+    const parsedDestCoords = parseCoordinates(address?.lat, address?.lng)!;
 
     // 6. Server-side Price Verification
     let verifiedItemTotal = 0;
@@ -338,6 +327,10 @@ export async function validateAndPriceOrder(input: OrderValidationInput): Promis
         deliveryFee: verifiedBill.deliveryFee,
         applicableZone,
         calculatedDistance,
+        distanceSource,
+        routeOrigin,
+        straightLineKm,
+        validatedCoordinates: parsedDestCoords,
         discountAmount: calculatedDiscount,
         couponDoc,
         assignedModerator,
@@ -357,6 +350,9 @@ export interface FinalizeOrderInput {
     paymentStatus?: "pending" | "paid" | "failed";
     orderStatus?: any;
     distance: number;
+    distanceSource?: "google" | "estimated";
+    routeOrigin?: { lat: number; lng: number };
+    straightLineKm?: number;
     address: {
         fullAddress: string;
         lat: number;
@@ -393,6 +389,9 @@ export async function finalizeOrderPlacement(input: FinalizeOrderInput): Promise
         paymentStatus = paymentMethod === "ONLINE" ? "paid" : "pending",
         orderStatus = "placed",
         distance,
+        distanceSource,
+        routeOrigin,
+        straightLineKm,
         address,
         whatsappOrder,
         deliveryZone,
@@ -434,6 +433,10 @@ export async function finalizeOrderPlacement(input: FinalizeOrderInput): Promise
     try {
         const deliveryOtp = paymentMethod === "ONLINE" ? String(Math.floor(1000 + Math.random() * 9000)) : undefined;
 
+        const validatedAddressCoords = parseCoordinates(address?.lat, address?.lng);
+        const finalLat = validatedAddressCoords ? validatedAddressCoords.lat : Number(address?.lat);
+        const finalLng = validatedAddressCoords ? validatedAddressCoords.lng : Number(address?.lng);
+
         const newOrder = new Order({
             user,
             restaurant: orderType === "food" ? restaurant : undefined,
@@ -446,7 +449,14 @@ export async function finalizeOrderPlacement(input: FinalizeOrderInput): Promise
             paymentStatus,
             orderStatus,
             distance,
-            address,
+            distanceSource,
+            routeOrigin,
+            straightLineKm,
+            address: {
+                ...address,
+                lat: finalLat,
+                lng: finalLng
+            },
             whatsappOrder,
             deliveryZone,
             moderator,

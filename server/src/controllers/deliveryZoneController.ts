@@ -8,6 +8,7 @@ import { findApplicableZone } from "../services/deliveryRadiusService";
 import * as zoneCacheService from "../services/zoneCacheService";
 import * as redisService from "../services/redisService";
 import { computeBillFromZone } from "../utils/billCalculator";
+import { quoteDelivery } from "../services/deliveryQuoteService";
 import PlatformSettings from "../models/PlatformSettings";
 import { verifyItemPrices } from "../utils/itemVerification";
 import { checkRestaurantAcceptingOrders } from "../utils/restaurantHours";
@@ -195,10 +196,10 @@ export const deleteDeliveryZone = async (req: Request, res: Response): Promise<v
 // Endpoint to check if user is within radius and calculate dynamic delivery fee
 export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { userLat, userLng, pincode, addressText, orderType = "food", items } = req.body;
+        const { userLat, userLng, pincode, addressText, orderType = "food", items, restaurantId } = req.body;
 
-        if (!userLat || !userLng) {
-            res.status(400).json({ success: false, message: "Please provide user latitude and longitude" });
+        if (userLat === undefined || userLng === undefined || userLat === null || userLng === null) {
+            res.status(400).json({ success: false, isDeliverable: false, reason: "invalid_location", message: "Please provide user latitude and longitude" });
             return;
         }
 
@@ -210,42 +211,50 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
             return;
         }
 
-        // 1. Resolve closest active zone via deliveryRadiusService
-        const applicableZone = await findApplicableZone(userLat, userLng, pincode, addressText);
+        const quote = await quoteDelivery({
+            orderType,
+            restaurantId: orderType === "food" ? (restaurantId || req.body.vendorId) : undefined,
+            destLat: userLat,
+            destLng: userLng,
+            pincode,
+            addressText,
+            forOrder: false
+        });
 
-        if (!applicableZone) {
+        if (!quote.deliverable) {
+            let message = "Sorry, you are currently outside our delivery service area.";
+            if (quote.reason === "invalid_location") {
+                message = "Please provide valid latitude and longitude.";
+            } else if (quote.reason === "outside_zone") {
+                message = "Sorry, you are currently outside our delivery service area.";
+            } else if (quote.reason === "outside_radius") {
+                message = "Location is outside the maximum delivery radius.";
+            } else if (quote.reason === "restaurant_location_unverified") {
+                message = "Restaurant location is unverified.";
+            }
+
             const responsePayload = {
                 success: true,
                 isDeliverable: false,
-                message: "Sorry, you are currently outside our delivery service area."
+                reason: quote.reason,
+                message
             };
-            // Cache the feasibility calculation for 10 minutes
             await redisService.setJson(feasibilityKey, responsePayload, 600);
             res.status(200).json(responsePayload);
             return;
         }
 
-        // 2. Query route-based distance using Google Distance Matrix
-        const routeMetrics = await getRouteDistanceAndDuration(
-            applicableZone.center.lat,
-            applicableZone.center.lng,
-            userLat,
-            userLng
-        );
-
-        const distanceKm = routeMetrics.distanceKm;
-        const durationMinutes = routeMetrics.durationMinutes;
+        const applicableZone = quote.zone;
+        const distanceKm = quote.distanceKm;
+        const durationMinutes = quote.durationMinutes;
 
         // Calculate the dynamic fee based on route distance
         let totalDeliveryFee = applicableZone.baseDeliveryFee;
-
-        // If distance exceeds the base distance, add the extra per-km fee
         if (distanceKm > applicableZone.baseDistanceKm) {
             const extraDistance = distanceKm - applicableZone.baseDistanceKm;
             totalDeliveryFee += (extraDistance * applicableZone.extraFeePerKm);
         }
 
-        // Clamp within min & max caps
         let deliveryFee = Math.min(applicableZone.maxDeliveryFee, Math.max(applicableZone.minDeliveryFee, totalDeliveryFee));
         deliveryFee = Math.ceil(deliveryFee);
 
@@ -290,27 +299,54 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             return;
         }
 
-        // Find applicable operating DeliveryZone via deliveryRadiusService
-        const zones = await DeliveryZone.find({ isActive: true });
-        if (zones.length === 0) {
-            res.status(400).json({ success: false, message: "No active delivery zones available right now." });
-            return;
-        }
+        const destLat = userLat !== undefined ? userLat : address?.lat;
+        const destLng = userLng !== undefined ? userLng : address?.lng;
+        const pin = pincode || (address && address.pincode);
+        const addrText = address && (address.fullAddress || address.deliveryAddress?.locality);
 
-        let activeZone = await findApplicableZone(
-            userLat,
-            userLng,
-            pincode || (address && address.pincode),
-            address && address.fullAddress
-        );
-        
-        if (!activeZone) {
+        const quote = await quoteDelivery({
+            orderType,
+            restaurantId: orderType === "food" ? vendorId : undefined,
+            destLat,
+            destLng,
+            pincode: pin,
+            addressText: addrText,
+            forOrder: true
+        });
+
+        if (!quote.deliverable) {
+            let message = "Selected location lies outside our operational delivery limits. You won't be able to checkout.";
+            if (quote.reason === "invalid_location") {
+                message = "Please provide valid delivery coordinates.";
+            } else if (quote.reason === "outside_zone") {
+                message = "Selected location lies outside our operational delivery limits. You won't be able to checkout.";
+            } else if (quote.reason === "outside_radius") {
+                message = "Delivery address is outside the maximum delivery radius.";
+            } else if (quote.reason === "restaurant_location_unverified") {
+                message = "Restaurant location is unverified.";
+            }
+
             res.status(200).json({ 
                 success: true, 
                 isDeliverable: false,
-                message: "Selected location lies outside our operational delivery limits. You won't be able to checkout." 
+                reason: quote.reason,
+                message 
             });
             return;
+        }
+
+        const activeZone = quote.zone;
+        const distanceKm = quote.distanceKm;
+        const durationMinutes = quote.durationMinutes;
+
+        // Check restaurant status and availability for food orders
+        if (orderType === "food" && vendorId && vendorId !== "grocery") {
+            const rest = await Restaurant.findById(vendorId);
+            const availability = checkRestaurantAcceptingOrders(rest);
+            if (!availability.isAccepting) {
+                res.status(400).json({ success: false, message: availability.message });
+                return;
+            }
         }
 
         // Calculate Subtotal (Item Total) via server-verified prices
@@ -321,32 +357,6 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         } catch (verifErr: any) {
             res.status(400).json({ success: false, message: verifErr.message || "Failed to verify item prices." });
             return;
-        }
-
-        // 4. Resolve vendor coordinates to compute route distance
-        let distanceKm = 2.5; 
-        let durationMinutes = 10;
-
-        if (userLat && userLng && activeZone) {
-            let originLat = activeZone.center.lat;
-            let originLng = activeZone.center.lng;
-
-            if (orderType === "food" && vendorId && vendorId !== "grocery") {
-                const rest = await Restaurant.findById(vendorId);
-                const availability = checkRestaurantAcceptingOrders(rest);
-                if (!availability.isAccepting) {
-                    res.status(400).json({ success: false, message: availability.message });
-                    return;
-                }
-                if (rest && rest.location && rest.location.lat !== undefined && rest.location.lng !== undefined) {
-                    originLat = rest.location.lat;
-                    originLng = rest.location.lng;
-                }
-            }
-
-            const routeMetrics = await getRouteDistanceAndDuration(originLat, originLng, userLat, userLng);
-            distanceKm = routeMetrics.distanceKm;
-            durationMinutes = routeMetrics.durationMinutes;
         }
 
         // Delivery Fee calculations, taxes, platform fees — all via shared utility
