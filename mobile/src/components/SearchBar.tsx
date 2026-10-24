@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -59,7 +59,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
   const [isOpen, setIsOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const isListeningRef = useRef(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseAnim = useMemo(() => new Animated.Value(1), []);
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
