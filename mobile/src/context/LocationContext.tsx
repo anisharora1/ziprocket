@@ -563,13 +563,24 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     [dismissPrompt]
   );
 
+  const openPicker = useCallback(() => {
+    dispatch({ type: 'SET_PICKER_OPEN', payload: true });
+  }, []);
+
+  const closePicker = useCallback(() => {
+    dispatch({ type: 'SET_PICKER_OPEN', payload: false });
+  }, []);
+
   // Backward-compatible setManualAddress
   const setManualAddress = useCallback(
     async (newAddr: string, newZone?: string) => {
-      const coords = state.location || { lat: 26.443352, lng: 85.902705 };
-      await setCustomLocation(coords, newAddr, state.pincode, state.city, state.state, state.country);
+      if (!state.location) {
+        openPicker();
+        return;
+      }
+      await setCustomLocation(state.location, newAddr, state.pincode, state.city, state.state, state.country);
     },
-    [state.location, state.pincode, state.city, state.state, state.country, setCustomLocation]
+    [state.location, state.pincode, state.city, state.state, state.country, setCustomLocation, openPicker]
   );
 
   // 7. Startup Order (initializeLocation) EXACTLY as web:
@@ -693,14 +704,6 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
     });
     return unsub;
   }, [token, loadSavedAddresses]);
-
-  const openPicker = useCallback(() => {
-    dispatch({ type: 'SET_PICKER_OPEN', payload: true });
-  }, []);
-
-  const closePicker = useCallback(() => {
-    dispatch({ type: 'SET_PICKER_OPEN', payload: false });
-  }, []);
 
   const contextValue = useMemo(
     () => ({

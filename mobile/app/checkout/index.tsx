@@ -59,8 +59,39 @@ interface BillDetails {
   isBelowMinimum?: boolean;
   amountNeededForMinOrder?: number;
   isDeliverable?: boolean;
+  reason?: string;
   message?: string;
 }
+
+const getFeasibilityErrorMessage = (reason?: string, fallbackMessage?: string): string => {
+  switch (reason) {
+    case 'outside_radius':
+      return 'Delivery address is outside the maximum delivery radius for this vendor.';
+    case 'outside_zone':
+      return 'Selected location lies outside our operational delivery zones.';
+    case 'invalid_location':
+      return 'Please provide valid delivery coordinates. Select your location on the map.';
+    case 'restaurant_location_unverified':
+      return 'Restaurant location is unverified. Delivery cannot be fulfilled at this time.';
+    default:
+      return fallbackMessage || 'Selected location is currently not serviceable for delivery.';
+  }
+};
+
+const getReasonTitle = (reason?: string | null): string => {
+  switch (reason) {
+    case 'outside_radius':
+      return 'Outside Delivery Radius';
+    case 'outside_zone':
+      return 'Outside Delivery Zone';
+    case 'invalid_location':
+      return 'Invalid Delivery Location';
+    case 'restaurant_location_unverified':
+      return 'Restaurant Location Unverified';
+    default:
+      return 'Delivery Seema se Bahar';
+  }
+};
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -148,8 +179,9 @@ export default function CheckoutScreen() {
 
   // Bill states
   const [billDetails, setBillDetails] = useState<BillDetails | null>(null);
-  const [loadingBill, setLoadingBill] = useState(true);
+  const [loadingBill, setLoadingBill] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutReason, setCheckoutReason] = useState<string | null>(null);
 
   // Socket listener for real-time restaurant status changes
   useEffect(() => {
@@ -229,7 +261,21 @@ export default function CheckoutScreen() {
     return null;
   }, [platformMsg, cart.orderType, vendorAvailability]);
 
-  // Fallbacks for bill
+  // Unified target coordinates & location validity
+  const targetCoords = customCoords || userCoords || null;
+  const hasValidLocation = Boolean(
+    targetCoords &&
+    typeof targetCoords.lat === 'number' &&
+    typeof targetCoords.lng === 'number' &&
+    Number.isFinite(targetCoords.lat) &&
+    Number.isFinite(targetCoords.lng) &&
+    Math.abs(targetCoords.lat) <= 90 &&
+    Math.abs(targetCoords.lng) <= 180 &&
+    !(targetCoords.lat === 0 && targetCoords.lng === 0)
+  );
+  const targetAddress = customAddressText || userAddress || '';
+  const targetPincode = customPincode || userPincode || '';
+
   const itemTotal = useMemo(
     () =>
       cart.items.reduce(
@@ -238,34 +284,28 @@ export default function CheckoutScreen() {
       ),
     [cart.items]
   );
-  const distanceFallback = 2.5;
-  const deliveryFeeFallback =
-    itemTotal > 0
-      ? cart.orderType === 'grocery'
-        ? itemTotal >= 200
-          ? 0
-          : Math.round(15 * distanceFallback)
-        : 40
-      : 0;
-  const taxesFallback = Math.round(itemTotal * 0.05);
-  const grandTotalFallback = itemTotal + taxesFallback + deliveryFeeFallback;
 
   // Calculate bill from backend
   const fetchBillDetails = useCallback(async () => {
-    if (cart.items.length === 0) return;
+    if (cart.items.length === 0) {
+      setBillDetails(null);
+      setLoadingBill(false);
+      return;
+    }
+
+    // Do not call /delivery-zones/calculate-bill without a valid selected location
+    if (!hasValidLocation || !targetCoords) {
+      setBillDetails(null);
+      setLoadingBill(false);
+      setCheckoutError(null);
+      setCheckoutReason(null);
+      return;
+    }
+
     try {
       setLoadingBill(true);
       setCheckoutError(null);
-
-      const activeLat = customCoords?.lat || userCoords?.lat;
-      const activeLng = customCoords?.lng || userCoords?.lng;
-
-      if (!activeLat || !activeLng) {
-        setLoadingBill(false);
-        setCheckoutError('Koi delivery location select nahi hai. Kripya address chunein.');
-        setBillDetails(null);
-        return;
-      }
+      setCheckoutReason(null);
 
       const payload = {
         vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
@@ -275,15 +315,15 @@ export default function CheckoutScreen() {
           price: c.price,
           quantity: c.quantity,
         })),
-        userLat: activeLat,
-        userLng: activeLng,
+        userLat: targetCoords.lat,
+        userLng: targetCoords.lng,
         orderType: cart.orderType || 'food',
-        pincode: customPincode || userPincode || '',
+        pincode: targetPincode,
         address: {
-          fullAddress: customAddressText || userAddress || '',
-          pincode: customPincode || userPincode || '',
-          lat: activeLat,
-          lng: activeLng,
+          fullAddress: targetAddress,
+          pincode: targetPincode,
+          lat: targetCoords.lat,
+          lng: targetCoords.lng,
         },
         couponCode: appliedCouponCode || undefined,
         userId: user?._id || undefined,
@@ -291,7 +331,10 @@ export default function CheckoutScreen() {
 
       const res = await apiClient.post('/delivery-zones/calculate-bill', payload);
       if (res.data?.success && res.data?.isDeliverable !== false) {
-        setBillDetails(res.data);
+        setBillDetails({
+          ...res.data,
+          isDeliverable: true,
+        });
         if (appliedCouponCode && res.data.couponError) {
           setCouponError(res.data.couponError);
           setCouponSuccessMessage(null);
@@ -301,19 +344,27 @@ export default function CheckoutScreen() {
           setCouponError(null);
         }
         setCheckoutError(null);
+        setCheckoutReason(null);
       } else {
-        setCheckoutError(res.data?.message || 'Aapka address hamare delivery service area se bahar hai.');
+        const reason = res.data?.reason;
+        const message = getFeasibilityErrorMessage(reason, res.data?.message);
+        setCheckoutError(message);
+        setCheckoutReason(reason || null);
         setBillDetails(null);
       }
     } catch (err: any) {
       if (!isNetworkError(err)) {
         console.warn('Failed to calculate bill details:', err);
       }
-      setCheckoutError(
-        isNetworkError(err) || !getIsOnline()
-          ? "You're offline. Connect to the internet to calculate your bill."
-          : err.response?.data?.message || 'Aapka address hamare delivery service area se bahar hai.'
-      );
+      if (isNetworkError(err) || !getIsOnline()) {
+        setCheckoutError("You're offline. Connect to the internet to calculate your bill.");
+        setCheckoutReason(null);
+      } else {
+        const reason = err.response?.data?.reason;
+        const message = getFeasibilityErrorMessage(reason, err.response?.data?.message);
+        setCheckoutError(message);
+        setCheckoutReason(reason || null);
+      }
       setBillDetails(null);
     } finally {
       setLoadingBill(false);
@@ -322,12 +373,10 @@ export default function CheckoutScreen() {
     cart.items,
     cart.vendorId,
     cart.orderType,
-    userCoords,
-    customCoords,
-    customPincode,
-    userPincode,
-    customAddressText,
-    userAddress,
+    hasValidLocation,
+    targetCoords,
+    targetAddress,
+    targetPincode,
     appliedCouponCode,
     user?._id,
   ]);
@@ -416,15 +465,24 @@ export default function CheckoutScreen() {
     setCouponError(null);
   };
 
-  // Derived values for bill display
-  const activeDeliveryFee = Number(billDetails?.deliveryFee ?? deliveryFeeFallback) || 0;
-  const activeGST = Number(billDetails?.gst ?? taxesFallback) || 0;
-  const activeGrandTotal = Number(billDetails?.grandTotal ?? grandTotalFallback) || 0;
-  const activeDistance = Number(billDetails?.distanceKm ?? distanceFallback) || 0;
+  // Derived values directly from server bill (no fallback fee/tax/distance)
+  const serverDeliveryFee =
+    billDetails?.deliveryFee !== undefined ? Number(billDetails.deliveryFee) : null;
+  const serverGST = billDetails?.gst !== undefined ? Number(billDetails.gst) : null;
+  const serverGrandTotal =
+    billDetails?.grandTotal !== undefined ? Number(billDetails.grandTotal) : null;
+  const serverDistanceKm =
+    billDetails?.distanceKm !== undefined ? Number(billDetails.distanceKm) : null;
+  const serverDurationMinutes =
+    billDetails?.durationMinutes !== undefined ? Number(billDetails.durationMinutes) : null;
+
   const activeFreeDeliveryThreshold = Number(billDetails?.freeDeliveryThreshold) || 0;
   const amountNeededForFreeDelivery = activeFreeDeliveryThreshold - itemTotal;
   const isEligibleForFreeDeliveryNudge =
-    activeDeliveryFee > 0 && amountNeededForFreeDelivery > 0 && activeFreeDeliveryThreshold > 0;
+    serverDeliveryFee !== null &&
+    serverDeliveryFee > 0 &&
+    amountNeededForFreeDelivery > 0 &&
+    activeFreeDeliveryThreshold > 0;
 
   const activeMinOrderValue =
     billDetails?.minOrderValue !== undefined
@@ -703,14 +761,22 @@ export default function CheckoutScreen() {
       return;
     }
 
-    const targetAddress = customAddressText || userAddress;
-    const targetCoords = customCoords || userCoords;
-
-    if (!targetAddress || !targetCoords) {
+    if (!hasValidLocation || !targetCoords) {
       showCard({
         type: 'warning',
         title: 'Address Zaroori Hai',
         message: 'Kripya delivery ke liye sahi address chunein ya naya address daalein.',
+        onAction: () => handleOpenAddressModal(),
+        actionLabel: 'Address Chunein',
+      });
+      return;
+    }
+
+    if (!billDetails || billDetails.isDeliverable !== true) {
+      showCard({
+        type: 'warning',
+        title: getReasonTitle(checkoutReason),
+        message: checkoutError || 'Selected location is currently not serviceable for delivery.',
       });
       return;
     }
@@ -747,15 +813,15 @@ export default function CheckoutScreen() {
         price: c.price,
       }));
 
-      // COD Path
+      // COD Path with server-verified bill and unified target coordinates
       const orderRes = await apiClient.post('/orders', {
         user: user._id,
         restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
         items: orderItems,
-        totalAmount: activeGrandTotal + (billDetails?.discountAmount || 0),
-        deliveryCharge: activeDeliveryFee,
+        totalAmount: Number(billDetails.grandTotal) + (billDetails.discountAmount || 0),
+        deliveryCharge: Number(billDetails.deliveryFee),
         paymentMethod: 'COD',
-        distance: activeDistance,
+        distance: Number(billDetails.distanceKm) || 0,
         address: {
           fullAddress: targetAddress,
           lat: targetCoords.lat,
@@ -789,13 +855,25 @@ export default function CheckoutScreen() {
       if (!isNetworkError(err)) {
         console.warn('Place order error:', err);
       }
-      showCard({
-        type: 'error',
-        title: isNetworkError(err) ? 'Offline' : 'Order Fail Ho Gaya',
-        message: isNetworkError(err)
-          ? "You're offline. Connect to the internet to place your order."
-          : err.response?.data?.message || err.message || 'Order place karne me dikkat aayi.',
-      });
+      const serverReason = err.response?.data?.reason;
+      if (serverReason) {
+        const specificMsg = getFeasibilityErrorMessage(serverReason, err.response?.data?.message);
+        setCheckoutError(specificMsg);
+        setCheckoutReason(serverReason);
+        showCard({
+          type: 'error',
+          title: getReasonTitle(serverReason),
+          message: specificMsg,
+        });
+      } else {
+        showCard({
+          type: 'error',
+          title: isNetworkError(err) ? 'Offline' : 'Order Fail Ho Gaya',
+          message: isNetworkError(err)
+            ? "You're offline. Connect to the internet to place your order."
+            : err.response?.data?.message || err.message || 'Order place karne me dikkat aayi.',
+        });
+      }
     } finally {
       placingOrderRef.current = false;
       setPlacingOrder(false);
@@ -870,15 +948,47 @@ export default function CheckoutScreen() {
             <View style={styles.addressTextColumn}>
               <Text style={styles.addressCardHeading}>Delivery ki Jankari</Text>
               <Text style={styles.addressFullText} numberOfLines={2}>
-                {customAddressText || userAddress || 'Koi location select nahi hai'}
+                {hasValidLocation && targetAddress
+                  ? targetAddress
+                  : 'Select your delivery location'}
               </Text>
               <Text style={styles.addressPhoneText}>
-                Phone: +91 {customPhone || user?.phone || 'Uplabdh nahi'}
+                Phone: +91 {customPhone || user?.phone || 'Unavailable'}
               </Text>
             </View>
           </View>
-          <MaterialIcons name="edit" size={18} color={Colors.slate400} />
+          <View style={styles.addressActionRow}>
+            <Text style={styles.addressActionText}>
+              {hasValidLocation ? 'Change' : 'Select'}
+            </Text>
+            <MaterialIcons name="edit" size={16} color={Colors.primary} />
+          </View>
         </Pressable>
+
+        {/* Prompt banner when no valid location selected */}
+        {!hasValidLocation ? (
+          <Pressable
+            style={styles.selectLocationPromptBanner}
+            onPress={handleOpenAddressModal}
+          >
+            <View style={styles.selectLocationPromptLeft}>
+              <View style={styles.selectLocationIconCircle}>
+                <MaterialIcons name="location-on" size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.bannerTextCol}>
+                <Text style={styles.selectLocationPromptTitle}>
+                  Select your delivery location
+                </Text>
+                <Text style={styles.selectLocationPromptDesc}>
+                  Pata chunein taaki delivery fee aur delivery time calculate ho sake.
+                </Text>
+              </View>
+            </View>
+            <View style={styles.selectLocationPromptBtn}>
+              <Text style={styles.selectLocationPromptBtnText}>Select</Text>
+            </View>
+          </Pressable>
+        ) : null}
 
         {/* 3. Status Banners */}
         {/* Feasibility Warn Banner */}
@@ -888,7 +998,7 @@ export default function CheckoutScreen() {
               <MaterialIcons name="warning" size={16} color={Colors.rose600} />
             </View>
             <View style={styles.bannerTextCol}>
-              <Text style={styles.roseBannerTitle}>Delivery Seema se Bahar</Text>
+              <Text style={styles.roseBannerTitle}>{getReasonTitle(checkoutReason)}</Text>
               <Text style={styles.roseBannerDesc}>{checkoutError}</Text>
             </View>
           </View>
@@ -908,7 +1018,7 @@ export default function CheckoutScreen() {
         ) : null}
 
         {/* Route-Based Distance & ETA */}
-        {!loadingBill && billDetails && !checkoutError ? (
+        {!loadingBill && billDetails && billDetails.isDeliverable === true && !checkoutError ? (
           <View style={styles.etaCard}>
             <View style={styles.etaCardLeft}>
               <View style={styles.emeraldIconCircle}>
@@ -916,12 +1026,17 @@ export default function CheckoutScreen() {
               </View>
               <View>
                 <Text style={styles.etaHeading}>Delivery ka Samay</Text>
-                <Text style={styles.etaSub}>Fulfillment Distance: {activeDistance} km</Text>
+                <Text style={styles.etaSub}>
+                  Fulfillment Distance:{' '}
+                  {serverDistanceKm !== null ? `${serverDistanceKm} km` : 'Calculating...'}
+                </Text>
               </View>
             </View>
             <View style={styles.etaCardRight}>
               <Text style={styles.etaMinutes}>
-                {billDetails.durationMinutes || 25} min me
+                {serverDurationMinutes !== null
+                  ? `${serverDurationMinutes} min me`
+                  : '25 min me'}
               </Text>
               <Text style={styles.etaFastBadge}>Fast delivery</Text>
             </View>
@@ -931,7 +1046,7 @@ export default function CheckoutScreen() {
         {/* Free Delivery or Safe Delivery Banner */}
         {loadingBill ? (
           <View style={styles.skeletonBanner} />
-        ) : activeDeliveryFee === 0 && !checkoutError ? (
+        ) : serverDeliveryFee === 0 && !checkoutError ? (
           <View style={styles.emeraldBanner}>
             <View style={styles.emeraldIconBadge}>
               <MaterialIcons name="celebration" size={16} color={Colors.emerald700} />
@@ -945,7 +1060,7 @@ export default function CheckoutScreen() {
               </Text>
             </View>
           </View>
-        ) : !checkoutError ? (
+        ) : !checkoutError && billDetails && billDetails.isDeliverable === true ? (
           <View style={styles.safeDeliveryBanner}>
             <View style={styles.safeIconBadge}>
               <MaterialIcons name="local-shipping" size={16} color={Colors.primary} />
@@ -953,7 +1068,9 @@ export default function CheckoutScreen() {
             <View style={styles.bannerTextCol}>
               <Text style={styles.safeBannerTitle}>Surakshit & Superfast Delivery</Text>
               <Text style={styles.safeBannerDesc}>
-                {activeDistance} km doori se seedha aapke ghar tak.
+                {serverDistanceKm !== null
+                  ? `${serverDistanceKm} km doori se seedha aapke ghar tak.`
+                  : 'Aapke ghar tak surakshit pahunchayenge.'}
               </Text>
             </View>
           </View>
@@ -1140,16 +1257,28 @@ export default function CheckoutScreen() {
         <View style={styles.billCard}>
           <Text style={styles.billHeading}>Bill Details</Text>
 
-          {loadingBill ? (
+          {!hasValidLocation ? (
+            <View style={styles.noLocationBillWrap}>
+              <Text style={styles.noLocationBillText}>
+                Select your delivery location to view bill details and delivery fees.
+              </Text>
+              <Pressable
+                style={styles.selectLocationBillBtn}
+                onPress={handleOpenAddressModal}
+              >
+                <Text style={styles.selectLocationBillBtnText}>
+                  Select Delivery Location
+                </Text>
+              </Pressable>
+            </View>
+          ) : loadingBill ? (
             <View style={styles.billSkeleton}>
               <ActivityIndicator size="small" color={Colors.primary} />
-              <Text style={styles.billLoadingText}>Bill calculate ho raha hai...</Text>
+              <Text style={styles.billLoadingText}>Calculating...</Text>
             </View>
           ) : checkoutError ? (
-            <Text style={styles.billErrorText}>
-              Chuni hui location service area se bahar hai, isliye bill calculate nahi ho paya.
-            </Text>
-          ) : (
+            <Text style={styles.billErrorText}>{checkoutError}</Text>
+          ) : billDetails && billDetails.isDeliverable === true ? (
             <>
               {/* Free delivery nudge */}
               {isEligibleForFreeDeliveryNudge ? (
@@ -1194,10 +1323,14 @@ export default function CheckoutScreen() {
                 <View style={styles.billRow}>
                   <Text style={styles.billLabel}>Delivery Charge</Text>
                   <Text style={styles.billVal}>
-                    {Number(activeDeliveryFee) === 0 ? (
-                      <Text style={styles.freeGreen}>FREE</Text>
+                    {serverDeliveryFee !== null ? (
+                      serverDeliveryFee === 0 ? (
+                        <Text style={styles.freeGreen}>FREE</Text>
+                      ) : (
+                        `₹${serverDeliveryFee.toFixed(2)}`
+                      )
                     ) : (
-                      `₹${(Number(activeDeliveryFee) || 0).toFixed(2)}`
+                      <Text style={styles.billCalculatingVal}>Calculating...</Text>
                     )}
                   </Text>
                 </View>
@@ -1253,7 +1386,13 @@ export default function CheckoutScreen() {
 
                 <View style={styles.billRow}>
                   <Text style={styles.billLabel}>Govt Tax (GST)</Text>
-                  <Text style={styles.billVal}>₹{(Number(activeGST) || 0).toFixed(2)}</Text>
+                  <Text style={styles.billVal}>
+                    {serverGST !== null ? (
+                      `₹${serverGST.toFixed(2)}`
+                    ) : (
+                      <Text style={styles.billCalculatingVal}>Calculating...</Text>
+                    )}
+                  </Text>
                 </View>
 
                 {billDetails &&
@@ -1281,12 +1420,16 @@ export default function CheckoutScreen() {
                     ) : null}
                   </View>
                   <Text style={styles.grandTotalValue}>
-                    ₹{(Number(activeGrandTotal) || 0).toFixed(2)}
+                    {serverGrandTotal !== null ? (
+                      `₹${serverGrandTotal.toFixed(2)}`
+                    ) : (
+                      <Text style={styles.billCalculatingVal}>Calculating...</Text>
+                    )}
                   </Text>
                 </View>
               </View>
             </>
-          )}
+          ) : null}
         </View>
       </ScrollView>
 
@@ -1297,6 +1440,8 @@ export default function CheckoutScreen() {
             styles.submitOrderBtn,
             (placingOrder ||
               loadingBill ||
+              !hasValidLocation ||
+              billDetails?.isDeliverable !== true ||
               !!checkoutError ||
               isCheckoutDisabled ||
               isBelowMinimum) &&
@@ -1306,6 +1451,8 @@ export default function CheckoutScreen() {
           disabled={
             placingOrder ||
             loadingBill ||
+            !hasValidLocation ||
+            billDetails?.isDeliverable !== true ||
             !!checkoutError ||
             isCheckoutDisabled ||
             isBelowMinimum
@@ -1317,17 +1464,21 @@ export default function CheckoutScreen() {
             <Text style={styles.submitOrderText}>
               {isCheckoutDisabled
                 ? 'Order abhi band hai'
-                : checkoutError
-                  ? 'Delivery Seema se Bahar'
-                  : isBelowMinimum
-                    ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
-                    : loadingBill
-                      ? 'Bill calculate ho raha hai...'
-                      : 'Order Confirm Karein'}
+                : !hasValidLocation
+                  ? 'Select your delivery location'
+                  : loadingBill
+                    ? 'Calculating...'
+                    : checkoutError
+                      ? getReasonTitle(checkoutReason)
+                      : isBelowMinimum
+                        ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
+                        : 'Order Confirm Karein'}
             </Text>
           )}
           {!placingOrder &&
             !loadingBill &&
+            hasValidLocation &&
+            billDetails?.isDeliverable === true &&
             !checkoutError &&
             !isCheckoutDisabled &&
             !isBelowMinimum ? (
@@ -1539,16 +1690,29 @@ export default function CheckoutScreen() {
           <View style={styles.outOfZoneDialog}>
             <View style={styles.outOfZoneHeader}>
               <MaterialIcons name="location-off" size={40} color={Colors.white} />
-              <Text style={styles.outOfZoneTitle}>डिलीवरी उपलब्ध नहीं है</Text>
-              <Text style={styles.outOfZoneSub}>Delivery Not Available in this Area</Text>
+              <Text style={styles.outOfZoneTitle}>
+                {checkoutReason === 'outside_radius'
+                  ? 'डिलीवरी रेडियस से बाहर'
+                  : checkoutReason === 'restaurant_location_unverified'
+                    ? 'लोकेशन अनवेरिफाइड'
+                    : checkoutReason === 'invalid_location'
+                      ? 'अमान्य लोकेशन'
+                      : 'डिलीवरी उपलब्ध नहीं है'}
+              </Text>
+              <Text style={styles.outOfZoneSub}>
+                {checkoutReason === 'outside_radius'
+                  ? 'Outside Maximum Delivery Radius'
+                  : checkoutReason === 'restaurant_location_unverified'
+                    ? 'Restaurant Location Unverified'
+                    : checkoutReason === 'invalid_location'
+                      ? 'Invalid Delivery Coordinates'
+                      : 'Delivery Not Available in this Area'}
+              </Text>
             </View>
             <View style={styles.outOfZoneBody}>
               <Text style={styles.outOfZoneDesc}>
-                Maaf karein, aapki current location hamare{' '}
-                <Text style={{ color: Colors.rose600, fontWeight: '800' }}>
-                  active delivery area se bahar hai
-                </Text>
-                . Hum filhal in chune hue areas mein deliver karte hain:
+                {checkoutError ||
+                  'Maaf karein, aapki current location hamare active delivery area se bahar hai. Hum filhal in chune hue areas mein deliver karte hain:'}
               </Text>
               {activeZones.length > 0 ? (
                 <View style={styles.zoneChipsWrap}>
@@ -1700,6 +1864,67 @@ const styles = StyleSheet.create({
   },
   addressTextColumn: {
     flex: 1,
+  },
+  addressActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addressActionText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  selectLocationPromptBanner: {
+    backgroundColor: '#FFF7ED',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: BorderRadius.xl,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  selectLocationPromptLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  selectLocationIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#FFEDD5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectLocationPromptTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.slate900,
+  },
+  selectLocationPromptDesc: {
+    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    color: Colors.slate600,
+    marginTop: 2,
+    lineHeight: 16,
+  },
+  selectLocationPromptBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+  },
+  selectLocationPromptBtnText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.white,
   },
   addressCardHeading: {
     fontFamily: FontFamily.bold,
@@ -2214,6 +2439,34 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     alignItems: 'center',
     gap: 8,
+  },
+  noLocationBillWrap: {
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.md,
+  },
+  noLocationBillText: {
+    fontFamily: FontFamily.semiBold,
+    fontSize: 13,
+    color: Colors.slate600,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  selectLocationBillBtn: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+  },
+  selectLocationBillBtnText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  billCalculatingVal: {
+    color: Colors.slate400,
+    fontSize: 13,
   },
   billLoadingText: {
     fontFamily: FontFamily.medium,
