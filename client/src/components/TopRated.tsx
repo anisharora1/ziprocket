@@ -9,22 +9,13 @@ import { MdStar } from "react-icons/md";
 interface Restaurant {
   _id: string;
   name: string;
-  phone: string;
-  cuisines: string;
+  phone?: string;
+  cuisines?: string;
   image?: string;
-  rating: number;
-  isActive: boolean;
-}
-
-interface Promotion {
-  _id: string;
-  restaurant?: Restaurant;
-  targetType: "restaurant" | "grocery";
-  category?: string;
-  image: string;
-  title: string;
-  description: string;
-  isActive: boolean;
+  rating?: number;
+  totalOrders?: number;
+  isActive?: boolean;
+  popularItems?: any[];
 }
 
 const TopRatedSkeleton = () => (
@@ -51,63 +42,43 @@ const TopRatedSkeleton = () => (
 );
 
 interface TopRatedProps {
-  initialRestaurants?: any[];
+  initialRestaurants?: Restaurant[];
   initialPromotions?: any[];
 }
 
-function assembleFeaturedItems(promotions: any[] = [], restaurants: any[] = []): any[] {
-  let activeRestaurantAds: any[] = [];
-  if (Array.isArray(promotions)) {
-    activeRestaurantAds = promotions.filter(
-      (p: Promotion) => p.isActive && p.targetType === "restaurant" && p.restaurant
-    );
-  }
-
-  let topRatedRestaurants: any[] = [];
-  if (Array.isArray(restaurants)) {
-    topRatedRestaurants = restaurants
-      .filter((r: any) => Number(r.rating) > 0) // only genuinely-rated restaurants qualify
-      .sort((a: any, b: any) => (b.rating || 0) - (a.rating || 0));
-  }
-
-  const assembled: any[] = [];
-
-  // Add all active sponsored restaurant ads first
-  activeRestaurantAds.forEach((ad: Promotion) => {
-    if (ad.restaurant) {
-      assembled.push({
-        _id: ad.restaurant._id,
-        name: ad.restaurant.name,
-        cuisines: ad.restaurant.cuisines,
-        rating: Number(ad.restaurant.rating) || 0,
-        image: ad.image || ad.restaurant.image,
-        isAd: true,
-        badgeText: ad.description?.split("•")[0]?.trim() || "Featured"
-      });
+function getFoodThumbnail(rest: Restaurant): string {
+  if (Array.isArray(rest?.popularItems)) {
+    for (const item of rest.popularItems) {
+      if (Array.isArray(item?.images) && item.images.length > 0) {
+        const firstImg = item.images[0];
+        if (typeof firstImg === "string" && firstImg.trim()) {
+          return firstImg.trim();
+        }
+        if (firstImg && typeof firstImg === "object" && typeof firstImg.url === "string" && firstImg.url.trim()) {
+          return firstImg.url.trim();
+        }
+      }
     }
-  });
+  }
+  return rest?.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=300";
+}
 
-  // Add top-rated restaurants that aren't already included as ads, up to 6 total items
-  topRatedRestaurants.forEach((rest: Restaurant) => {
-    if (!assembled.some(item => item._id === rest._id) && assembled.length < 6) {
-      assembled.push({
-        _id: rest._id,
-        name: rest.name,
-        cuisines: rest.cuisines,
-        rating: rest.rating, // already guaranteed > 0 by the filter
-        image: rest.image,
-        isAd: false,
-        badgeText: ""
-      });
-    }
-  });
+function assembleFeaturedItems(promotionsOrRestaurants: any[] = [], restaurants: Restaurant[] = []): Restaurant[] {
+  const source = Array.isArray(restaurants) && restaurants.length > 0 ? restaurants : promotionsOrRestaurants;
+  const list: Restaurant[] = Array.isArray(source) ? source : [];
 
-
-  return assembled;
+  return list
+    .filter((r) => Number(r?.rating) > 0 && r?.isActive !== false)
+    .sort((a, b) => {
+      const ratingDiff = (Number(b?.rating) || 0) - (Number(a?.rating) || 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      return (Number(b?.totalOrders) || 0) - (Number(a?.totalOrders) || 0);
+    })
+    .slice(0, 3);
 }
 
 // In-memory cache to persist featured items across page navigations
-let cachedFeaturedItems: any[] | null = null;
+let cachedFeaturedItems: Restaurant[] | null = null;
 let cachedFeaturedFetched = false;
 
 export default function TopRated({
@@ -115,7 +86,7 @@ export default function TopRated({
   initialPromotions = []
 }: TopRatedProps = {}) {
   const initialItems = assembleFeaturedItems(initialPromotions, initialRestaurants);
-  const [featuredItems, setFeaturedItems] = useState<any[]>(() => {
+  const [featuredItems, setFeaturedItems] = useState<Restaurant[]>(() => {
     if (cachedFeaturedItems && cachedFeaturedItems.length > 0) {
       return cachedFeaturedItems;
     }
@@ -131,21 +102,16 @@ export default function TopRated({
         if (!isBackground && featuredItems.length === 0) {
           setLoading(true);
         }
-        const [promoRes, restRes] = await Promise.all([
-          apiClient.get("/promotions"),
-          apiClient.get("/restaurants?status=approved&isActive=true")
-        ]);
+        const restRes = await apiClient.get("/restaurants?status=approved&isActive=true&sort=rating&limit=10");
+        const rawRests: Restaurant[] = restRes.data?.success ? (restRes.data.restaurants || []) : [];
 
-        const rawPromos = promoRes.data?.success ? (promoRes.data.promotions || []) : [];
-        const rawRests = restRes.data?.success ? (restRes.data.restaurants || []) : [];
-
-        const assembled = assembleFeaturedItems(rawPromos, rawRests);
+        const assembled = assembleFeaturedItems(rawRests);
 
         setFeaturedItems(assembled);
         cachedFeaturedItems = assembled;
         cachedFeaturedFetched = true;
       } catch (err) {
-        console.error("Failed to fetch featured/top rated restaurants on client:", err);
+        console.error("Failed to fetch top rated restaurants on client:", err);
       } finally {
         setLoading(false);
       }
@@ -160,7 +126,6 @@ export default function TopRated({
     fetchFeatured(false);
   }, []);
 
-
   if (loading) {
     return <TopRatedSkeleton />;
   }
@@ -172,10 +137,7 @@ export default function TopRated({
   return (
     <section className="space-y-md animate-in fade-in duration-300">
       <div className="flex justify-between items-center">
-        <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Featured & Top Rated</h2>
-        <span className="text-slate-400 font-semibold text-[11px] uppercase tracking-widest">
-          Sponsor Choices
-        </span>
+        <h2 className="font-h1 text-lg sm:text-xl md:text-h1 text-slate-800">Top Rated</h2>
       </div>
 
       <div className="overflow-x-auto no-scrollbar flex gap-md -mx-md px-md pb-2">
@@ -186,15 +148,9 @@ export default function TopRated({
             key={restaurant._id}
             className="block min-w-[160px] md:min-w-[220px] max-w-[160px] md:max-w-[220px] bg-white rounded-2xl overflow-hidden border border-slate-100/70 shadow-sm relative shrink-0 transition-transform hover:-translate-y-0.5 active:scale-95 duration-200"
           >
-            {restaurant.isAd && (
-              <div className="absolute top-2 left-2 bg-[#FF5C00] text-white text-[8px] font-black tracking-wider uppercase px-2 py-0.5 rounded-lg z-10 shadow-sm">
-                {restaurant.badgeText || "SPONSORED"}
-              </div>
-            )}
-
             <OptimizedImage
               className="h-28 w-full object-cover"
-              src={restaurant.image || "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&q=80&w=300"}
+              src={getFoodThumbnail(restaurant)}
               alt={restaurant.name}
               preset="card"
             />

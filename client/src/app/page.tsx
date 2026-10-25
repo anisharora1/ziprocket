@@ -24,7 +24,7 @@ async function getHomepageData() {
   try {
     const [bannersRes, topRatedRes, groceriesRes] = await Promise.all([
       fetch(`${apiUrl}/promotions`, { next: { revalidate: 300 } }),
-      fetch(`${apiUrl}/restaurants?status=approved&isActive=true&limit=10`, { next: { revalidate: 300 } }),
+      fetch(`${apiUrl}/restaurants?status=approved&isActive=true&sort=rating&limit=10`, { next: { revalidate: 300 } }),
       fetch(`${apiUrl}/search/popular-groceries`, { next: { revalidate: 300 } }),
     ]);
 

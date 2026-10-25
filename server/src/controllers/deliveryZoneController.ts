@@ -203,7 +203,10 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
             return;
         }
 
-        const feasibilityKey = `zone:feasibility:${orderType}:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
+        const feasibilityRestaurantId = orderType === "food" ? (restaurantId || req.body.vendorId) : undefined;
+        const quoteOrderType = orderType === "food" && !feasibilityRestaurantId ? "grocery" : orderType;
+
+        const feasibilityKey = `zone:feasibility:${orderType}:${feasibilityRestaurantId || "area"}:${zoneCacheService.getServiceabilityKey(userLat, userLng, pincode, addressText)}`;
         const cachedFeasibility = await redisService.getJson<any>(feasibilityKey);
         if (cachedFeasibility && (!items || items.length === 0)) {
             console.log(`[Feasibility Cache] Hit for key: ${feasibilityKey}`);
@@ -212,8 +215,8 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
         }
 
         const quote = await quoteDelivery({
-            orderType,
-            restaurantId: orderType === "food" ? (restaurantId || req.body.vendorId) : undefined,
+            orderType: quoteOrderType,
+            restaurantId: feasibilityRestaurantId,
             destLat: userLat,
             destLng: userLng,
             pincode,
