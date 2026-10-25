@@ -63,7 +63,11 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
         const limit = Math.min(parseInt(req.query.limit as string) || 20, 50); // Cap at 50
         const skip = (page - 1) * limit;
 
-        const cacheKeySuffix = `list:${status || "any"}:${isActive !== undefined ? isActive : "any"}:${deliveryZone || "any"}:p${page}:l${limit}`;
+        const sortByRating = req.query.sort === "rating";
+        let cacheKeySuffix = `list:${status || "any"}:${isActive !== undefined ? isActive : "any"}:${deliveryZone || "any"}:p${page}:l${limit}`;
+        if (sortByRating) {
+            cacheKeySuffix += ":byRating";
+        }
 
         const cachedList = await restaurantCacheService.getCachedRestaurantList(cacheKeySuffix);
         if (cachedList) {
@@ -89,6 +93,7 @@ export const getAllRestaurants = async (req: Request, res: Response): Promise<vo
 
         const restaurants = await Restaurant.aggregate([
             { $match: filter },
+            ...(sortByRating ? [{ $sort: { rating: -1, totalOrders: -1 } as const }] : []),
             { $skip: skip },
             { $limit: limit },
             {
