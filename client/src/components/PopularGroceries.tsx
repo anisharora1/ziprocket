@@ -47,7 +47,8 @@ export default function PopularGroceries({ initialItems = [] }: { initialItems?:
   }
 
   const getCartQuantity = (id: string) =>
-    cart.items.find((i: any) => i.id === `groc-${id}` || i.id === id)?.quantity || 0;
+    (cart.items.find((i: any) => i.id === `groc-${id}` || i.id === id) ||
+     cart.groceryItems?.find((i: any) => i.id === `groc-${id}` || i.id === id))?.quantity || 0;
 
   return (
     <section className="mt-8">

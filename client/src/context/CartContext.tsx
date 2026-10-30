@@ -15,12 +15,14 @@ export interface CartItem {
 
 export interface CartState {
   items: CartItem[];
+  groceryItems: CartItem[];
   vendorId: string | null;
   vendorName: string | null;
   orderType: 'food' | 'grocery' | null;
+  isMixed: boolean;
 }
 
-interface AddToCartPayload {
+export interface AddToCartPayload {
   item: CartItem;
   vendorId: string;
   vendorName: string;
@@ -33,7 +35,7 @@ interface CartContextType {
   removeFromCart: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
-  
+
   // Alert UI State
   showReplaceAlert: boolean;
   pendingPayload: AddToCartPayload | null;
@@ -43,12 +45,18 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function computeIsMixed(orderType: string | null, items: CartItem[], groceryItems: CartItem[]): boolean {
+  return Boolean(orderType === 'food' && items.length > 0 && groceryItems.length > 0);
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartState>({
     items: [],
+    groceryItems: [],
     vendorId: null,
     vendorName: null,
     orderType: null,
+    isMixed: false,
   });
 
   const [showReplaceAlert, setShowReplaceAlert] = useState(false);
@@ -64,18 +72,28 @@ export function CartProvider({ children }: { children: ReactNode }) {
           const res = await apiClient.get("/cart");
           if (res.data.success && res.data.cart) {
             const backendCart = res.data.cart;
-            const formattedItems = (backendCart.items || []).map((i: any) => ({
+            const formattedItems: CartItem[] = (backendCart.items || []).map((i: any) => ({
               id: i.itemId,
               name: i.name,
               price: i.price,
               quantity: i.quantity,
               img: i.img
             }));
+            const formattedGroceryItems: CartItem[] = (backendCart.groceryItems || []).map((i: any) => ({
+              id: i.itemId,
+              name: i.name,
+              price: i.price,
+              quantity: i.quantity,
+              img: i.img
+            }));
+
             setCart({
               items: formattedItems,
-              vendorId: backendCart.vendorId,
-              vendorName: backendCart.vendorName,
-              orderType: backendCart.orderType
+              groceryItems: formattedGroceryItems,
+              vendorId: backendCart.vendorId || null,
+              vendorName: backendCart.vendorName || null,
+              orderType: backendCart.orderType || null,
+              isMixed: computeIsMixed(backendCart.orderType, formattedItems, formattedGroceryItems)
             });
             return;
           }
@@ -90,11 +108,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
         try {
           const parsed = JSON.parse(savedCart);
           if (parsed && typeof parsed === 'object') {
+            const loadedItems: CartItem[] = Array.isArray(parsed.items) ? parsed.items : [];
+            const loadedGroceryItems: CartItem[] = Array.isArray(parsed.groceryItems) ? parsed.groceryItems : [];
+            const loadedOrderType = parsed.orderType || null;
+
             setCart({
-              items: Array.isArray(parsed.items) ? parsed.items : [],
+              items: loadedItems,
+              groceryItems: loadedGroceryItems,
               vendorId: parsed.vendorId || null,
               vendorName: parsed.vendorName || null,
-              orderType: parsed.orderType || null
+              orderType: loadedOrderType,
+              isMixed: computeIsMixed(loadedOrderType, loadedItems, loadedGroceryItems)
             });
           }
         } catch (e) {
@@ -104,13 +128,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     };
 
     loadCart().then(() => {
-      // Mark as loaded after initial cart load completes to prevent redundant sync
       hasLoadedRef.current = true;
     });
   }, [user]);
 
   // Sync to database if logged in (debounced), otherwise write to local storage
-  // Guard: skip writes during initial hydration to avoid a no-op write-back
   useEffect(() => {
     if (!hasLoadedRef.current) return;
 
@@ -122,6 +144,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         await apiClient.post("/cart", {
           items: cart.items,
+          groceryItems: cart.groceryItems || [],
           vendorId: cart.vendorId,
           vendorName: cart.vendorName,
           orderType: cart.orderType
@@ -135,43 +158,123 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [cart, user]);
 
   const addToCart = (payload: AddToCartPayload) => {
-    // If cart is empty, simply add
-    if (cart.items.length === 0) {
+    // 1. If cart is completely empty, simply add the item
+    if (cart.items.length === 0 && cart.groceryItems.length === 0) {
       setCart({
         items: [{ ...payload.item, quantity: 1 }],
+        groceryItems: [],
         vendorId: payload.vendorId,
         vendorName: payload.vendorName,
         orderType: payload.orderType,
+        isMixed: false
       });
       return;
     }
 
-    // Rule: Reject if different vendor or different type
-    if (cart.vendorId !== payload.vendorId || cart.orderType !== payload.orderType) {
-      setPendingPayload(payload);
-      setShowReplaceAlert(true);
-      return;
+    // 2. If current cart is a grocery-only cart
+    if (cart.orderType === 'grocery') {
+      if (payload.orderType === 'grocery') {
+        // Adding more grocery items - keep working exactly as today
+        setCart((prev) => {
+          const existingIndex = prev.items.findIndex(i => i.id === payload.item.id);
+          let newItems: CartItem[];
+          if (existingIndex >= 0) {
+            newItems = [...prev.items];
+            newItems[existingIndex].quantity += 1;
+          } else {
+            newItems = [...prev.items, { ...payload.item, quantity: 1 }];
+          }
+          return { ...prev, items: newItems, isMixed: false };
+        });
+        return;
+      }
+
+      if (payload.orderType === 'food') {
+        // Restaurant item when the cart holds only groceries:
+        // -> becomes the restaurant part, groceries move to groceryItems
+        setCart((prev) => {
+          const newFoodItems: CartItem[] = [{ ...payload.item, quantity: 1 }];
+          const newGroceryItems: CartItem[] = [...prev.items];
+          return {
+            items: newFoodItems,
+            groceryItems: newGroceryItems,
+            vendorId: payload.vendorId,
+            vendorName: payload.vendorName,
+            orderType: 'food',
+            isMixed: true
+          };
+        });
+        return;
+      }
     }
 
-    // Same vendor, update quantity or add new item
-    setCart((prev) => {
-      const existingItemIndex = prev.items.findIndex(i => i.id === payload.item.id);
-      if (existingItemIndex >= 0) {
-        const newItems = [...prev.items];
-        newItems[existingItemIndex].quantity += 1;
-        return { ...prev, items: newItems };
+    // 3. If current cart has a restaurant (orderType === 'food')
+    if (cart.orderType === 'food') {
+      if (payload.orderType === 'food') {
+        // Restaurant item: check if same restaurant or different
+        if (cart.vendorId !== payload.vendorId) {
+          // Different restaurant -> keep existing "replace cart?" alert (only restaurants conflict)
+          setPendingPayload(payload);
+          setShowReplaceAlert(true);
+          return;
+        }
+
+        // Same restaurant -> add to items / update quantity
+        setCart((prev) => {
+          const existingIndex = prev.items.findIndex(i => i.id === payload.item.id);
+          let newItems: CartItem[];
+          if (existingIndex >= 0) {
+            newItems = [...prev.items];
+            newItems[existingIndex].quantity += 1;
+          } else {
+            newItems = [...prev.items, { ...payload.item, quantity: 1 }];
+          }
+          return {
+            ...prev,
+            items: newItems,
+            isMixed: computeIsMixed('food', newItems, prev.groceryItems)
+          };
+        });
+        return;
       }
-      return { ...prev, items: [...prev.items, { ...payload.item, quantity: 1 }] };
-    });
+
+      if (payload.orderType === 'grocery') {
+        // Grocery item when the cart has a restaurant -> add to groceryItems (no alert)
+        setCart((prev) => {
+          const existingIndex = prev.groceryItems.findIndex(i => i.id === payload.item.id);
+          let newGroceryItems: CartItem[];
+          if (existingIndex >= 0) {
+            newGroceryItems = [...prev.groceryItems];
+            newGroceryItems[existingIndex].quantity += 1;
+          } else {
+            newGroceryItems = [...prev.groceryItems, { ...payload.item, quantity: 1 }];
+          }
+          return {
+            ...prev,
+            groceryItems: newGroceryItems,
+            isMixed: computeIsMixed('food', prev.items, newGroceryItems)
+          };
+        });
+        return;
+      }
+    }
   };
 
   const confirmReplaceCart = () => {
     if (pendingPayload) {
-      setCart({
-        items: [{ ...pendingPayload.item, quantity: 1 }],
-        vendorId: pendingPayload.vendorId,
-        vendorName: pendingPayload.vendorName,
-        orderType: pendingPayload.orderType,
+      setCart((prev) => {
+        // Replacing the restaurant: previous restaurant items are replaced,
+        // grocery items are preserved as groceryItems.
+        const newFoodItems = [{ ...pendingPayload.item, quantity: 1 }];
+        const existingGroceries = prev.groceryItems || [];
+        return {
+          items: newFoodItems,
+          groceryItems: existingGroceries,
+          vendorId: pendingPayload.vendorId,
+          vendorName: pendingPayload.vendorName,
+          orderType: 'food',
+          isMixed: computeIsMixed('food', newFoodItems, existingGroceries)
+        };
       });
       setPendingPayload(null);
       setShowReplaceAlert(false);
@@ -185,11 +288,62 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const removeFromCart = (itemId: string) => {
     setCart((prev) => {
-      const newItems = prev.items.filter(i => i.id !== itemId);
-      if (newItems.length === 0) {
-        return { items: [], vendorId: null, vendorName: null, orderType: null };
+      const inItems = prev.items.some(i => i.id === itemId);
+      const inGrocery = prev.groceryItems.some(i => i.id === itemId);
+
+      let newItems = prev.items;
+      let newGroceryItems = prev.groceryItems;
+
+      if (inItems) {
+        newItems = prev.items.filter(i => i.id !== itemId);
       }
-      return { ...prev, items: newItems };
+      if (inGrocery) {
+        newGroceryItems = prev.groceryItems.filter(i => i.id !== itemId);
+      }
+
+      // If items became empty:
+      if (newItems.length === 0) {
+        if (newGroceryItems.length > 0) {
+          // If grocery items remain, promote them back to a pure grocery cart
+          return {
+            items: newGroceryItems,
+            groceryItems: [],
+            vendorId: 'grocery',
+            vendorName: 'Grocery Store',
+            orderType: 'grocery',
+            isMixed: false
+          };
+        }
+        // Cart is completely empty
+        return {
+          items: [],
+          groceryItems: [],
+          vendorId: null,
+          vendorName: null,
+          orderType: null,
+          isMixed: false
+        };
+      }
+
+      // Items still has elements, check groceryItems
+      if (newGroceryItems.length === 0 && prev.orderType === 'grocery') {
+        // Grocery cart whose items are completely gone
+        return {
+          items: [],
+          groceryItems: [],
+          vendorId: null,
+          vendorName: null,
+          orderType: null,
+          isMixed: false
+        };
+      }
+
+      return {
+        ...prev,
+        items: newItems,
+        groceryItems: newGroceryItems,
+        isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems)
+      };
     });
   };
 
@@ -198,14 +352,39 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart(itemId);
       return;
     }
-    setCart((prev) => ({
-      ...prev,
-      items: prev.items.map(i => i.id === itemId ? { ...i, quantity } : i)
-    }));
+
+    setCart((prev) => {
+      const inItems = prev.items.some(i => i.id === itemId);
+      const inGrocery = prev.groceryItems.some(i => i.id === itemId);
+
+      let newItems = prev.items;
+      let newGroceryItems = prev.groceryItems;
+
+      if (inItems) {
+        newItems = prev.items.map(i => i.id === itemId ? { ...i, quantity } : i);
+      }
+      if (inGrocery) {
+        newGroceryItems = prev.groceryItems.map(i => i.id === itemId ? { ...i, quantity } : i);
+      }
+
+      return {
+        ...prev,
+        items: newItems,
+        groceryItems: newGroceryItems,
+        isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems)
+      };
+    });
   };
 
   const clearCart = () => {
-    setCart({ items: [], vendorId: null, vendorName: null, orderType: null });
+    setCart({
+      items: [],
+      groceryItems: [],
+      vendorId: null,
+      vendorName: null,
+      orderType: null,
+      isMixed: false
+    });
   };
 
   const contextValue = useMemo(() => ({
@@ -223,7 +402,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   return (
     <CartContext.Provider value={contextValue}>
       {children}
-      
+
       {/* Global Replace Alert Modal */}
       {showReplaceAlert && pendingPayload && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
@@ -237,15 +416,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
               <p className="text-sm font-medium text-slate-500 leading-relaxed mb-6">
                 Your cart contains items from <span className="text-slate-900 font-bold">{cart.vendorName}</span>. Do you want to discard the selection and add items from <span className="text-slate-900 font-bold">{pendingPayload.vendorName}</span>?
               </p>
-              
+
               <div className="flex gap-3">
-                <button 
+                <button
                   onClick={cancelReplaceCart}
                   className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors"
                 >
                   No, keep it
                 </button>
-                <button 
+                <button
                   onClick={confirmReplaceCart}
                   className="flex-1 py-3 px-4 bg-[#FF5C00] hover:bg-[#e05200] text-white font-bold rounded-xl shadow-sm transition-colors"
                 >

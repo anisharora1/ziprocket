@@ -2,7 +2,7 @@
 
 import Header from "@/components/Header";
 import BottomNavBar from "@/components/BottomNavBar";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { apiClient } from "@/services/api";
 import { useOrderSocket } from "@/hooks/useOrderSocket";
@@ -23,7 +23,86 @@ import {
     MdCancel,
     MdRefresh,
     MdHourglassTop,
+    MdStore,
+    MdShoppingBag,
 } from "react-icons/md";
+
+interface GroupedOrderDisplay {
+    id: string;
+    isGroup: boolean;
+    checkoutGroupId?: string;
+    foodOrder?: any;
+    groceryOrder?: any;
+    primaryOrder: any;
+    allOrders: any[];
+    isActive: boolean;
+    totalAmount: number;
+    multiVendorFee: number;
+    createdAt: string;
+}
+
+function groupCustomerOrders(rawOrders: any[]): GroupedOrderDisplay[] {
+    const groupsMap = new Map<string, any[]>();
+    const singles: any[] = [];
+
+    for (const order of rawOrders) {
+        if (order.checkoutGroupId) {
+            const list = groupsMap.get(order.checkoutGroupId) || [];
+            list.push(order);
+            groupsMap.set(order.checkoutGroupId, list);
+        } else {
+            singles.push(order);
+        }
+    }
+
+    const result: GroupedOrderDisplay[] = [];
+
+    // Process grouped orders
+    for (const [groupId, groupOrders] of groupsMap.entries()) {
+        const food = groupOrders.find(o => o.groupRole === 'food' || o.orderType === 'food');
+        const grocery = groupOrders.find(o => o.groupRole === 'grocery' || o.orderType === 'grocery');
+        const primary = food || groupOrders[0];
+
+        const isActive = groupOrders.some(o =>
+            ["pending", "placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus || o.status)
+        );
+
+        const totalAmount = groupOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+        const multiVendorFee = food?.multiVendorFee || primary.multiVendorFee || 0;
+
+        result.push({
+            id: groupId,
+            isGroup: groupOrders.length > 1 || Boolean(food && grocery),
+            checkoutGroupId: groupId,
+            foodOrder: food,
+            groceryOrder: grocery,
+            primaryOrder: primary,
+            allOrders: groupOrders,
+            isActive,
+            totalAmount,
+            multiVendorFee,
+            createdAt: primary.createdAt
+        });
+    }
+
+    // Process single orders
+    for (const order of singles) {
+        const isActive = ["pending", "placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(order.orderStatus || order.status);
+        result.push({
+            id: order._id,
+            isGroup: false,
+            primaryOrder: order,
+            allOrders: [order],
+            isActive,
+            totalAmount: Number(order.totalAmount) || 0,
+            multiVendorFee: 0,
+            createdAt: order.createdAt
+        });
+    }
+
+    // Sort by createdAt descending
+    return result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
 
 export default function OrdersPage() {
     const { user, isLoading: authLoading } = useAuth();
@@ -80,17 +159,14 @@ export default function OrdersPage() {
 
     // Live real-time socket tracking for customer orders
     useOrderSocket({
-        // New order placed by this customer — invalidate immediately so it appears in the list
         onNewOrder: () => {
             invalidateOrders();
         },
         onOrderStatusUpdated: (data) => {
             if (data?.orderId && data?.orderStatus) {
-                // Immediate optimistic update
                 queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
                     prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o)
                 );
-                // Background sync to confirm server state
                 invalidateOrders();
             }
         },
@@ -126,22 +202,12 @@ export default function OrdersPage() {
                 invalidateOrders();
             }
         },
-        onPaymentStatusUpdated: (data) => {
-            if (data?.orderId && data?.paymentStatus) {
-                queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                    prev.map(o => o._id === data.orderId ? { ...o, paymentStatus: data.paymentStatus } : o)
-                );
-                invalidateOrders();
-            }
-        },
         onReconnect: () => {
-            // Force fresh fetch after reconnect (cache may have missed events while offline)
             invalidateOrders();
         },
     });
 
     // Parse status to stepper step
-    // 'accepted_by_delivery' = delivery boy claimed it = Out for Delivery (step 2)
     const getStatusStep = (status: string) => {
         switch (status) {
             case "pending": return 0;
@@ -267,8 +333,6 @@ export default function OrdersPage() {
                     await apiClient.post("/payments/failure", {
                         orderId: order._id,
                         errorDetails: {
-                            payment_id: response.error.metadata.payment_id,
-                            code: response.error.code,
                             description: response.error.description
                         }
                     });
@@ -288,19 +352,14 @@ export default function OrdersPage() {
         }
     };
 
-    // Separate active and past orders
-    // 'accepted_by_delivery' is an active state — delivery boy has claimed it but not yet delivered
-    const activeOrders = orders.filter(o =>
-        ["pending", "placed", "accepted", "preparing", "accepted_by_delivery", "on_the_way"].includes(o.orderStatus || o.status)
-    );
-    const pastOrders = orders.filter(o =>
-        ["delivered", "cancelled"].includes(o.orderStatus || o.status)
-    );
+    const groupedOrders = useMemo(() => groupCustomerOrders(orders), [orders]);
+    const activeGroups = groupedOrders.filter(g => g.isActive);
+    const pastGroups = groupedOrders.filter(g => !g.isActive);
 
     const trackingSteps = [
         { id: 0, title: "Confirming Order", description: "Verifying your order details...", iconComp: MdHourglassTop },
         { id: 1, title: "Order Placed", description: "We have received your order", iconComp: MdReceiptLong },
-        { id: 2, title: "Preparing Order", description: "Your order is being prepared in the kitchen", iconComp: MdRestaurant },
+        { id: 2, title: "Preparing Order", description: "Your order is being prepared", iconComp: MdRestaurant },
         { id: 3, title: "Out for Delivery", description: "Delivery partner is on the way to you", iconComp: MdTwoWheeler },
         { id: 4, title: "Delivered", description: "Enjoy your items!", iconComp: MdCheckCircle },
     ];
@@ -357,8 +416,9 @@ export default function OrdersPage() {
         );
     }
 
-    const currentActiveOrder = activeOrders[0];
-    const activeStep = currentActiveOrder ? getStatusStep(currentActiveOrder.orderStatus || currentActiveOrder.status) : 0;
+    const currentActiveGroup = activeGroups[0];
+    const primaryActiveOrder = currentActiveGroup?.primaryOrder;
+    const activeStep = primaryActiveOrder ? getStatusStep(primaryActiveOrder.orderStatus || primaryActiveOrder.status) : 0;
 
     return (
         <div className="bg-surface text-on-surface pb-28 min-h-screen w-full font-sans">
@@ -369,17 +429,17 @@ export default function OrdersPage() {
                 <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 mb-6">Your Orders</h1>
 
                 {/* Multiple Active Orders Notification Alert */}
-                {activeOrders.length > 1 && (
+                {activeGroups.length > 1 && (
                     <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 flex gap-3 mb-6 shadow-sm">
                         <MdInfo className="text-amber-600 text-[20px] shrink-0 mt-0.5" />
                         <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                            Aapke abhi {activeOrders.length} active orders hain. Niche sabse naye order ka live status hai.
+                            Aapke abhi {activeGroups.length} active orders hain. Niche sabse naye order ka live status hai.
                         </p>
                     </div>
                 )}
 
                 {/* Active Order Section */}
-                {currentActiveOrder ? (
+                {currentActiveGroup ? (
                     <section className="mb-10 animate-in fade-in duration-200">
                         <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
                             <MdAccessTime className="text-[#FF5C00] animate-spin" />
@@ -389,28 +449,84 @@ export default function OrdersPage() {
                         <div className="bg-white rounded-3xl shadow-sm border border-slate-100/80 p-5 sm:p-6">
                             <div className="flex justify-between items-start mb-6 pb-4 border-b border-slate-100">
                                 <div>
-                                    <p className="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">
-                                        ID: #ORD-{currentActiveOrder._id.substring(currentActiveOrder._id.length - 6).toUpperCase()}
-                                    </p>
-                                    <h3 className="text-lg font-black text-slate-800">
-                                        {currentActiveOrder.orderType === 'food'
-                                            ? (currentActiveOrder.restaurant?.name || "Restaurant Partner")
-                                            : "ZipGrocery Delivery"}
-                                    </h3>
-                                    <p className="text-xs font-semibold text-slate-500 mt-1 max-w-md leading-relaxed">
-                                        {getItemsSummary(currentActiveOrder.items, currentActiveOrder.orderType)}
-                                    </p>
+                                    <div className="flex items-center gap-2 mb-1">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                            ID: #ORD-{currentActiveGroup.id.substring(currentActiveGroup.id.length - 6).toUpperCase()}
+                                        </p>
+                                        {currentActiveGroup.isGroup && (
+                                            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black rounded-lg uppercase">
+                                                Mixed Order
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    {currentActiveGroup.isGroup ? (
+                                        <div className="space-y-2 mt-2">
+                                            {/* Part 1: Food from restaurant */}
+                                            {currentActiveGroup.foodOrder && (
+                                                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                            <MdRestaurant className="text-orange-500" />
+                                                            Food from {currentActiveGroup.foodOrder.restaurant?.name || "Restaurant"}
+                                                        </span>
+                                                        <span className="text-[10px] font-black px-2 py-0.5 bg-orange-100 text-[#FF5C00] rounded-md uppercase">
+                                                            {currentActiveGroup.foodOrder.orderStatus}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-1 font-medium">
+                                                        {getItemsSummary(currentActiveGroup.foodOrder.items, "food")}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Part 2: Groceries */}
+                                            {currentActiveGroup.groceryOrder && (
+                                                <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-100">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                                            <MdStore className="text-emerald-600" />
+                                                            Groceries
+                                                        </span>
+                                                        <span className="text-[10px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md uppercase">
+                                                            {currentActiveGroup.groceryOrder.orderStatus}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xs text-slate-500 mt-1 font-medium">
+                                                        {getItemsSummary(currentActiveGroup.groceryOrder.items, "grocery")}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <h3 className="text-lg font-black text-slate-800">
+                                                {primaryActiveOrder.orderType === 'food'
+                                                    ? (primaryActiveOrder.restaurant?.name || "Restaurant Partner")
+                                                    : "ZipGrocery Delivery"}
+                                            </h3>
+                                            <p className="text-xs font-semibold text-slate-500 mt-1 max-w-md leading-relaxed">
+                                                {getItemsSummary(primaryActiveOrder.items, primaryActiveOrder.orderType)}
+                                            </p>
+                                        </>
+                                    )}
+
+                                    {currentActiveGroup.multiVendorFee > 0 && (
+                                        <p className="text-[10px] font-bold text-slate-400 mt-2">
+                                            Includes ₹{currentActiveGroup.multiVendorFee} one-time multi-vendor fee
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-base font-black text-[#FF5C00]">₹{currentActiveOrder.totalAmount.toLocaleString()}</p>
+                                    <p className="text-base font-black text-[#FF5C00]">₹{currentActiveGroup.totalAmount.toLocaleString()}</p>
                                     <p className="text-[10px] font-bold text-slate-400 mt-1.5 uppercase tracking-wider">
-                                        {new Date(currentActiveOrder.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        {new Date(currentActiveGroup.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                     </p>
                                 </div>
                             </div>
 
                             {/* Warning Banner for Unpaid Online Order */}
-                            {currentActiveOrder.paymentMethod === "ONLINE" && currentActiveOrder.paymentStatus !== "paid" && (
+                            {primaryActiveOrder?.paymentMethod === "ONLINE" && primaryActiveOrder?.paymentStatus !== "paid" && (
                                 <div className="bg-[#fff5f0] border border-[#fdeadd] rounded-2xl p-4 flex flex-col sm:flex-row justify-between items-center gap-4 mb-6 animate-in slide-in-from-top duration-300">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-full bg-[#FF5C00]/10 flex items-center justify-center text-[#FF5C00] shrink-0">
@@ -422,11 +538,11 @@ export default function OrdersPage() {
                                         </div>
                                     </div>
                                     <button
-                                        onClick={() => handleRetryPayment(currentActiveOrder)}
-                                        disabled={retryingOrderId === currentActiveOrder._id}
+                                        onClick={() => handleRetryPayment(primaryActiveOrder)}
+                                        disabled={retryingOrderId === primaryActiveOrder._id}
                                         className="w-full sm:w-auto px-5 py-2.5 bg-[#FF5C00] hover:bg-[#e05200] text-white text-[11px] font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
                                     >
-                                        {retryingOrderId === currentActiveOrder._id ? (
+                                        {retryingOrderId === primaryActiveOrder._id ? (
                                             <>
                                                 <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
                                                 Processing...
@@ -442,10 +558,10 @@ export default function OrdersPage() {
                             )}
 
                             {/* Delivery Confirmation OTP for Prepaid (ONLINE) Orders */}
-                            {currentActiveOrder.paymentMethod === "ONLINE" && (currentActiveOrder.orderStatus === "on_the_way" || currentActiveOrder.orderStatus === "accepted_by_delivery") && currentActiveOrder.deliveryOtp && (
+                            {primaryActiveOrder?.paymentMethod === "ONLINE" && (primaryActiveOrder?.orderStatus === "on_the_way" || primaryActiveOrder?.orderStatus === "accepted_by_delivery") && primaryActiveOrder?.deliveryOtp && (
                                 <div className="bg-orange-50 border-2 border-dashed border-[#FF5C00] rounded-2xl p-4 text-center mb-6">
                                     <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-1">Yeh OTP delivery partner ko delivery ke samay batayein</p>
-                                    <p className="text-3xl font-black tracking-[0.3em] text-[#FF5C00]">{currentActiveOrder.deliveryOtp}</p>
+                                    <p className="text-3xl font-black tracking-[0.3em] text-[#FF5C00]">{primaryActiveOrder.deliveryOtp}</p>
                                 </div>
                             )}
 
@@ -490,18 +606,40 @@ export default function OrdersPage() {
 
                             <div className="mt-8 pt-4 border-t border-slate-100 flex gap-3">
                                 <a
-                                    href={`tel:${currentActiveOrder.restaurant?.phone || '9117662441'}`}
+                                    href={`tel:${primaryActiveOrder?.restaurant?.phone || '9117662441'}`}
                                     className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
                                 >
                                     Contact Support
                                 </a>
-                                {["pending", "placed"].includes(currentActiveOrder.orderStatus) && currentActiveOrder.paymentMethod === "COD" && (
-                                    <button
-                                        onClick={() => handleOpenCancelModal(currentActiveOrder._id)}
-                                        className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100/50 transition-colors"
-                                    >
-                                        Cancel Order
-                                    </button>
+
+                                {currentActiveGroup.isGroup ? (
+                                    <>
+                                        {currentActiveGroup.foodOrder && ["pending", "placed"].includes(currentActiveGroup.foodOrder.orderStatus) && (
+                                            <button
+                                                onClick={() => handleOpenCancelModal(currentActiveGroup.foodOrder._id)}
+                                                className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100/50 transition-colors"
+                                            >
+                                                Cancel Food
+                                            </button>
+                                        )}
+                                        {currentActiveGroup.groceryOrder && ["pending", "placed"].includes(currentActiveGroup.groceryOrder.orderStatus) && (
+                                            <button
+                                                onClick={() => handleOpenCancelModal(currentActiveGroup.groceryOrder._id)}
+                                                className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100/50 transition-colors"
+                                            >
+                                                Cancel Grocery
+                                            </button>
+                                        )}
+                                    </>
+                                ) : (
+                                    ["pending", "placed"].includes(primaryActiveOrder.orderStatus) && primaryActiveOrder.paymentMethod === "COD" && (
+                                        <button
+                                            onClick={() => handleOpenCancelModal(primaryActiveOrder._id)}
+                                            className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-rose-600 bg-rose-50 border border-rose-100 rounded-xl hover:bg-rose-100/50 transition-colors"
+                                        >
+                                            Cancel Order
+                                        </button>
+                                    )
                                 )}
                             </div>
                         </div>
@@ -509,7 +647,7 @@ export default function OrdersPage() {
                 ) : null}
 
                 {/* Empty State when no orders are found */}
-                {orders.length === 0 ? (
+                {groupedOrders.length === 0 ? (
                     <div
                         style={{ width: '90%', minWidth: '300px', maxWidth: '440px' }}
                         className="mx-auto my-6 text-center py-16 px-6 bg-white rounded-3xl border border-slate-100 shadow-sm animate-in fade-in zoom-in-95 duration-200 flex flex-col items-center justify-center"
@@ -534,11 +672,12 @@ export default function OrdersPage() {
                         </h2>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                            {pastOrders.map((order) => {
-                                const isCancelled = order.orderStatus === "cancelled";
-                                const summary = getItemsSummary(order.items, order.orderType);
+                            {pastGroups.map((group) => {
+                                const primary = group.primaryOrder;
+                                const isCancelled = group.allOrders.every(o => o.orderStatus === "cancelled");
+
                                 return (
-                                    <div key={order._id} className="bg-white rounded-2xl p-5 border border-slate-100/80 shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:shadow-md transition-shadow flex flex-col justify-between">
+                                    <div key={group.id} className="bg-white rounded-2xl p-5 border border-slate-100/80 shadow-[0_2px_12px_rgba(0,0,0,0.01)] hover:shadow-md transition-shadow flex flex-col justify-between">
                                         <div>
                                             <div className="flex justify-between items-center mb-3 pb-3 border-b border-slate-55">
                                                 <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded flex items-center gap-1 ${isCancelled
@@ -546,74 +685,79 @@ export default function OrdersPage() {
                                                     : 'bg-emerald-50 text-emerald-700'
                                                     }`}>
                                                     {isCancelled ? <MdCancel className="text-[12px]" /> : <MdCheckCircle className="text-[12px]" />}
-                                                    {order.orderStatus || order.status}
+                                                    {group.isGroup ? (isCancelled ? "Cancelled" : "Completed") : (primary.orderStatus || primary.status)}
                                                 </span>
                                                 <span className="text-[11px] font-semibold text-slate-400">
-                                                    {new Date(order.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
+                                                    {new Date(group.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' })}
                                                 </span>
                                             </div>
 
-                                            <h3 className="font-bold text-[15px] text-slate-800 truncate leading-snug">
-                                                {order.orderType === 'food'
-                                                    ? (order.restaurant?.name || "Restaurant Partner")
-                                                    : "ZipGrocery Basket"}
-                                            </h3>
-                                            <p className="text-[12px] text-slate-400 font-semibold truncate mt-1">{summary}</p>
-                                        </div>
+                                            {group.isGroup ? (
+                                                <div className="space-y-3">
+                                                    {group.foodOrder && (
+                                                        <div className="p-2.5 bg-slate-50 rounded-xl">
+                                                            <div className="flex justify-between items-center">
+                                                                <h4 className="font-bold text-[13px] text-slate-800 truncate">
+                                                                    Food from {group.foodOrder.restaurant?.name || "Restaurant"}
+                                                                </h4>
+                                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded uppercase">
+                                                                    {group.foodOrder.orderStatus}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                                                                {getItemsSummary(group.foodOrder.items, "food")}
+                                                            </p>
+                                                        </div>
+                                                    )}
 
-                                        {!isCancelled && order.orderType === "food" && !order.rating && (
-                                            <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-slate-100">
-                                                <span className="text-[11px] font-semibold text-slate-500 mr-1">Order ko star dein:</span>
-                                                {[1, 2, 3, 4, 5].map((star) => (
-                                                    <button
-                                                        key={star}
-                                                        onClick={async () => {
-                                                            try {
-                                                                const res = await apiClient.patch(`/orders/${order._id}/rate`, { rating: star });
-                                                                if (res.data.success) {
-                                                                    queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                                                                        prev.map((o: any) => o._id === order._id ? { ...o, rating: star } : o)
-                                                                    );
-                                                                    invalidateOrders();
-                                                                }
-                                                            } catch (err: any) {
-                                                                alert(err.response?.data?.message || "Rating submit nahi ho payi.");
-                                                            }
-                                                        }}
-                                                        className="text-[20px] text-amber-400 hover:scale-110 transition-transform cursor-pointer"
-                                                    >
-                                                        ★
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {!isCancelled && order.rating && (
-                                            <div className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-100 text-[12px] font-semibold text-slate-500">
-                                                Aapki rating: {"★".repeat(order.rating)}{"☆".repeat(5 - order.rating)}
-                                            </div>
-                                        )}
+                                                    {group.groceryOrder && (
+                                                        <div className="p-2.5 bg-slate-50 rounded-xl">
+                                                            <div className="flex justify-between items-center">
+                                                                <h4 className="font-bold text-[13px] text-slate-800 truncate">
+                                                                    Groceries
+                                                                </h4>
+                                                                <span className="text-[9px] font-bold px-1.5 py-0.5 bg-slate-200 text-slate-700 rounded uppercase">
+                                                                    {group.groceryOrder.orderStatus}
+                                                                </span>
+                                                            </div>
+                                                            <p className="text-[11px] text-slate-400 font-medium truncate mt-0.5">
+                                                                {getItemsSummary(group.groceryOrder.items, "grocery")}
+                                                            </p>
+                                                        </div>
+                                                    )}
+
+                                                    {group.multiVendorFee > 0 && (
+                                                        <span className="text-[10px] text-slate-400 font-bold block">
+                                                            Includes ₹{group.multiVendorFee} multi-vendor fee
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <h3 className="font-bold text-[15px] text-slate-800 truncate leading-snug">
+                                                        {primary.orderType === 'food'
+                                                            ? (primary.restaurant?.name || "Restaurant Partner")
+                                                            : "ZipGrocery Basket"}
+                                                    </h3>
+                                                    <p className="text-[12px] text-slate-400 font-semibold truncate mt-1">
+                                                        {getItemsSummary(primary.items, primary.orderType)}
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
 
                                         <div className="mt-5 pt-3.5 border-t border-slate-50 flex items-center justify-between">
                                             <span className="font-black text-slate-850 text-sm font-sans flex flex-col">
-                                                <span>₹{order.totalAmount.toLocaleString()}</span>
-                                                {order.paymentMethod === "ONLINE" && (
-                                                    <span className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${order.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                        {order.paymentStatus === 'paid' ? 'Paid' : 'Baki (Unpaid)'}
+                                                <span>₹{group.totalAmount.toLocaleString()}</span>
+                                                {primary.paymentMethod === "ONLINE" && (
+                                                    <span className={`text-[9px] font-black uppercase tracking-wider mt-0.5 ${primary.paymentStatus === 'paid' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {primary.paymentStatus === 'paid' ? 'Paid' : 'Baki (Unpaid)'}
                                                     </span>
                                                 )}
                                             </span>
                                             <div className="flex gap-2">
-                                                {order.paymentMethod === "ONLINE" && order.paymentStatus !== "paid" && (
-                                                    <button
-                                                        onClick={() => handleRetryPayment(order)}
-                                                        disabled={retryingOrderId === order._id}
-                                                        className="text-[11px] font-black uppercase tracking-widest text-[#FF5C00] bg-[#FF5C00]/10 px-3.5 py-2 rounded-lg hover:bg-[#FF5C00]/15 transition-colors flex items-center gap-1"
-                                                    >
-                                                        {retryingOrderId === order._id ? '...' : 'Pay Now'}
-                                                    </button>
-                                                )}
                                                 <Link
-                                                    href={order.orderType === 'food' && order.restaurant ? `/restaurants/${order.restaurant._id}` : '/grocery'}
+                                                    href={group.foodOrder?.restaurant ? `/restaurants/${group.foodOrder.restaurant._id}` : '/grocery'}
                                                     className="text-[11px] font-black uppercase tracking-widest text-slate-500 bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-lg hover:bg-slate-100 transition-colors flex items-center gap-1"
                                                 >
                                                     <MdRefresh className="text-[13px]" />
@@ -648,82 +792,71 @@ export default function OrdersPage() {
                 >
                     <div
                         style={{ width: "90%", maxWidth: "440px" }}
-                        className="bg-white rounded-3xl shadow-2xl p-6 flex flex-col justify-between overflow-hidden relative z-10 animate-in zoom-in-95 duration-200"
+                        className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-200"
                     >
-                        <div className="flex items-start gap-4">
-                            <div className="w-12 h-12 rounded-full bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-500 shrink-0">
-                                <MdCancel className="text-[24px]" />
-                            </div>
-                            <div className="flex-1">
-                                <h3 className="text-[17px] font-black text-slate-800 leading-none mb-1.5">Order Cancel Karein</h3>
-                                <p className="text-slate-400 text-xs font-semibold leading-relaxed">
-                                    Kya aap sach me is order ko cancel karna chahte hain? Confirm hone ke baad ise wapas nahi kiya ja sakta.
-                                </p>
-                            </div>
+                        <div className="w-14 h-14 bg-rose-50 text-rose-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <MdCancel className="text-[28px]" />
                         </div>
+                        <h3 className="text-lg font-black text-slate-800 mb-1">Order Cancel Karna Chahte Hain?</h3>
+                        <p className="text-xs font-semibold text-slate-400 mb-4 leading-relaxed">
+                            Kripya cancel karne ki wajah batayein taaki hum apni service behtar kar sakein.
+                        </p>
 
-                        <div className="my-6 space-y-3">
-                            <label className="block text-[10px] font-black text-slate-655 uppercase tracking-wider">Cancel karne ki wajah chunein</label>
-                            <div className="grid grid-cols-1 gap-2">
-                                {[
-                                    "Ordered by mistake",
-                                    "Wrong address",
-                                    "Changed mind",
-                                    "Found cheaper option",
-                                    "Other"
-                                ].map((reason) => (
-                                    <button
-                                        key={reason}
-                                        type="button"
-                                        onClick={() => setCancelReason(reason)}
-                                        className={`px-4 py-3 rounded-xl text-left text-xs font-bold transition-all border flex items-center justify-between ${cancelReason === reason
-                                            ? 'border-[#FF5C00] bg-[#FF5C00]/5 text-[#FF5C00]'
-                                            : 'border-slate-100 hover:border-slate-200 text-slate-655'
-                                            }`}
-                                    >
-                                        <span>{reason}</span>
-                                        {cancelReason === reason && (
-                                            <MdCheckCircle className="text-[16px] text-[#FF5C00]" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
+                        <div className="space-y-2 mb-5 text-left">
+                            {[
+                                "Galti se order ho gaya",
+                                "Delivery time jyada hai",
+                                "Galat address select ho gaya",
+                                "Samaan change karna hai",
+                                "Anya wajah (Other)"
+                            ].map((reasonOption) => (
+                                <label
+                                    key={reasonOption}
+                                    onClick={() => setCancelReason(reasonOption)}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border text-xs font-bold cursor-pointer transition-colors ${cancelReason === reasonOption
+                                        ? "border-[#FF5C00] bg-orange-50/50 text-slate-800"
+                                        : "border-slate-100 hover:bg-slate-50 text-slate-600"
+                                        }`}
+                                >
+                                    <input
+                                        type="radio"
+                                        name="cancelReason"
+                                        checked={cancelReason === reasonOption}
+                                        onChange={() => setCancelReason(reasonOption)}
+                                        className="accent-[#FF5C00] w-3.5 h-3.5"
+                                    />
+                                    <span>{reasonOption}</span>
+                                </label>
+                            ))}
 
-                            {cancelReason === "Other" && (
+                            {cancelReason === "Anya wajah (Other)" && (
                                 <textarea
                                     value={otherReasonText}
                                     onChange={(e) => setOtherReasonText(e.target.value)}
                                     placeholder="Apni wajah yahan likhein..."
                                     rows={2}
-                                    className="w-full mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/10 focus:border-[#FF5C00] transition-all text-xs font-semibold"
+                                    className="w-full text-xs font-semibold p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-[#FF5C00] transition-colors mt-2"
                                 />
                             )}
                         </div>
 
-                        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                        <div className="flex gap-2.5">
                             <button
-                                type="button"
+                                disabled={cancellingLoader}
                                 onClick={() => {
                                     setIsCancelModalOpen(false);
                                     setCancellingOrderId(null);
                                 }}
-                                className="py-3 px-5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl transition-all active:scale-95"
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-black uppercase tracking-wider rounded-xl transition-colors"
                             >
-                                No, Keep
+                                Back
                             </button>
                             <button
+                                disabled={cancellingLoader}
                                 onClick={handleCancelOrderSubmit}
-                                disabled={cancellingLoader || (cancelReason === "Other" && !otherReasonText.trim())}
-                                className="py-3 px-5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black uppercase tracking-wider rounded-xl shadow-lg shadow-rose-600/25 transition-all active:scale-95 disabled:opacity-50 flex items-center gap-1"
+                                className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5"
                             >
-                                {cancellingLoader ? (
-                                    <>
-                                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                        Cancel ho raha hai...
-                                    </>
-                                ) : (
-                                    "Yes, Cancel"
-                                )}
+                                {cancellingLoader ? "Cancelling..." : "Confirm Cancel"}
                             </button>
                         </div>
                     </div>

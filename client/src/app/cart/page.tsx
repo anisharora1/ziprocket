@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
 import { usePlatform } from "@/context/PlatformContext";
 import { useSocket } from "@/context/SocketContext";
+import { useLocation } from "@/context/LocationContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import {
     MdArrowBack,
@@ -21,17 +22,20 @@ import {
     MdAdd,
     MdLock,
     MdArrowForward,
+    MdInfo,
 } from "react-icons/md";
 
 export default function CartPage() {
     const { cart, updateQuantity, clearCart, addToCart } = useCart();
     const router = useRouter();
-    const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage, isGroceryCurrentlyOpen, getGroceryStatusMessage } = usePlatform();
+    const { getPlatformStatusMessage, isGroceryCurrentlyOpen, getGroceryStatusMessage } = usePlatform();
     const { socket } = useSocket();
+    const { location, pincode, address } = useLocation();
 
     const [recommendations, setRecommendations] = useState<any[]>([]);
     const [loadingRecs, setLoadingRecs] = useState(false);
     const [vendorAvailability, setVendorAvailability] = useState<string>("open");
+    const [multiVendorFee, setMultiVendorFee] = useState<number | null>(null);
 
     useEffect(() => {
         if (!socket) return;
@@ -71,8 +75,53 @@ export default function CartPage() {
         fetchVendorStatus();
     }, [cart.vendorId, cart.orderType]);
 
+    // Fetch multiVendorFee from the server bill endpoint when cart is mixed
+    useEffect(() => {
+        if (!cart.isMixed) {
+            setMultiVendorFee(null);
+            return;
+        }
+
+        const fetchMixedFee = async () => {
+            try {
+                const payload: any = {
+                    vendorId: cart.vendorId,
+                    items: cart.items.map(c => ({
+                        menuItem: c.id.replace('food-', ''),
+                        price: c.price,
+                        quantity: c.quantity
+                    })),
+                    groceryItems: (cart.groceryItems || []).map(c => ({
+                        groceryItem: c.id.replace('groc-', ''),
+                        price: c.price,
+                        quantity: c.quantity
+                    })),
+                    orderType: 'mixed',
+                    userLat: location?.lat || 28.6139,
+                    userLng: location?.lng || 77.2090,
+                    pincode: pincode || undefined,
+                    address: address ? { fullAddress: address } : undefined
+                };
+                const res = await apiClient.post("/delivery-zones/calculate-bill", payload);
+                if (res.data?.multiVendorFee !== undefined) {
+                    setMultiVendorFee(Number(res.data.multiVendorFee));
+                }
+            } catch (err) {
+                try {
+                    const zoneRes = await apiClient.get("/delivery-zones");
+                    if (zoneRes.data?.zones?.[0]?.multiVendorFee !== undefined) {
+                        setMultiVendorFee(Number(zoneRes.data.zones[0].multiVendorFee));
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch multi-vendor fee:", e);
+                }
+            }
+        };
+
+        fetchMixedFee();
+    }, [cart.isMixed, cart.vendorId, cart.items, cart.groceryItems, location, pincode, address]);
+
     const platformMsg = getPlatformStatusMessage();
-    const isPlatformOpen = isPlatformCurrentlyOpen();
 
     const isCartServiceClosed = (() => {
         if (platformMsg) return true;
@@ -94,21 +143,34 @@ export default function CartPage() {
         return null;
     })();
 
-    const items = cart?.items || [];
+    const isMixed = cart.isMixed;
+    const foodItems = cart.orderType === 'food' ? (cart.items || []) : [];
+    const groceryItems = cart.orderType === 'grocery' ? (cart.items || []) : (cart.groceryItems || []);
+
+    const totalItemsCount = foodItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0) +
+                           groceryItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+
+    const foodSubtotal = foodItems.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
+    const grocerySubtotal = groceryItems.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
+    const basketSubtotal = foodSubtotal + grocerySubtotal;
 
     // Fetch recommendations dynamically whenever cart items change
     useEffect(() => {
         const fetchRecommendations = async () => {
-            if (items.length === 0) {
+            if (totalItemsCount === 0) {
                 setRecommendations([]);
                 return;
             }
             try {
                 setLoadingRecs(true);
+                const allCartItemIds = [
+                    ...foodItems.map(i => i.id),
+                    ...groceryItems.map(i => i.id)
+                ];
                 const res = await apiClient.post("/recommendations", {
                     orderType: cart.orderType,
                     vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-                    cartItemIds: items.map(i => i.id)
+                    cartItemIds: allCartItemIds
                 });
                 if (res.data.success) {
                     setRecommendations(res.data.recommendations || []);
@@ -121,10 +183,10 @@ export default function CartPage() {
         };
 
         fetchRecommendations();
-    }, [items, cart.orderType, cart.vendorId]);
+    }, [foodItems.length, groceryItems.length, cart.orderType, cart.vendorId]);
 
     const handleAddRecommendedItem = (item: any) => {
-        const isGrocery = cart.orderType === 'grocery';
+        const isGrocery = cart.orderType === 'grocery' || item.category !== undefined;
         const itemId = isGrocery ? `groc-${item._id}` : `food-${item._id}`;
 
         addToCart({
@@ -135,13 +197,11 @@ export default function CartPage() {
                 quantity: 1,
                 img: item.images?.[0] || ""
             },
-            vendorId: cart.orderType === 'food' ? cart.vendorId! : 'grocery',
-            vendorName: cart.orderType === 'food' ? cart.vendorName! : 'Grocery Store',
-            orderType: cart.orderType!
+            vendorId: isGrocery ? 'grocery' : (cart.vendorId || item.restaurant?._id || item.restaurant),
+            vendorName: isGrocery ? 'Grocery Store' : (cart.vendorName || item.restaurant?.name || 'Restaurant'),
+            orderType: isGrocery ? 'grocery' : 'food'
         });
     };
-
-    const itemTotal = items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
 
     return (
         <div className="bg-[#fcfcfc] text-slate-900 pb-32 min-h-screen w-full font-sans">
@@ -151,7 +211,7 @@ export default function CartPage() {
                     <MdArrowBack className="text-slate-700 text-xl" />
                 </button>
                 <h1 className="font-bold text-[16px] text-slate-800 tracking-tight">Aapka Cart</h1>
-                {items.length > 0 ? (
+                {totalItemsCount > 0 ? (
                     <button
                         onClick={clearCart}
                         className="text-[12px] font-black text-rose-500 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg uppercase tracking-wider transition-colors"
@@ -165,7 +225,7 @@ export default function CartPage() {
 
             <main className="w-full max-w-md mx-auto px-4 pt-4 pb-20 space-y-5">
 
-                {items.length === 0 ? (
+                {totalItemsCount === 0 ? (
                     /* Blinkit Style Empty State */
                     <div className="bg-white rounded-3xl border border-slate-100 p-8 flex flex-col items-center justify-center text-center shadow-sm py-16">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-5 border border-slate-100">
@@ -185,25 +245,21 @@ export default function CartPage() {
                         </div>
                     </div>
                 ) : (
-                    /* Lightweight Cart Contents */
+                    /* Cart Contents */
                     <div className="space-y-5">
 
-                        {/* Ordering From Banner */}
-                        <div className="bg-white rounded-xl border border-slate-100 p-3.5 shadow-sm flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="w-9 h-9 rounded-lg bg-orange-50 text-[#FF5C00] flex items-center justify-center">
-                                    {cart.orderType === 'grocery' ? (
-                                        <MdStore className="text-[18px]" />
-                                    ) : (
-                                        <MdRestaurant className="text-[18px]" />
-                                    )}
-                                </div>
+                        {/* Mixed Order Notice */}
+                        {isMixed && (
+                            <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-4 flex items-start gap-3 shadow-sm animate-in fade-in duration-200">
+                                <MdInfo className="text-amber-600 shrink-0 text-[20px] mt-0.5" />
                                 <div>
-                                    <p className="text-[9px] font-black text-slate-450 uppercase tracking-widest leading-none">Ordering From</p>
-                                    <h2 className="text-[13px] font-black text-slate-800 leading-tight mt-1">{cart.vendorName}</h2>
+                                    <h4 className="text-[13px] font-bold text-amber-900 leading-tight">Mixed Cart Order</h4>
+                                    <p className="text-[12px] text-amber-800 leading-relaxed font-medium mt-0.5">
+                                        Mixed order: a one-time Rs {multiVendorFee !== null ? multiVendorFee : 5} multi-vendor fee applies
+                                    </p>
                                 </div>
                             </div>
-                        </div>
+                        )}
 
                         {/* Service Unavailable Warning */}
                         {isCartServiceClosed && cartServiceMessage && (
@@ -218,59 +274,139 @@ export default function CartPage() {
                             </div>
                         )}
 
-                        {/* Cart Items List */}
-                        <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                            <div className="divide-y divide-slate-50">
-                                {items.map((item) => (
-                                    <div key={item.id} className="flex items-center gap-3 p-3.5">
-                                        {item.img ? (
-                                            <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50 relative">
-                                                <OptimizedImage src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
-                                            </div>
-                                        ) : (
-                                            <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100/50 flex items-center justify-center shrink-0">
-                                                {cart.orderType === 'grocery' ? (
-                                                    <MdShoppingBag className="text-slate-300 text-xl" />
-                                                ) : (
-                                                    <MdFastfood className="text-slate-300 text-xl" />
-                                                )}
-                                            </div>
-                                        )}
-
-                                        <div className="flex-1">
-                                            <h3 className="text-[13px] font-extrabold text-slate-800 leading-tight line-clamp-1">{item.name}</h3>
-                                            <p className="text-[13px] font-black text-slate-900 mt-1">₹{item.price}</p>
+                        {/* SECTION 1: FOOD ITEMS (WHEN PRESENT) */}
+                        {foodItems.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                                <div className="p-3.5 bg-slate-50/60 border-b border-slate-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-orange-100 text-[#FF5C00] flex items-center justify-center">
+                                            <MdRestaurant className="text-[16px]" />
                                         </div>
-
-                                        {/* Quantity Selector */}
-                                        <div className="flex items-center bg-[#FF5C00]/10 border border-[#FF5C00]/20 rounded-xl overflow-hidden shrink-0">
-                                            <button
-                                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
-                                            >
-                                                <MdRemove className="text-[15px] font-black" />
-                                            </button>
-                                            <span className="w-6 text-center text-[12px] font-black text-[#FF5C00]">
-                                                {item.quantity}
-                                            </span>
-                                            <button
-                                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
-                                            >
-                                                <MdAdd className="text-[15px] font-black" />
-                                            </button>
+                                        <div>
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">Restaurant</span>
+                                            <h3 className="text-[13px] font-black text-slate-800 leading-tight mt-0.5">
+                                                From {cart.vendorName || "Restaurant Partner"}
+                                            </h3>
                                         </div>
                                     </div>
-                                ))}
-                            </div>
+                                    <span className="text-[12px] font-black text-slate-700">₹{foodSubtotal.toFixed(2)}</span>
+                                </div>
 
-                            <Link
-                                href={cart.orderType === 'grocery' ? '/grocery' : `/restaurants/${cart.vendorId}`}
-                                className="block text-center text-[11px] font-black text-[#FF5C00] hover:bg-[#FF5C00]/5 py-3 border-t border-slate-50 transition-colors uppercase tracking-wider"
-                            >
-                                + Add more items
-                            </Link>
-                        </div>
+                                <div className="divide-y divide-slate-50">
+                                    {foodItems.map((item) => (
+                                        <div key={item.id} className="flex items-center gap-3 p-3.5">
+                                            {item.img ? (
+                                                <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50 relative">
+                                                    <OptimizedImage src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100/50 flex items-center justify-center shrink-0">
+                                                    <MdFastfood className="text-slate-300 text-xl" />
+                                                </div>
+                                            )}
+
+                                            <div className="flex-1">
+                                                <h3 className="text-[13px] font-extrabold text-slate-800 leading-tight line-clamp-1">{item.name}</h3>
+                                                <p className="text-[13px] font-black text-slate-900 mt-1">₹{item.price}</p>
+                                            </div>
+
+                                            {/* Quantity Selector */}
+                                            <div className="flex items-center bg-[#FF5C00]/10 border border-[#FF5C00]/20 rounded-xl overflow-hidden shrink-0">
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
+                                                >
+                                                    <MdRemove className="text-[15px] font-black" />
+                                                </button>
+                                                <span className="w-6 text-center text-[12px] font-black text-[#FF5C00]">
+                                                    {item.quantity}
+                                                </span>
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
+                                                >
+                                                    <MdAdd className="text-[15px] font-black" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <Link
+                                    href={cart.vendorId ? `/restaurants/${cart.vendorId}` : '/restaurants'}
+                                    className="block text-center text-[11px] font-black text-[#FF5C00] hover:bg-[#FF5C00]/5 py-2.5 border-t border-slate-50 transition-colors uppercase tracking-wider"
+                                >
+                                    + Add more food items
+                                </Link>
+                            </div>
+                        )}
+
+                        {/* SECTION 2: GROCERY ITEMS (WHEN PRESENT) */}
+                        {groceryItems.length > 0 && (
+                            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
+                                <div className="p-3.5 bg-slate-50/60 border-b border-slate-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                                            <MdStore className="text-[16px]" />
+                                        </div>
+                                        <div>
+                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block leading-none">Depot</span>
+                                            <h3 className="text-[13px] font-black text-slate-800 leading-tight mt-0.5">
+                                                Groceries
+                                            </h3>
+                                        </div>
+                                    </div>
+                                    <span className="text-[12px] font-black text-slate-700">₹{grocerySubtotal.toFixed(2)}</span>
+                                </div>
+
+                                <div className="divide-y divide-slate-50">
+                                    {groceryItems.map((item) => (
+                                        <div key={item.id} className="flex items-center gap-3 p-3.5">
+                                            {item.img ? (
+                                                <div className="w-12 h-12 rounded-lg bg-slate-50 overflow-hidden shrink-0 border border-slate-100/50 relative">
+                                                    <OptimizedImage src={item.img} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
+                                                </div>
+                                            ) : (
+                                                <div className="w-12 h-12 rounded-lg bg-slate-50 border border-slate-100/50 flex items-center justify-center shrink-0">
+                                                    <MdShoppingBag className="text-slate-300 text-xl" />
+                                                </div>
+                                            )}
+
+                                            <div className="flex-1">
+                                                <h3 className="text-[13px] font-extrabold text-slate-800 leading-tight line-clamp-1">{item.name}</h3>
+                                                <p className="text-[13px] font-black text-slate-900 mt-1">₹{item.price}</p>
+                                            </div>
+
+                                            {/* Quantity Selector */}
+                                            <div className="flex items-center bg-[#FF5C00]/10 border border-[#FF5C00]/20 rounded-xl overflow-hidden shrink-0">
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
+                                                >
+                                                    <MdRemove className="text-[15px] font-black" />
+                                                </button>
+                                                <span className="w-6 text-center text-[12px] font-black text-[#FF5C00]">
+                                                    {item.quantity}
+                                                </span>
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                    className="w-8 h-8 flex items-center justify-center text-[#FF5C00] hover:bg-[#FF5C00]/20 transition-colors"
+                                                >
+                                                    <MdAdd className="text-[15px] font-black" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <Link
+                                    href="/grocery"
+                                    className="block text-center text-[11px] font-black text-emerald-700 hover:bg-emerald-50/50 py-2.5 border-t border-slate-50 transition-colors uppercase tracking-wider"
+                                >
+                                    + Add more groceries
+                                </Link>
+                            </div>
+                        )}
 
                         {/* Smart Recommendations Section */}
                         {recommendations.length > 0 && (
@@ -294,7 +430,7 @@ export default function CartPage() {
                                                 <div className="w-full h-24 rounded-lg bg-slate-50 overflow-hidden mb-2 border border-slate-100/50 flex items-center justify-center relative">
                                                     {item.images?.[0] ? (
                                                         <OptimizedImage src={item.images[0]} alt={item.name} className="w-full h-full object-cover mix-blend-multiply" preset="thumbnail" />
-                                                    ) : cart.orderType === 'grocery' ? (
+                                                    ) : item.category !== undefined ? (
                                                         <MdShoppingBag className="text-slate-300 text-[24px]" />
                                                     ) : (
                                                         <MdFastfood className="text-slate-300 text-[24px]" />
@@ -305,7 +441,7 @@ export default function CartPage() {
                                                 <h4 className="text-[11px] font-extrabold text-slate-800 line-clamp-2 leading-snug min-h-[32px]">{item.name}</h4>
 
                                                 {/* Size (Grocery Only) */}
-                                                {cart.orderType === 'grocery' && item.weightSize && (
+                                                {item.weightSize && (
                                                     <p className="text-[9px] text-slate-400 font-bold mt-0.5">{item.weightSize}</p>
                                                 )}
                                             </div>
@@ -331,15 +467,15 @@ export default function CartPage() {
             </main>
 
             {/* Fixed Floating Checkout bar */}
-            {cart.items.length > 0 && (
+            {totalItemsCount > 0 && (
                 <div className="fixed bottom-0 left-0 w-full z-50 bg-white/90 backdrop-blur-md border-t border-slate-100 shadow-[0_-8px_30px_rgba(0,0,0,0.06)] p-4 pb-safe-bottom">
                     <div className="max-w-lg mx-auto flex items-center justify-between">
                         <div>
                             <p className="text-[9px] font-black text-slate-450 uppercase tracking-widest leading-none">Basket Subtotal</p>
                             <p className="text-lg font-black text-slate-900 mt-1 leading-none">
-                                ₹{(Number(itemTotal) || 0).toFixed(2)}
+                                ₹{(Number(basketSubtotal) || 0).toFixed(2)}
                                 <span className="text-[10px] text-slate-400 font-extrabold ml-1.5 uppercase tracking-wide">
-                                    ({cart.items.reduce((sum, item) => sum + item.quantity, 0)} {cart.items.length === 1 ? 'item' : 'items'})
+                                    ({totalItemsCount} {totalItemsCount === 1 ? 'item' : 'items'})
                                 </span>
                             </p>
                         </div>
@@ -365,9 +501,8 @@ export default function CartPage() {
             )}
 
             {/* Bottom Nav fallback */}
-            {cart.items.length === 0 && <BottomNavBar activeTab="orders" />}
+            {totalItemsCount === 0 && <BottomNavBar activeTab="orders" />}
 
         </div>
     );
 }
-
