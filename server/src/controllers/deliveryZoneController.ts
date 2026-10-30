@@ -8,7 +8,7 @@ import { findApplicableZone } from "../services/deliveryRadiusService";
 import * as zoneCacheService from "../services/zoneCacheService";
 import * as redisService from "../services/redisService";
 import { computeBillFromZone } from "../utils/billCalculator";
-import { quoteDelivery } from "../services/deliveryQuoteService";
+import { quoteDelivery, quoteMixedDelivery } from "../services/deliveryQuoteService";
 import PlatformSettings from "../models/PlatformSettings";
 import { verifyItemPrices } from "../utils/itemVerification";
 import { checkRestaurantAcceptingOrders } from "../utils/restaurantHours";
@@ -24,7 +24,7 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
             smallOrderThreshold, smallOrderFee, smallOrderFeeActive,
             platformFee, platformFeeActive, gstPercentage, gstActive,
             packagingCharge, packagingChargeActive, convenienceFee, convenienceFeeActive,
-            surgeMultiplier, surgeActive
+            surgeMultiplier, surgeActive, multiVendorFee
         } = req.body;
 
         if (maxDeliveryFee !== undefined && minDeliveryFee !== undefined && Number(maxDeliveryFee) < Number(minDeliveryFee)) {
@@ -38,7 +38,8 @@ export const createDeliveryZone = async (req: Request, res: Response): Promise<v
             smallOrderThreshold, smallOrderFee, smallOrderFeeActive,
             platformFee, platformFeeActive, gstPercentage, gstActive,
             packagingCharge, packagingChargeActive, convenienceFee, convenienceFeeActive,
-            surgeMultiplier, surgeActive
+            surgeMultiplier, surgeActive,
+            multiVendorFee: multiVendorFee !== undefined ? Number(multiVendorFee) : 5
         });
 
         await newZone.save();
@@ -117,7 +118,7 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
             smallOrderThreshold, smallOrderFee, smallOrderFeeActive,
             platformFee, platformFeeActive, gstPercentage, gstActive,
             packagingCharge, packagingChargeActive, convenienceFee, convenienceFeeActive,
-            surgeMultiplier, surgeActive
+            surgeMultiplier, surgeActive, multiVendorFee
         } = req.body;
 
         if (maxDeliveryFee !== undefined && minDeliveryFee !== undefined && Number(maxDeliveryFee) < Number(minDeliveryFee)) {
@@ -125,16 +126,21 @@ export const updateDeliveryZone = async (req: Request, res: Response): Promise<v
             return;
         }
 
+        const updateFields: any = {
+            name, isActive, pincodes, center, radiusKm,
+            baseDeliveryFee, baseDistanceKm, extraFeePerKm, minDeliveryFee, maxDeliveryFee, freeDeliveryThreshold,
+            smallOrderThreshold, smallOrderFee, smallOrderFeeActive,
+            platformFee, platformFeeActive, gstPercentage, gstActive,
+            packagingCharge, packagingChargeActive, convenienceFee, convenienceFeeActive,
+            surgeMultiplier, surgeActive
+        };
+        if (multiVendorFee !== undefined) {
+            updateFields.multiVendorFee = Number(multiVendorFee);
+        }
+
         const zone = await DeliveryZone.findByIdAndUpdate(
             req.params.id,
-            {
-                name, isActive, pincodes, center, radiusKm,
-                baseDeliveryFee, baseDistanceKm, extraFeePerKm, minDeliveryFee, maxDeliveryFee, freeDeliveryThreshold,
-                smallOrderThreshold, smallOrderFee, smallOrderFeeActive,
-                platformFee, platformFeeActive, gstPercentage, gstActive,
-                packagingCharge, packagingChargeActive, convenienceFee, convenienceFeeActive,
-                surgeMultiplier, surgeActive
-            },
+            updateFields,
             { new: true, runValidators: true }
         );
 
@@ -295,9 +301,45 @@ export const checkDeliveryFeasibilityAndFee = async (req: Request, res: Response
 // Endpoint to calculate secure itemized dynamic checkout bill details
 export const calculateBillDetails = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { vendorId, items, userLat, userLng, orderType = "food", pincode, address, couponCode, userId } = req.body;
+        const {
+            vendorId,
+            items,
+            groceryItems: rawGroceryItems,
+            userLat,
+            userLng,
+            orderType = "food",
+            pincode,
+            address,
+            couponCode,
+            userId
+        } = req.body;
 
-        if (!items || !Array.isArray(items) || items.length === 0) {
+        const hasGroceryItems = Array.isArray(rawGroceryItems) && rawGroceryItems.length > 0;
+        let foodItems: any[] = [];
+        let groceryItems: any[] = [];
+
+        if (hasGroceryItems) {
+            foodItems = Array.isArray(items) ? items : [];
+            groceryItems = rawGroceryItems;
+        } else if (orderType === "mixed") {
+            foodItems = (items || []).filter((it: any) =>
+                it.menuItem ||
+                (typeof it.id === "string" && it.id.startsWith("food-")) ||
+                (typeof it.itemId === "string" && it.itemId.startsWith("food-"))
+            );
+            groceryItems = (items || []).filter((it: any) =>
+                it.groceryItem ||
+                (typeof it.id === "string" && it.id.startsWith("groc-")) ||
+                (typeof it.itemId === "string" && it.itemId.startsWith("groc-"))
+            );
+        } else {
+            if (orderType === "food") foodItems = Array.isArray(items) ? items : [];
+            else groceryItems = Array.isArray(items) ? items : [];
+        }
+
+        const isMixed = foodItems.length > 0 && groceryItems.length > 0;
+
+        if (!isMixed && (!items || !Array.isArray(items) || items.length === 0)) {
             res.status(400).json({ success: false, message: "Cart items are required for calculation" });
             return;
         }
@@ -307,9 +349,141 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         const pin = pincode || (address && address.pincode);
         const addrText = address && (address.fullAddress || address.deliveryAddress?.locality);
 
+        const platformSettings = await PlatformSettings.findOne();
+        const minOrderValueFood = platformSettings?.minOrderValueFood || 0;
+        const minOrderValueGrocery = platformSettings?.minOrderValueGrocery || 0;
+
+        // ─── MIXED ORDER BILL CALCULATION ───────────────────────────────
+        if (isMixed) {
+            const mixedQuote = await quoteMixedDelivery({
+                restaurantId: vendorId,
+                destLat,
+                destLng,
+                pincode: pin,
+                addressText: addrText,
+                forOrder: true
+            });
+
+            if (!mixedQuote.deliverable) {
+                let message = "Selected location lies outside our operational delivery limits. You won't be able to checkout.";
+                if (mixedQuote.reason === "invalid_location") {
+                    message = "Please provide valid delivery coordinates.";
+                } else if (mixedQuote.reason === "outside_zone") {
+                    message = "Selected location lies outside our operational delivery limits. You won't be able to checkout.";
+                } else if (mixedQuote.reason === "outside_radius") {
+                    message = "Delivery address is outside the maximum delivery radius.";
+                } else if (mixedQuote.reason === "restaurant_location_unverified") {
+                    message = "Restaurant location is unverified.";
+                }
+
+                res.status(200).json({
+                    success: true,
+                    isDeliverable: false,
+                    reason: mixedQuote.reason,
+                    message
+                });
+                return;
+            }
+
+            const activeZone = mixedQuote.zone;
+            const distanceKm = mixedQuote.distanceKm;
+            const durationMinutes = mixedQuote.durationMinutes;
+
+            // Check restaurant availability
+            if (vendorId && vendorId !== "grocery") {
+                const rest = await Restaurant.findById(vendorId);
+                const availability = checkRestaurantAcceptingOrders(rest);
+                if (!availability.isAccepting) {
+                    res.status(400).json({ success: false, message: availability.message });
+                    return;
+                }
+            }
+
+            let foodItemTotal = 0;
+            let groceryItemTotal = 0;
+            try {
+                const foodVerif = await verifyItemPrices(foodItems, "food", vendorId);
+                foodItemTotal = foodVerif.verifiedItemTotal;
+                const grocVerif = await verifyItemPrices(groceryItems, "grocery", undefined);
+                groceryItemTotal = grocVerif.verifiedItemTotal;
+            } catch (verifErr: any) {
+                res.status(400).json({ success: false, message: verifErr.message || "Failed to verify item prices." });
+                return;
+            }
+
+            const itemTotal = foodItemTotal + groceryItemTotal;
+            const multiVendorFee = activeZone.multiVendorFee !== undefined ? activeZone.multiVendorFee : 5;
+
+            const bill = computeBillFromZone(activeZone, itemTotal, distanceKm, "mixed", { isMixed: true, multiVendorFee });
+
+            let discountAmount = 0;
+            let couponApplied = false;
+            let couponError = undefined;
+
+            if (couponCode) {
+                const validation = await validateCoupon(
+                    couponCode,
+                    userId,
+                    itemTotal,
+                    activeZone._id.toString(),
+                    vendorId,
+                    "food"
+                );
+                if (validation.success) {
+                    discountAmount = validation.discountAmount;
+                    couponApplied = true;
+                } else {
+                    couponError = validation.message;
+                }
+            }
+
+            const grandTotal = Math.max(0, bill.grandTotal - discountAmount);
+
+            const foodShortfall = foodItemTotal < minOrderValueFood ? minOrderValueFood - foodItemTotal : 0;
+            const grocerShortfall = groceryItemTotal < minOrderValueGrocery ? minOrderValueGrocery - groceryItemTotal : 0;
+            const isBelowMinimum = foodShortfall > 0 || grocerShortfall > 0;
+            const amountNeededForMinOrder = foodShortfall + grocerShortfall;
+            const minOrderValue = minOrderValueFood + minOrderValueGrocery;
+
+            res.status(200).json({
+                success: true,
+                zoneId: activeZone._id,
+                zoneName: activeZone.name,
+                itemTotal,
+                foodItemTotal,
+                groceryItemTotal,
+                deliveryFee: bill.deliveryFee,
+                multiVendorFee: bill.multiVendorFee,
+                freeDeliveryThreshold: activeZone.freeDeliveryThreshold,
+                smallOrderFee: bill.smallOrderFee,
+                platformFee: bill.platformFee,
+                packagingCharge: bill.packagingCharge,
+                convenienceFee: bill.convenienceFee,
+                gst: bill.gst,
+                surgeCharge: bill.surgeCharge,
+                discountAmount,
+                couponApplied,
+                couponError,
+                grandTotal,
+                distanceKm: parseFloat(distanceKm.toFixed(2)),
+                durationMinutes: durationMinutes + 15,
+                minOrderValueFood,
+                minOrderValueGrocery,
+                foodShortfall,
+                grocerShortfall,
+                minOrderValue,
+                isBelowMinimum,
+                amountNeededForMinOrder
+            });
+            return;
+        }
+
+        // ─── SINGLE ORDER BILL CALCULATION ──────────────────────────────
+        const singleOrderType: "food" | "grocery" = orderType === "grocery" ? "grocery" : "food";
+
         const quote = await quoteDelivery({
-            orderType,
-            restaurantId: orderType === "food" ? vendorId : undefined,
+            orderType: singleOrderType,
+            restaurantId: singleOrderType === "food" ? vendorId : undefined,
             destLat,
             destLng,
             pincode: pin,
@@ -343,7 +517,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         const durationMinutes = quote.durationMinutes;
 
         // Check restaurant status and availability for food orders
-        if (orderType === "food" && vendorId && vendorId !== "grocery") {
+        if (singleOrderType === "food" && vendorId && vendorId !== "grocery") {
             const rest = await Restaurant.findById(vendorId);
             const availability = checkRestaurantAcceptingOrders(rest);
             if (!availability.isAccepting) {
@@ -355,7 +529,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         // Calculate Subtotal (Item Total) via server-verified prices
         let itemTotal = 0;
         try {
-            const verification = await verifyItemPrices(items, orderType, orderType === "food" ? vendorId : undefined);
+            const verification = await verifyItemPrices(items, singleOrderType, singleOrderType === "food" ? vendorId : undefined);
             itemTotal = verification.verifiedItemTotal;
         } catch (verifErr: any) {
             res.status(400).json({ success: false, message: verifErr.message || "Failed to verify item prices." });
@@ -363,7 +537,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         }
 
         // Delivery Fee calculations, taxes, platform fees — all via shared utility
-        const bill = computeBillFromZone(activeZone, itemTotal, distanceKm, orderType);
+        const bill = computeBillFromZone(activeZone, itemTotal, distanceKm, singleOrderType);
 
         // Surge charge for display (already factored into bill.deliveryFee)
         let surgeCharge = bill.surgeCharge;
@@ -379,8 +553,8 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
                 userId, 
                 itemTotal, 
                 activeZone._id.toString(), 
-                orderType === "food" ? vendorId : undefined,
-                orderType
+                singleOrderType === "food" ? vendorId : undefined,
+                singleOrderType
             );
 
             if (validation.success) {
@@ -394,8 +568,8 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
         // Apply coupon discount to the shared bill's grand total
         const grandTotal = Math.max(0, bill.grandTotal - discountAmount);
 
-        let prepBuffer = orderType === "grocery" ? 5 : 15; // existing default, unchanged fallback
-        if (orderType === "food" && items?.length) {
+        let prepBuffer = singleOrderType === "grocery" ? 5 : 15;
+        if (singleOrderType === "food" && items?.length) {
             const menuItemIds = items.map((i: any) => i.menuItem || i._id || (typeof i.id === "string" ? i.id.replace("food-", "") : undefined)).filter(Boolean);
             const menuItemDocs = await MenuItem.find({ _id: { $in: menuItemIds } }, { prepTimeMinutes: 1 });
             if (menuItemDocs.length) {
@@ -403,11 +577,12 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             }
         }
 
-        // Minimum order value validation
-        const platformSettings = await PlatformSettings.findOne();
-        const minOrderValue = orderType === "food" ? (platformSettings?.minOrderValueFood || 0) : (platformSettings?.minOrderValueGrocery || 0);
+        // Minimum order value validation (Requirement 4b)
+        const minOrderValue = singleOrderType === "food" ? minOrderValueFood : minOrderValueGrocery;
         const isBelowMinimum = itemTotal < minOrderValue;
         const amountNeededForMinOrder = isBelowMinimum ? minOrderValue - itemTotal : 0;
+        const foodShortfall = singleOrderType === "food" ? amountNeededForMinOrder : 0;
+        const grocerShortfall = singleOrderType === "grocery" ? amountNeededForMinOrder : 0;
 
         res.status(200).json({
             success: true,
@@ -415,6 +590,7 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             zoneName: activeZone.name,
             itemTotal,
             deliveryFee: bill.deliveryFee,
+            multiVendorFee: 0,
             freeDeliveryThreshold: activeZone.freeDeliveryThreshold,
             smallOrderFee: bill.smallOrderFee,
             platformFee: bill.platformFee,
@@ -427,7 +603,11 @@ export const calculateBillDetails = async (req: Request, res: Response): Promise
             couponError,
             grandTotal,
             distanceKm: parseFloat(distanceKm.toFixed(2)),
-            durationMinutes: durationMinutes + prepBuffer, // Culinary preparation / grocery packing + transit buffer
+            durationMinutes: durationMinutes + prepBuffer,
+            minOrderValueFood,
+            minOrderValueGrocery,
+            foodShortfall,
+            grocerShortfall,
             minOrderValue,
             isBelowMinimum,
             amountNeededForMinOrder

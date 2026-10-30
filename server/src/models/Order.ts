@@ -15,6 +15,9 @@ export interface IOrder extends BaseDocument {
     user: Types.ObjectId;
     restaurant?: Types.ObjectId;
     orderType: "food" | "grocery";
+    checkoutGroupId?: string;
+    groupRole?: "food" | "grocery";
+    multiVendorFee?: number;
     rejectedBy?: Types.ObjectId[];
 
     items: {
@@ -81,6 +84,10 @@ const orderSchema = new Schema<IOrder>({
         enum: ["food", "grocery"],
         default: "food"
     },
+
+    checkoutGroupId: { type: String, default: null },
+    groupRole: { type: String, enum: ["food", "grocery"], default: null },
+    multiVendorFee: { type: Number, default: 0 },
 
     items: [
         {
@@ -164,6 +171,7 @@ const orderSchema = new Schema<IOrder>({
 
 // Indexes for history lookups, dashboard monitoring, and weekly payout batch jobs
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ checkoutGroupId: 1 });
 orderSchema.index({ restaurant: 1, orderStatus: 1, createdAt: -1 });
 orderSchema.index({ orderStatus: 1, createdAt: 1 });
 orderSchema.index({ orderType: 1, deliveryZone: 1, createdAt: -1 });

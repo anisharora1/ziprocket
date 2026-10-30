@@ -273,3 +273,102 @@ export async function quoteDelivery(input: DeliveryQuoteInput): Promise<Delivery
         straightKm
     };
 }
+
+export interface MixedDeliveryQuoteInput {
+    restaurantId: string;
+    destLat?: number | string | null;
+    destLng?: number | string | null;
+    pincode?: string;
+    addressText?: string;
+    forOrder?: boolean;
+    // Optional dependency injection overrides for unit/mock testing
+    _zones?: any[];
+    _restaurant?: any;
+    _getRouteDistanceAndDuration?: (
+        originLat: number,
+        originLng: number,
+        destLat: number,
+        destLng: number
+    ) => Promise<RouteMetrics>;
+}
+
+export interface MixedDeliveryQuoteResult {
+    deliverable: boolean;
+    reason?: DeliveryQuoteReason;
+    foodQuote: DeliveryQuoteResult;
+    groceryQuote: DeliveryQuoteResult;
+    distanceKm: number;
+    durationMinutes: number;
+    zone: any | null;
+}
+
+/**
+ * Quotes delivery feasibility and distance for mixed orders (food + grocery).
+ * Calls quoteDelivery twice: food from the restaurant, grocery from the zone centre.
+ * The order is deliverable only if BOTH are deliverable (strict radius, no tolerance).
+ * Returns both quotes plus distanceKm = the larger of the two, and the reason of the failing one.
+ */
+export async function quoteMixedDelivery(input: MixedDeliveryQuoteInput): Promise<MixedDeliveryQuoteResult> {
+    const {
+        restaurantId,
+        destLat,
+        destLng,
+        pincode,
+        addressText,
+        forOrder = true,
+        _zones,
+        _restaurant,
+        _getRouteDistanceAndDuration
+    } = input;
+
+    const foodQuote = await quoteDelivery({
+        orderType: "food",
+        restaurantId,
+        destLat,
+        destLng,
+        pincode,
+        addressText,
+        forOrder,
+        _zones,
+        _restaurant,
+        _getRouteDistanceAndDuration
+    });
+
+    const groceryQuote = await quoteDelivery({
+        orderType: "grocery",
+        destLat,
+        destLng,
+        pincode,
+        addressText,
+        forOrder,
+        _zones,
+        _getRouteDistanceAndDuration
+    });
+
+    const deliverable = foodQuote.deliverable && groceryQuote.deliverable;
+    let reason: DeliveryQuoteReason | undefined = undefined;
+
+    if (!deliverable) {
+        if (!foodQuote.deliverable && !groceryQuote.deliverable) {
+            reason = foodQuote.reason || groceryQuote.reason;
+        } else if (!foodQuote.deliverable) {
+            reason = foodQuote.reason;
+        } else {
+            reason = groceryQuote.reason;
+        }
+    }
+
+    const distanceKm = Math.max(foodQuote.distanceKm || 0, groceryQuote.distanceKm || 0);
+    const durationMinutes = Math.max(foodQuote.durationMinutes || 0, groceryQuote.durationMinutes || 0);
+    const zone = foodQuote.zone || groceryQuote.zone;
+
+    return {
+        deliverable,
+        reason,
+        foodQuote,
+        groceryQuote,
+        distanceKm,
+        durationMinutes,
+        zone
+    };
+}

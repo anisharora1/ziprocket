@@ -1,18 +1,21 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
+import Razorpay from "razorpay";
 import Order from "../models/Order";
 import Restaurant from "../models/Restaurant";
 import User from "../models/User";
 import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
 import Delivery from "../models/Delivery";
+import Payment from "../models/Payment";
 import * as redisService from "../services/redisService";
 import * as cartCacheService from "../services/cartCacheService";
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import PlatformSettings from "../models/PlatformSettings";
 import { emitToRooms } from "../services/socketService";
 import { handleOrderDelivered } from "../utils/orderCompletion";
-import { validateAndPriceOrder, finalizeOrderPlacement } from "../utils/orderValidation";
+import { validateAndPriceOrder, finalizeOrderPlacement, finalizeMixedOrderPlacement } from "../utils/orderValidation";
+import { sanitizeOrderForRestaurant, sanitizeOrderForGrocery } from "../utils/orderSanitizer";
 
 // Create a new order (primarily for COD flow; ONLINE orders are created upon verified payment)
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -20,6 +23,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         const {
             restaurant,
             items,
+            groceryItems,
             paymentMethod = "COD",
             address,
             whatsappOrder,
@@ -32,6 +36,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
 
         const validation = await validateAndPriceOrder({
             items,
+            groceryItems,
             orderType,
             restaurant,
             address,
@@ -42,7 +47,57 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
         });
 
         if (!validation.success) {
-            res.status(400).json({ success: false, message: validation.message, reason: validation.reason });
+            res.status(400).json({ success: false, message: validation.message, reason: validation.reason, shortfall: validation.shortfall });
+            return;
+        }
+
+        // Mixed order: create both food and grocery orders sharing checkoutGroupId
+        if (validation.isMixed) {
+            const { foodOrder, groceryOrder, checkoutGroupId } = await finalizeMixedOrderPlacement({
+                user: userId,
+                restaurant,
+                foodItems: validation.verifiedFoodItems!,
+                groceryItems: validation.verifiedGroceryItems!,
+                foodItemTotal: validation.foodItemTotal!,
+                groceryItemTotal: validation.groceryItemTotal!,
+                totalAmount: validation.finalTotal!,
+                deliveryCharge: validation.deliveryFee!,
+                multiVendorFee: validation.multiVendorFee || 5,
+                paymentMethod,
+                paymentStatus: paymentMethod === "ONLINE" ? "paid" : "pending",
+                orderStatus: "placed",
+                foodDistance: validation.foodDistance || validation.calculatedDistance!,
+                foodDistanceSource: validation.foodDistanceSource,
+                foodRouteOrigin: validation.foodRouteOrigin,
+                foodStraightLineKm: validation.foodStraightLineKm,
+                groceryDistance: validation.groceryDistance || validation.calculatedDistance!,
+                groceryDistanceSource: validation.groceryDistanceSource,
+                groceryRouteOrigin: validation.groceryRouteOrigin,
+                groceryStraightLineKm: validation.groceryStraightLineKm,
+                address: {
+                    fullAddress: address.fullAddress,
+                    lat: validation.validatedCoordinates ? validation.validatedCoordinates.lat : address.lat,
+                    lng: validation.validatedCoordinates ? validation.validatedCoordinates.lng : address.lng,
+                    locationSource: address.locationSource === "gps" ? "gps" : "manual",
+                    deliveryAddress: validation.formattedDeliveryAddress
+                },
+                whatsappOrder: !!whatsappOrder,
+                deliveryZone: validation.applicableZone?._id,
+                moderator: validation.assignedModerator,
+                couponCode,
+                discountAmount: validation.discountAmount,
+                couponDoc: validation.couponDoc,
+                grandTotalBeforeDiscount: validation.verifiedBill?.grandTotal,
+                checkoutGroupId: req.body.checkoutGroupId
+            });
+
+            res.status(201).json({
+                success: true,
+                message: "Order placed successfully",
+                checkoutGroupId,
+                orders: [foodOrder, groceryOrder],
+                order: foodOrder
+            });
             return;
         }
 
@@ -134,10 +189,12 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
         }
 
         // --- SECURE OWNERSHIP CHECK (parallelized) ---
-        if (req.user?.role !== "admin") {
-            const userId = req.user?._id?.toString();
-            const isCustomer = userId === (order.user?._id || order.user)?.toString();
+        let isSeller = false;
+        let isGroceryModerator = false;
+        const userId = req.user?._id?.toString();
+        const isCustomer = userId === (order.user?._id || order.user)?.toString();
 
+        if (req.user?.role !== "admin") {
             if (!isCustomer) {
                 const restId = order.restaurant ? (order.restaurant._id || order.restaurant)?.toString() : null;
                 const DeliveryModel = mongoose.model("Delivery");
@@ -151,10 +208,10 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
                         : null
                 ]);
 
-                const isSeller = restaurant && restaurant.owner?.toString() === userId;
+                isSeller = !!(restaurant && restaurant.owner?.toString() === userId);
                 const isDelivery = !!activeDelivery;
                 const zoneId = (order.deliveryZone?._id || order.deliveryZone)?.toString();
-                const isGroceryModerator = modUser?.assignedZones?.map((z: any) => z.toString()).includes(zoneId);
+                isGroceryModerator = !!(modUser?.assignedZones?.map((z: any) => z.toString()).includes(zoneId));
 
                 if (!isSeller && !isDelivery && !isGroceryModerator) {
                     console.warn(`[SECURITY WARNING] Unauthorized order details access attempt. User: ${userId}, Order: ${order._id}, IP: ${req.ip}`);
@@ -164,8 +221,50 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
             }
         }
 
+        // Restaurant staff/owner must ONLY ever receive food order data (Requirement 11)
+        if (isSeller || (req.user?.role === "seller" && !isCustomer)) {
+            const sanitized = sanitizeOrderForRestaurant(order);
+            res.status(200).json({
+                success: true,
+                order: sanitized
+            });
+            return;
+        }
+
+        // Grocery moderator sees only grocery orders, mirror-image rule (Requirement 11)
+        if (isGroceryModerator && !isCustomer && req.user?.role !== "admin") {
+            const sanitized = sanitizeOrderForGrocery(order);
+            res.status(200).json({
+                success: true,
+                order: sanitized
+            });
+            return;
+        }
+
+        // For customer, delivery partner, or admin: attach sibling summary if mixed
+        if (order.checkoutGroupId) {
+            const siblingOrder = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } })
+                .populate("restaurant", "name address location phone")
+                .populate("deliveryZone", "name center radiusKm pincodes")
+                .lean();
+            if (siblingOrder) {
+                order.sibling = {
+                    orderId: siblingOrder._id,
+                    orderType: siblingOrder.orderType,
+                    groupRole: siblingOrder.groupRole,
+                    status: siblingOrder.orderStatus,
+                    itemCount: siblingOrder.items?.length || 0,
+                    pickupAddress: siblingOrder.orderType === "food"
+                        ? ((siblingOrder.restaurant as any)?.address || (siblingOrder.restaurant as any)?.name || "Restaurant")
+                        : ((siblingOrder.deliveryZone as any)?.name || "Grocery Hub"),
+                    pickupLocation: siblingOrder.orderType === "food"
+                        ? (siblingOrder.restaurant as any)?.location
+                        : (siblingOrder.deliveryZone as any)?.center
+                };
+            }
+        }
+
         // Redact delivery OTP from all roles except admin and the customer who placed the order
-        const userId = req.user?._id?.toString();
         if (req.user?.role !== "admin" && userId !== (order.user?._id || order.user)?.toString()) {
             delete order.deliveryOtp;
         }
@@ -264,11 +363,13 @@ export const getRestaurantOrders = async (req: Request, res: Response): Promise<
             Order.countDocuments(filter)
         ]);
 
+        const sanitizedOrders = orders.map(sanitizeOrderForRestaurant);
+
         res.status(200).json({
             success: true,
-            count: orders.length,
+            count: sanitizedOrders.length,
             meta: { total, page, pages: Math.ceil(total / limit), limit },
-            orders
+            orders: sanitizedOrders
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -378,6 +479,9 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                         linkedDelivery.status = "cancelled";
                         await linkedDelivery.save();
                     }
+
+                    // Cancellation and refund logic (Requirement 7)
+                    await processCancellationRefund(order);
                 }
 
                 // Increment total orders count for the restaurant only upon successful delivery
@@ -386,28 +490,41 @@ export const updateOrderStatus = async (req: Request, res: Response): Promise<vo
                 }
 
                 // --- Socket.IO: Notify relevant parties of order status change ---
-                const rooms: string[] = [
+                const customerAdminRooms: string[] = [
                     `user:${order.user.toString()}`,
                     "admin",
                 ];
                 if (order.orderType === "food" && order.restaurant) {
-                    rooms.push(`seller:${order.restaurant.toString()}`);
-                    if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                    // Restaurant only receives isolated food event without grocery/sibling details (Requirement 11)
+                    emitToRooms(`seller:${order.restaurant.toString()}`, "order_status_updated", {
+                        orderId: order._id.toString(),
+                        orderStatus,
+                        orderType: "food",
+                        restaurantId: order.restaurant?.toString(),
+                        userId: order.user.toString(),
+                    });
                 } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
-                    rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                    emitToRooms(`grocery:${(order as any).deliveryZone.toString()}`, "order_status_updated", {
+                        orderId: order._id.toString(),
+                        orderStatus,
+                        orderType: "grocery",
+                        zoneId: (order as any).deliveryZone?.toString(),
+                        userId: order.user.toString(),
+                    });
                 }
                 // Notify the assigned delivery boy if one has claimed this order
                 const activeDelivery = await Delivery.findOne({ order: orderId }).select("deliveryBoy").lean();
                 if (activeDelivery?.deliveryBoy) {
-                    rooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
+                    customerAdminRooms.push(`delivery:${activeDelivery.deliveryBoy.toString()}`);
                 }
-                emitToRooms(rooms, "order_status_updated", {
+                emitToRooms(customerAdminRooms, "order_status_updated", {
                     orderId: order._id.toString(),
                     orderStatus,
                     orderType: order.orderType,
                     restaurantId: order.restaurant?.toString(),
                     zoneId: (order as any).deliveryZone?.toString(),
                     userId: order.user.toString(),
+                    checkoutGroupId: order.checkoutGroupId
                 });
             } catch (bgError: any) {
                 console.error(`[updateOrderStatus background] Failed for order ${orderId}:`, bgError.message);
@@ -537,11 +654,13 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
             Order.countDocuments(filter)
         ]);
 
+        const sanitizedOrders = orders.map(sanitizeOrderForRestaurant);
+
         res.status(200).json({
             success: true,
-            count: orders.length,
+            count: sanitizedOrders.length,
             meta: { total, page, pages: Math.ceil(total / limit), limit },
-            orders
+            orders: sanitizedOrders
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -650,19 +769,103 @@ export const getGroceryOrders = async (req: Request, res: Response): Promise<voi
                 .populate("deliveryZone", "name center radiusKm pincodes")
                 .sort({ createdAt: -1 })
                 .skip(skip)
-                .limit(limit),
+                .limit(limit)
+                .lean(),
             Order.countDocuments(query)
         ]);
 
+        const sanitizedOrders = orders.map(sanitizeOrderForGrocery);
+
         res.status(200).json({
             success: true,
-            count: orders.length,
+            count: sanitizedOrders.length,
             meta: { total, page, pages: Math.ceil(total / limit), limit },
-            orders
+            orders: sanitizedOrders
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
     }
+};
+
+// Helper to process cancellation and refund for mixed or single orders (Requirement 7)
+export const processCancellationRefund = async (order: any): Promise<{ refundAmount: number; refunded: boolean }> => {
+    let refundAmount = 0;
+    let siblingOrder: any = null;
+
+    if (order.checkoutGroupId) {
+        siblingOrder = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } });
+    }
+
+    const siblingNeedsDelivery = siblingOrder && siblingOrder.orderStatus !== "cancelled";
+
+    if (order.checkoutGroupId) {
+        const multiVendorFee = order.multiVendorFee !== undefined && order.multiVendorFee > 0
+            ? order.multiVendorFee
+            : (siblingOrder?.multiVendorFee !== undefined && siblingOrder.multiVendorFee > 0 ? siblingOrder.multiVendorFee : 5);
+
+        if (order.orderType === "food") {
+            const itemTotal = order.itemTotal || 0;
+            const deliveryCharge = !siblingNeedsDelivery ? (order.deliveryCharge || 0) : 0;
+            refundAmount = itemTotal + multiVendorFee + deliveryCharge;
+        } else {
+            const itemTotal = order.itemTotal || 0;
+            const deliveryCharge = !siblingNeedsDelivery ? (siblingOrder?.deliveryCharge || 0) : 0;
+            refundAmount = itemTotal + multiVendorFee + deliveryCharge;
+
+            if (order.items && Array.isArray(order.items)) {
+                for (const it of order.items) {
+                    if (it.groceryItem) {
+                        await GroceryProduct.findByIdAndUpdate(it.groceryItem, { $inc: { stockQuantity: it.quantity } });
+                    }
+                }
+            }
+        }
+    } else {
+        refundAmount = order.totalAmount || 0;
+        if (order.orderType === "grocery" && order.items && Array.isArray(order.items)) {
+            for (const it of order.items) {
+                if (it.groceryItem) {
+                    await GroceryProduct.findByIdAndUpdate(it.groceryItem, { $inc: { stockQuantity: it.quantity } });
+                }
+            }
+        }
+    }
+
+    let refunded = false;
+    if (order.paymentMethod === "ONLINE" && refundAmount > 0) {
+        const payment = await Payment.findOne({ order: order._id, status: "success" }) ||
+                        (siblingOrder ? await Payment.findOne({ order: siblingOrder._id, status: "success" }) : null);
+
+        if (payment && payment.transactionId) {
+            try {
+                const apiKey = process.env.Test_PAYMENT_API_KEY || process.env.RAZORPAY_KEY_ID || "";
+                const apiSecret = process.env.Test_PAYMENT_SECRET_KEY || process.env.RAZORPAY_KEY_SECRET || "";
+                if (apiKey && apiSecret) {
+                    const razorpay = new Razorpay({ key_id: apiKey, key_secret: apiSecret });
+                    await razorpay.payments.refund(payment.transactionId, {
+                        amount: Math.round(refundAmount * 100),
+                        notes: { reason: `Cancellation refund for order ${order._id}`, checkoutGroupId: order.checkoutGroupId }
+                    });
+                }
+            } catch (rzpErr: any) {
+                console.error("[Razorpay Refund Notice]", rzpErr.message);
+            }
+
+            const refundPayment = new Payment({
+                order: order._id,
+                user: order.user,
+                amount: refundAmount,
+                method: payment.method || "CARD",
+                status: "success",
+                transactionId: `ref_${Date.now()}`
+            });
+            await refundPayment.save();
+            refunded = true;
+        }
+        await Order.findByIdAndUpdate(order._id, { paymentStatus: "refunded" });
+    }
+
+    return { refundAmount, refunded };
 };
 
 // Cancel an order (User Order Cancellation System)
@@ -692,7 +895,7 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
                 });
                 return;
             }
-            if (order.paymentMethod === "ONLINE") {
+            if (order.paymentMethod === "ONLINE" && !order.checkoutGroupId) {
                 res.status(400).json({
                     success: false,
                     message: "Paid online orders cannot be cancelled."
@@ -709,24 +912,12 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
             }
         }
 
-        // Restore grocery stock if this is a grocery order
-        if (order.orderType === "grocery" && order.items) {
-            for (const item of order.items) {
-                if (item.groceryItem) {
-                    await GroceryProduct.findByIdAndUpdate(item.groceryItem, {
-                        $inc: { stockQuantity: item.quantity }
-                    });
-                }
-            }
-        }
-
         // Set order cancellation details
         order.orderStatus = "cancelled";
         order.cancellationReason = reason || "Cancelled by user";
         order.cancelledAt = new Date();
 
-        // Also cancel the courier's assigned task, if one exists — otherwise it silently
-        // stays showing as "active" on the delivery partner's app forever.
+        // Also cancel the courier's assigned task, if one exists
         const linkedDelivery = await Delivery.findOne({ order: order._id, status: { $ne: "delivered" } });
         if (linkedDelivery) {
             linkedDelivery.status = "cancelled";
@@ -735,35 +926,53 @@ export const cancelOrder = async (req: Request, res: Response): Promise<void> =>
 
         await order.save();
 
+        // Cancellation and refund logic (Requirement 7)
+        await processCancellationRefund(order);
+
         // Invalidate Redis caches
         await redisService.del(`order:detail:${id}`);
         await redisService.deletePattern(`order:user_recent:${order.user.toString()}:*`);
 
         // --- Socket.IO: Notify seller/grocery moderator + delivery boys of cancellation ---
         try {
-            const rooms: string[] = [
+            const customerAdminRooms: string[] = [
                 `user:${order.user.toString()}`,
                 "admin",
             ];
-            if (order.orderType === "food" && order.restaurant) {
-                rooms.push(`seller:${order.restaurant.toString()}`);
-                if ((order as any).deliveryZone) rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
-            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
-                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+            if (linkedDelivery?.deliveryBoy) {
+                customerAdminRooms.push(`delivery:${linkedDelivery.deliveryBoy.toString()}`);
             }
             if ((order as any).deliveryZone) {
-                rooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
+                customerAdminRooms.push(`delivery_zone:${(order as any).deliveryZone.toString()}`);
             }
-            if (linkedDelivery?.deliveryBoy) {
-                rooms.push(`delivery:${linkedDelivery.deliveryBoy.toString()}`);
+
+            if (order.orderType === "food" && order.restaurant) {
+                // Restaurant receives filtered event without grocery or checkoutGroupId (Requirement 11)
+                emitToRooms(`seller:${order.restaurant.toString()}`, "order_cancelled", {
+                    orderId: id,
+                    reason: order.cancellationReason,
+                    orderType: "food",
+                    restaurantId: order.restaurant.toString(),
+                    userId: order.user.toString()
+                });
+            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                emitToRooms(`grocery:${(order as any).deliveryZone.toString()}`, "order_cancelled", {
+                    orderId: id,
+                    reason: order.cancellationReason,
+                    orderType: "grocery",
+                    zoneId: (order as any).deliveryZone.toString(),
+                    userId: order.user.toString()
+                });
             }
-            emitToRooms(rooms, "order_cancelled", {
+
+            emitToRooms(customerAdminRooms, "order_cancelled", {
                 orderId: id,
                 reason: order.cancellationReason,
                 orderType: order.orderType,
                 restaurantId: order.restaurant?.toString(),
                 zoneId: (order as any).deliveryZone?.toString(),
                 userId: order.user.toString(),
+                checkoutGroupId: order.checkoutGroupId
             });
         } catch (emitErr: any) {
             console.error("[Socket] order_cancelled emit error:", emitErr.message);
