@@ -102,7 +102,7 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
                         deliveryAddress: formattedDeliveryAddress
                     },
                     deliveryCharge: deliveryFee,
-                    multiVendorFee: validation.multiVendorFee || 5,
+                    multiVendorFee: validation.multiVendorFee ?? 0,
                     totalAmount: verifiedTotal,
                     grandTotalBeforeDiscount: verifiedBill?.grandTotal,
                     discountAmount,
