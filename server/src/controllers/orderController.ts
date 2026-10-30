@@ -62,7 +62,7 @@ export const createOrder = async (req: Request, res: Response): Promise<void> =>
                 groceryItemTotal: validation.groceryItemTotal!,
                 totalAmount: validation.finalTotal!,
                 deliveryCharge: validation.deliveryFee!,
-                multiVendorFee: validation.multiVendorFee || 5,
+                multiVendorFee: validation.multiVendorFee ?? 0,
                 paymentMethod,
                 paymentStatus: paymentMethod === "ONLINE" ? "paid" : "pending",
                 orderStatus: "placed",
@@ -168,7 +168,7 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
         const cacheKey = `order:detail:${orderId}`;
 
         let order = await redisService.getJson<any>(cacheKey);
-        
+
         if (!order) {
             order = await Order.findById(orderId)
                 .populate("user", "name email phone")
@@ -326,7 +326,7 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
 export const getRestaurantOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const restaurantId = req.params.restaurantId;
-        
+
         // Secure Ownership Check
         if (req.user?.role !== "admin") {
             const restaurant = await Restaurant.findById(restaurantId);
@@ -343,7 +343,7 @@ export const getRestaurantOrders = async (req: Request, res: Response): Promise<
         const skip = (page - 1) * limit;
 
         let filter: any = { restaurant: restaurantId };
-        
+
         // Optional filtering by order status
         if (orderStatus) {
             filter.orderStatus = orderStatus;
@@ -635,7 +635,7 @@ export const getMyOrders = async (req: Request, res: Response): Promise<void> =>
         const skip = (page - 1) * limit;
 
         let filter: any = { restaurant: restaurant._id };
-        
+
         if (orderStatus) {
             filter.orderStatus = orderStatus;
         } else {
@@ -694,14 +694,16 @@ export const getSellerDashboardStats = async (req: Request, res: Response): Prom
                         }
                     }
                 },
-                { $group: {
-                    _id: null,
-                    totalItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
-                    completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, 1, 0] } },
-                    preparingOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "preparing"] }, 1, 0] } },
-                    cancelledOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] } },
-                    totalOrders: { $sum: 1 }
-                }}
+                {
+                    $group: {
+                        _id: null,
+                        totalItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
+                        completedOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, 1, 0] } },
+                        preparingOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "preparing"] }, 1, 0] } },
+                        cancelledOrders: { $sum: { $cond: [{ $eq: ["$orderStatus", "cancelled"] }, 1, 0] } },
+                        totalOrders: { $sum: 1 }
+                    }
+                }
             ]),
             Order.aggregate([
                 { $match: { restaurant: restaurant._id, createdAt: { $gte: today } } },
@@ -712,11 +714,13 @@ export const getSellerDashboardStats = async (req: Request, res: Response): Prom
                         }
                     }
                 },
-                { $group: {
-                    _id: null,
-                    todayItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
-                    todayOrdersCount: { $sum: 1 }
-                }}
+                {
+                    $group: {
+                        _id: null,
+                        todayItemRevenue: { $sum: { $cond: [{ $eq: ["$orderStatus", "delivered"] }, "$itemValueTotal", 0] } },
+                        todayOrdersCount: { $sum: 1 }
+                    }
+                }
             ])
         ]);
 
@@ -799,9 +803,7 @@ export const processCancellationRefund = async (order: any): Promise<{ refundAmo
     const siblingNeedsDelivery = siblingOrder && siblingOrder.orderStatus !== "cancelled";
 
     if (order.checkoutGroupId) {
-        const multiVendorFee = order.multiVendorFee !== undefined && order.multiVendorFee > 0
-            ? order.multiVendorFee
-            : (siblingOrder?.multiVendorFee !== undefined && siblingOrder.multiVendorFee > 0 ? siblingOrder.multiVendorFee : 5);
+        const multiVendorFee = order.multiVendorFee ?? siblingOrder?.multiVendorFee ?? 0;
 
         if (order.orderType === "food") {
             const itemTotal = order.itemTotal || 0;
@@ -834,7 +836,7 @@ export const processCancellationRefund = async (order: any): Promise<{ refundAmo
     let refunded = false;
     if (order.paymentMethod === "ONLINE" && refundAmount > 0) {
         const payment = await Payment.findOne({ order: order._id, status: "success" }) ||
-                        (siblingOrder ? await Payment.findOne({ order: siblingOrder._id, status: "success" }) : null);
+            (siblingOrder ? await Payment.findOne({ order: siblingOrder._id, status: "success" }) : null);
 
         if (payment && payment.transactionId) {
             try {
