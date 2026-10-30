@@ -28,8 +28,22 @@ interface OrderItem {
   price: number;
 }
 
+interface SiblingSummary {
+  orderId: string;
+  orderType: "food" | "grocery";
+  groupRole?: "food" | "grocery";
+  orderStatus: string;
+  pickupName?: string;
+  pickupAddress?: string;
+  pickupLocation?: { lat: number; lng: number };
+}
+
 interface Order {
   _id: string;
+  checkoutGroupId?: string;
+  groupRole?: "food" | "grocery";
+  siblingSummary?: SiblingSummary;
+  sibling?: SiblingSummary;
   user: {
     name: string;
     phone: string;
@@ -302,13 +316,31 @@ export default function DeliveryOrdersPage() {
               const order = delivery.order;
               if (!order) return null;
               const orderId = `#ORD-${order._id.substring(order._id.length - 6).toUpperCase()}`;
+              const sibling = order.siblingSummary || order.sibling;
+              const hasSibling = Boolean(sibling);
+
+              const restName = order.orderType === 'food' ? (order.restaurant?.name || "Restaurant Partner") : (sibling?.pickupName || "Restaurant Partner");
+              const restAddress = order.orderType === 'food' ? (order.restaurant?.address || "Restaurant Address") : (sibling?.pickupAddress || "Restaurant Address");
+              const restLoc = order.orderType === 'food' ? order.restaurant?.location : sibling?.pickupLocation;
+
+              const grocName = order.orderType === 'grocery' ? "ZipGrocery Hyperlocal Depot" : (sibling?.pickupName || "ZipGrocery Hyperlocal Depot");
+              const grocAddress = order.orderType === 'grocery' ? (order.deliveryZone?.name || "Hyperlocal Fulfillment Center") : (sibling?.pickupAddress || "Hyperlocal Fulfillment Center");
+              const grocLoc = order.orderType === 'grocery' ? order.deliveryZone?.center : sibling?.pickupLocation;
+
               return (
                 <div key={delivery._id} className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 flex flex-col gap-4 animate-in fade-in duration-200">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-lg uppercase tracking-wider mb-2">
-                        Courier Duty • {order.orderType === 'food' ? 'Restaurant Pick' : 'Grocery Depot'}
-                      </span>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="inline-block px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[9px] font-bold rounded-lg uppercase tracking-wider">
+                          Courier Duty • {order.orderType === 'food' ? 'Restaurant Pick' : 'Grocery Depot'}
+                        </span>
+                        {hasSibling && (
+                          <span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black rounded-lg uppercase tracking-wider">
+                            2 Pickups
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-[17px] font-black text-slate-800 leading-tight">{orderId}</h3>
                       <p className="text-slate-400 text-xs font-semibold mt-1">{getItemsSummary(order.items, order.orderType)}</p>
                     </div>
@@ -325,27 +357,75 @@ export default function DeliveryOrdersPage() {
                   </div>
 
                   <div className="border-t border-slate-50 pt-3 space-y-2 text-xs font-semibold">
-                    <div className="flex gap-2.5 items-start w-full justify-between">
-                      <div className="flex gap-2.5 items-start">
-                        <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-slate-800 font-bold">Pick Up Location</p>
-                          <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">{order.restaurant?.address || "Fulfillment Center"}</p>
+                    {hasSibling ? (
+                      <>
+                        {/* Stop 1: Restaurant pickup */}
+                        <div className="flex gap-2.5 items-start w-full justify-between p-2.5 bg-orange-50/50 rounded-xl border border-orange-100/60">
+                          <div className="flex gap-2.5 items-start">
+                            <MdStore className="text-orange-500 text-[16px] mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-orange-900 font-bold">Stop 1 • Pick Food ({restName})</p>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{restAddress}</p>
+                            </div>
+                          </div>
+                          {restLoc?.lat !== undefined && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${restLoc.lat},${restLoc.lng}&travelmode=driving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-8 h-8 rounded-full bg-white hover:bg-orange-100 flex items-center justify-center text-[#FF5C00] transition-colors shadow-sm ml-2 shrink-0 self-center"
+                              title="Navigate to Restaurant"
+                            >
+                              <MdNavigation className="text-[16px]" />
+                            </a>
+                          )}
                         </div>
+
+                        {/* Stop 2: Grocery hub pickup */}
+                        <div className="flex gap-2.5 items-start w-full justify-between p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100/60">
+                          <div className="flex gap-2.5 items-start">
+                            <MdStore className="text-emerald-600 text-[16px] mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-emerald-900 font-bold">Stop 2 • Pick Groceries ({grocName})</p>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{grocAddress}</p>
+                            </div>
+                          </div>
+                          {grocLoc?.lat !== undefined && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${grocLoc.lat},${grocLoc.lng}&travelmode=driving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-8 h-8 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
+                              title="Navigate to Grocery Hub"
+                            >
+                              <MdNavigation className="text-[16px]" />
+                            </a>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex gap-2.5 items-start w-full justify-between">
+                        <div className="flex gap-2.5 items-start">
+                          <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-slate-800 font-bold">Pick Up Location</p>
+                            <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{order.restaurant?.address || "Fulfillment Center"}</p>
+                          </div>
+                        </div>
+                        {(order.restaurant?.location?.lat !== undefined || order.deliveryZone?.center?.lat !== undefined) && (
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.orderType === 'food' ? order.restaurant?.location?.lat : order.deliveryZone?.center?.lat},${order.orderType === 'food' ? order.restaurant?.location?.lng : order.deliveryZone?.center?.lng}&travelmode=driving`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
+                            title="Navigate to Pick Up"
+                          >
+                            <MdNavigation className="text-[16px]" />
+                          </a>
+                        )}
                       </div>
-                      {(order.restaurant?.location?.lat !== undefined || order.deliveryZone?.center?.lat !== undefined) && (
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${order.orderType === 'food' ? order.restaurant?.location?.lat : order.deliveryZone?.center?.lat},${order.orderType === 'food' ? order.restaurant?.location?.lng : order.deliveryZone?.center?.lng}&travelmode=driving`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
-                          title="Navigate to Pick Up"
-                        >
-                          <MdNavigation className="text-[16px]" />
-                        </a>
-                      )}
-                    </div>
+                    )}
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
                         <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
@@ -429,13 +509,31 @@ export default function DeliveryOrdersPage() {
           <div className="space-y-4">
             {pendingQueue.map((order) => {
               const orderId = `#ORD-${order._id.substring(order._id.length - 6).toUpperCase()}`;
+              const sibling = order.siblingSummary || order.sibling;
+              const hasSibling = Boolean(sibling);
+
+              const restName = order.orderType === 'food' ? (order.restaurant?.name || "Restaurant Partner") : (sibling?.pickupName || "Restaurant Partner");
+              const restAddress = order.orderType === 'food' ? (order.restaurant?.address || "Restaurant Address") : (sibling?.pickupAddress || "Restaurant Address");
+              const restLoc = order.orderType === 'food' ? order.restaurant?.location : sibling?.pickupLocation;
+
+              const grocName = order.orderType === 'grocery' ? "ZipGrocery Hyperlocal Depot" : (sibling?.pickupName || "ZipGrocery Hyperlocal Depot");
+              const grocAddress = order.orderType === 'grocery' ? (order.deliveryZone?.name || "Hyperlocal Fulfillment Center") : (sibling?.pickupAddress || "Hyperlocal Fulfillment Center");
+              const grocLoc = order.orderType === 'grocery' ? order.deliveryZone?.center : sibling?.pickupLocation;
+
               return (
                 <div key={order._id} className="bg-white rounded-[24px] p-5 shadow-sm border border-slate-100 flex flex-col gap-4 animate-in fade-in duration-200">
                   <div className="flex justify-between items-start">
                     <div>
-                      <span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 text-[9px] font-bold rounded-lg uppercase tracking-wider mb-2">
-                        UNCLAIMED REQUEST • {order.orderType.toUpperCase()}
-                      </span>
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <span className="inline-block px-2.5 py-1 bg-amber-50 text-amber-700 text-[9px] font-bold rounded-lg uppercase tracking-wider">
+                          UNCLAIMED REQUEST • {order.orderType.toUpperCase()}
+                        </span>
+                        {hasSibling && (
+                          <span className="inline-block px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 text-[9px] font-black rounded-lg uppercase tracking-wider">
+                            2 Pickups
+                          </span>
+                        )}
+                      </div>
                       <h3 className="text-[17px] font-black text-slate-800 leading-tight">{orderId}</h3>
                       <p className="text-slate-400 text-xs font-semibold mt-1">{getItemsSummary(order.items, order.orderType)}</p>
                     </div>
@@ -452,27 +550,73 @@ export default function DeliveryOrdersPage() {
                   </div>
 
                   <div className="border-t border-slate-50 pt-3 space-y-2 text-xs font-semibold">
-                    <div className="flex gap-2.5 items-start w-full justify-between">
-                      <div className="flex gap-2.5 items-start">
-                        <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
-                        <div>
-                          <p className="text-slate-800 font-bold">Pick Up Location</p>
-                          <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
-                          <p className="text-[10px] text-slate-400 font-medium mt-0.5">{order.restaurant?.address || "Fulfillment Center"}</p>
+                    {hasSibling ? (
+                      <>
+                        <div className="flex gap-2.5 items-start w-full justify-between p-2.5 bg-orange-50/50 rounded-xl border border-orange-100/60">
+                          <div className="flex gap-2.5 items-start">
+                            <MdStore className="text-orange-500 text-[16px] mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-orange-900 font-bold">Stop 1 • Pick Food ({restName})</p>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{restAddress}</p>
+                            </div>
+                          </div>
+                          {restLoc?.lat !== undefined && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${restLoc.lat},${restLoc.lng}&travelmode=driving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-8 h-8 rounded-full bg-white hover:bg-orange-100 flex items-center justify-center text-[#FF5C00] transition-colors shadow-sm ml-2 shrink-0 self-center"
+                              title="Navigate to Restaurant"
+                            >
+                              <MdNavigation className="text-[16px]" />
+                            </a>
+                          )}
                         </div>
+
+                        <div className="flex gap-2.5 items-start w-full justify-between p-2.5 bg-emerald-50/50 rounded-xl border border-emerald-100/60">
+                          <div className="flex gap-2.5 items-start">
+                            <MdStore className="text-emerald-600 text-[16px] mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-emerald-900 font-bold">Stop 2 • Pick Groceries ({grocName})</p>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">{grocAddress}</p>
+                            </div>
+                          </div>
+                          {grocLoc?.lat !== undefined && (
+                            <a
+                              href={`https://www.google.com/maps/dir/?api=1&destination=${grocLoc.lat},${grocLoc.lng}&travelmode=driving`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-8 h-8 rounded-full bg-white hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
+                              title="Navigate to Grocery Hub"
+                            >
+                              <MdNavigation className="text-[16px]" />
+                            </a>
+                          )}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex gap-2.5 items-start w-full justify-between">
+                        <div className="flex gap-2.5 items-start">
+                          <MdStore className="text-slate-400 text-[16px] mt-0.5 shrink-0" />
+                          <div>
+                            <p className="text-slate-800 font-bold">Pick Up Location</p>
+                            <p className="text-slate-500 font-medium">{order.restaurant?.name || "ZipGrocery Hyperlocal Depot"}</p>
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5">{order.restaurant?.address || "Fulfillment Center"}</p>
+                          </div>
+                        </div>
+                        {(order.restaurant?.location?.lat !== undefined || order.deliveryZone?.center?.lat !== undefined) && (
+                          <a
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${order.orderType === 'food' ? order.restaurant?.location?.lat : order.deliveryZone?.center?.lat},${order.orderType === 'food' ? order.restaurant?.location?.lng : order.deliveryZone?.center?.lng}&travelmode=driving`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
+                            title="Navigate to Pick Up"
+                          >
+                            <MdNavigation className="text-[16px]" />
+                          </a>
+                        )}
                       </div>
-                      {(order.restaurant?.location?.lat !== undefined || order.deliveryZone?.center?.lat !== undefined) && (
-                        <a
-                          href={`https://www.google.com/maps/dir/?api=1&destination=${order.orderType === 'food' ? order.restaurant?.location?.lat : order.deliveryZone?.center?.lat},${order.orderType === 'food' ? order.restaurant?.location?.lng : order.deliveryZone?.center?.lng}&travelmode=driving`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="w-8 h-8 rounded-full bg-emerald-50 hover:bg-emerald-100 flex items-center justify-center text-emerald-600 transition-colors shadow-sm ml-2 shrink-0 self-center"
-                          title="Navigate to Pick Up"
-                        >
-                          <MdNavigation className="text-[16px]" />
-                        </a>
-                      )}
-                    </div>
+                    )}
                     <div className="flex gap-2.5 items-start w-full justify-between">
                       <div className="flex gap-2.5 items-start">
                         <MdLocationOn className="text-slate-400 text-[16px] mt-0.5 shrink-0" />

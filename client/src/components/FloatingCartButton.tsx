@@ -6,10 +6,15 @@ import { MdPlayArrow } from "react-icons/md";
 export default function FloatingCartButton() {
   const { cart } = useCart();
 
-  if (cart.items.length === 0) return null;
+  const foodItems = cart.items || [];
+  const groceryItems = cart.groceryItems || [];
 
-  const totalItems = cart.items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
-  const totalPrice = cart.items.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
+  const totalItems = foodItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0) +
+                     groceryItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+  const totalPrice = foodItems.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0) +
+                     groceryItems.reduce((sum, item) => sum + ((Number(item?.price) || 0) * (Number(item?.quantity) || 1)), 0);
+
+  if (totalItems === 0) return null;
 
   return (
     <div className="fixed bottom-[90px] left-4 right-4 md:left-auto md:right-4 md:w-96 z-[9000] animate-in slide-in-from-bottom-5 fade-in duration-300">
@@ -37,4 +42,3 @@ export default function FloatingCartButton() {
     </div>
   );
 }
-

@@ -30,6 +30,7 @@ interface ZoneData {
   convenienceFeeActive: boolean;
   surgeMultiplier: number;
   surgeActive: boolean;
+  multiVendorFee: number;
 }
 
 const emptyZone: ZoneData = {
@@ -56,7 +57,8 @@ const emptyZone: ZoneData = {
   convenienceFee: 2,
   convenienceFeeActive: false,
   surgeMultiplier: 1.0,
-  surgeActive: false
+  surgeActive: false,
+  multiVendorFee: 5
 };
 
 export default function AdminZonesPage() {
@@ -137,7 +139,8 @@ export default function AdminZonesPage() {
 
     const payload = {
       ...currentZone,
-      pincodes: pincodesArray
+      pincodes: pincodesArray,
+      multiVendorFee: typeof currentZone.multiVendorFee === 'number' && !isNaN(currentZone.multiVendorFee) ? currentZone.multiVendorFee : 0
     };
 
     try {
@@ -176,7 +179,11 @@ export default function AdminZonesPage() {
         center: { ...prev.center, [name]: val }
       }));
     } else {
-      const val = type === "number" ? (parseFloat(value) || 0) : value;
+      let val: any = value;
+      if (type === "number") {
+        const parsed = parseFloat(value);
+        val = isNaN(parsed) ? 0 : parsed;
+      }
       setCurrentZone(prev => ({ ...prev, [name]: val }));
     }
   };
@@ -267,6 +274,10 @@ export default function AdminZonesPage() {
                     <span className="text-slate-850 font-bold">
                       {zone.gstActive ? `${zone.gstPercentage}% GST` : 'No GST'} • {zone.platformFeeActive ? `₹${zone.platformFee} Platform` : 'No Platform Fee'}
                     </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-450">Multi-Vendor Fee:</span>
+                    <span className="text-slate-850 font-bold">₹{zone.multiVendorFee !== undefined ? zone.multiVendorFee : 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-450">Surge Multiplier:</span>
@@ -456,6 +467,20 @@ export default function AdminZonesPage() {
                       onChange={handleInputChange}
                       className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/10 focus:border-[#FF5C00] transition-all text-xs font-semibold"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-700 uppercase mb-1">Multi-vendor fee (Rs)</label>
+                    <input 
+                      required
+                      type="number"
+                      min="0"
+                      step="1"
+                      name="multiVendorFee"
+                      value={currentZone.multiVendorFee !== undefined ? currentZone.multiVendorFee : 0}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#FF5C00]/10 focus:border-[#FF5C00] transition-all text-xs font-semibold"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1 ml-1">Charged once when an order has both grocery and restaurant items. Set 0 to disable.</p>
                   </div>
                 </div>
               </div>

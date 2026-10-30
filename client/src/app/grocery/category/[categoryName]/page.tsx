@@ -69,7 +69,7 @@ export default function CategoryProductsPage() {
   }, [decodedCategory, activeSub]);
 
   const getCartQuantity = (productId: string) => {
-    const item = cart.items.find(i => i.id === `groc-${productId}`);
+    const item = cart.items.find(i => i.id === `groc-${productId}`) || cart.groceryItems?.find(i => i.id === `groc-${productId}`);
     return item ? item.quantity : 0;
   };
 
