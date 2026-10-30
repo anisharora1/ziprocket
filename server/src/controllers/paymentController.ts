@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import crypto from "crypto";
 import Razorpay from "razorpay";
 import PaymentIntent from "../models/PaymentIntent";
-import { validateAndPriceOrder, finalizeOrderPlacement } from "../utils/orderValidation";
+import { validateAndPriceOrder, finalizeOrderPlacement, finalizeMixedOrderPlacement } from "../utils/orderValidation";
 import {
     createRazorpayOrderSession,
     verifyRazorpayPayment as verifyLegacyPayment,
@@ -22,7 +22,7 @@ const getRazorpayInstance = () => {
  */
 export const createPaymentIntent = async (req: Request, res: Response): Promise<void> => {
     try {
-        const { items, orderType = "food", restaurant, address, phone, couponCode, whatsappOrder } = req.body;
+        const { items, groceryItems, orderType = "food", restaurant, address, phone, couponCode, whatsappOrder } = req.body;
         const userId = req.user?._id?.toString() || req.body.user;
 
         if (!userId) {
@@ -33,6 +33,7 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
         // Shared server-side validation & pricing engine
         const validation = await validateAndPriceOrder({
             items,
+            groceryItems,
             orderType,
             restaurant,
             address,
@@ -43,7 +44,7 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
         });
 
         if (!validation.success) {
-            res.status(400).json({ success: false, message: validation.message, reason: validation.reason });
+            res.status(400).json({ success: false, message: validation.message, reason: validation.reason, shortfall: validation.shortfall });
             return;
         }
 
@@ -74,6 +75,62 @@ export const createPaymentIntent = async (req: Request, res: Response): Promise<
             currency: "INR",
             receipt: `intent_${Date.now()}`
         });
+
+        if (validation.isMixed) {
+            const checkoutGroupId = `cg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            await PaymentIntent.create({
+                razorpayOrderId: rzpOrder.id,
+                user: userId,
+                verifiedTotal: verifiedTotal!,
+                orderPayload: {
+                    isMixed: true,
+                    checkoutGroupId,
+                    user: userId,
+                    restaurant,
+                    foodItems: validation.verifiedFoodItems,
+                    groceryItems: validation.verifiedGroceryItems,
+                    foodItemTotal: validation.foodItemTotal,
+                    groceryItemTotal: validation.groceryItemTotal,
+                    phone,
+                    couponCode,
+                    couponDoc,
+                    address: {
+                        fullAddress: address.fullAddress,
+                        lat: validatedCoordinates ? validatedCoordinates.lat : address.lat,
+                        lng: validatedCoordinates ? validatedCoordinates.lng : address.lng,
+                        locationSource: address.locationSource === "gps" ? "gps" : "manual",
+                        deliveryAddress: formattedDeliveryAddress
+                    },
+                    deliveryCharge: deliveryFee,
+                    multiVendorFee: validation.multiVendorFee || 5,
+                    totalAmount: verifiedTotal,
+                    grandTotalBeforeDiscount: verifiedBill?.grandTotal,
+                    discountAmount,
+                    foodDistance: validation.foodDistance || calculatedDistance,
+                    foodDistanceSource: validation.foodDistanceSource || distanceSource,
+                    foodRouteOrigin: validation.foodRouteOrigin || routeOrigin,
+                    foodStraightLineKm: validation.foodStraightLineKm || straightLineKm,
+                    groceryDistance: validation.groceryDistance || calculatedDistance,
+                    groceryDistanceSource: validation.groceryDistanceSource || distanceSource,
+                    groceryRouteOrigin: validation.groceryRouteOrigin || routeOrigin,
+                    groceryStraightLineKm: validation.groceryStraightLineKm || straightLineKm,
+                    deliveryZone: applicableZone?._id,
+                    moderator: assignedModerator,
+                    whatsappOrder: !!whatsappOrder,
+                    paymentMethod: "ONLINE"
+                }
+            });
+
+            res.status(200).json({
+                success: true,
+                razorpayOrderId: rzpOrder.id,
+                amount: rzpOrder.amount,
+                currency: rzpOrder.currency,
+                key: apiKey,
+                checkoutGroupId
+            });
+            return;
+        }
 
         await PaymentIntent.create({
             razorpayOrderId: rzpOrder.id,
@@ -215,6 +272,27 @@ export const verifyPayment = async (req: Request, res: Response): Promise<void> 
         }
 
         // 4. Create the real Order document now that payment is confirmed
+        if (intent.orderPayload?.isMixed) {
+            const { foodOrder, groceryOrder, checkoutGroupId } = await finalizeMixedOrderPlacement({
+                ...intent.orderPayload,
+                orderStatus: "placed",
+                paymentStatus: "paid",
+                razorpayOrderId,
+                razorpayPaymentId,
+                razorpaySignature
+            } as any);
+
+            res.status(200).json({
+                success: true,
+                message: "Mixed order payment verified and orders created",
+                checkoutGroupId,
+                order: foodOrder,
+                siblingOrder: groceryOrder,
+                orders: [foodOrder, groceryOrder]
+            });
+            return;
+        }
+
         const newOrder = await finalizeOrderPlacement({
             ...intent.orderPayload,
             orderStatus: "placed",

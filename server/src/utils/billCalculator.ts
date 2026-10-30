@@ -31,6 +31,8 @@ export interface BillZoneParams {
 
     surgeMultiplier: number;
     surgeActive: boolean;
+
+    multiVendorFee?: number;
 }
 
 export interface BillDetails {
@@ -42,6 +44,7 @@ export interface BillDetails {
     packagingCharge: number;
     convenienceFee: number;
     gst: number;
+    multiVendorFee: number;
     grandTotal: number;
 }
 
@@ -58,7 +61,8 @@ export function computeBillFromZone(
     zone: BillZoneParams,
     itemTotal: number,
     distanceKm: number,
-    _orderType: "food" | "grocery" = "food"
+    orderType: "food" | "grocery" | "mixed" = "food",
+    options?: { isMixed?: boolean; multiVendorFee?: number }
 ): BillDetails {
     // ── Delivery Fee ───────────────────────────────────────────────────
     let rawDeliveryFee = zone.baseDeliveryFee;
@@ -94,6 +98,14 @@ export function computeBillFromZone(
     const packagingCharge = zone.packagingChargeActive ? zone.packagingCharge : 0;
     const convenienceFee = zone.convenienceFeeActive ? zone.convenienceFee : 0;
 
+    // ── Multi-Vendor Fee (mixed orders only) ───────────────────────────
+    const isMixed = orderType === "mixed" || !!options?.isMixed;
+    const multiVendorFee = isMixed
+        ? (options?.multiVendorFee !== undefined
+            ? options.multiVendorFee
+            : (zone.multiVendorFee !== undefined ? zone.multiVendorFee : 5))
+        : 0;
+
     // ── GST ────────────────────────────────────────────────────────────
     let gst = 0;
     if (zone.gstActive) {
@@ -103,7 +115,7 @@ export function computeBillFromZone(
     // ── Grand Total ────────────────────────────────────────────────────
     const grandTotal = Math.max(
         0,
-        itemTotal + deliveryFee + smallOrderFee + platformFee + packagingCharge + convenienceFee + gst
+        itemTotal + deliveryFee + smallOrderFee + platformFee + packagingCharge + convenienceFee + gst + multiVendorFee
     );
 
     return {
@@ -115,6 +127,7 @@ export function computeBillFromZone(
         packagingCharge,
         convenienceFee,
         gst,
+        multiVendorFee,
         grandTotal,
     };
 }

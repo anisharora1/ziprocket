@@ -8,6 +8,32 @@ import { emitToRooms } from "../services/socketService";
 import * as redisService from "../services/redisService";
 import { handleOrderDelivered } from "../utils/orderCompletion";
 
+// Helper to enrich delivery order with sibling pickup details for mixed orders
+async function populateSiblingForDelivery(order: any): Promise<any> {
+    if (!order || !order.checkoutGroupId) return order;
+    const orderObj = typeof order.toObject === "function" ? order.toObject() : { ...order };
+    const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } })
+        .populate("restaurant", "name address location phone")
+        .populate("deliveryZone", "name center radiusKm pincodes")
+        .lean();
+    if (sibling) {
+        orderObj.siblingSummary = {
+            orderId: sibling._id,
+            orderType: sibling.orderType,
+            groupRole: sibling.groupRole,
+            status: sibling.orderStatus,
+            itemCount: sibling.items?.length || 0,
+            pickupAddress: sibling.orderType === "food"
+                ? ((sibling.restaurant as any)?.address || (sibling.restaurant as any)?.name || "Restaurant")
+                : ((sibling.deliveryZone as any)?.name || "Grocery Hub"),
+            pickupLocation: sibling.orderType === "food"
+                ? (sibling.restaurant as any)?.location
+                : (sibling.deliveryZone as any)?.center
+        };
+    }
+    return orderObj;
+}
+
 // Assign a delivery to a delivery boy
 export const assignDelivery = async (req: Request, res: Response): Promise<void> => {
     try {
@@ -21,6 +47,12 @@ export const assignDelivery = async (req: Request, res: Response): Promise<void>
             return;
         }
 
+        const order = await Order.findById(orderId);
+        if (!order) {
+            res.status(404).json({ success: false, message: "Order not found" });
+            return;
+        }
+
         const newDelivery = new Delivery({
             order: orderId,
             deliveryBoy: deliveryBoyId,
@@ -30,20 +62,36 @@ export const assignDelivery = async (req: Request, res: Response): Promise<void>
 
         await newDelivery.save();
 
+        // If part of mixed order, assign sibling order to the same delivery boy
+        // Payout: one payout for the group, recorded on the primary order (earnings: 0 on sibling)
+        if (order.checkoutGroupId) {
+            const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } });
+            if (sibling && sibling.orderStatus !== "cancelled") {
+                const existingSiblingDelivery = await Delivery.findOne({ order: sibling._id });
+                if (!existingSiblingDelivery) {
+                    const siblingDelivery = new Delivery({
+                        order: sibling._id,
+                        deliveryBoy: deliveryBoyId,
+                        earnings: 0,
+                        status: "assigned"
+                    });
+                    await siblingDelivery.save();
+                }
+            }
+        }
+
         // --- Socket.IO: Notify the delivery boy and the customer ---
         try {
-            const order = await Order.findById(orderId).select("user deliveryZone orderType restaurant").lean();
-            if (order) {
-                emitToRooms(
-                    [`delivery:${deliveryBoyId}`, `user:${order.user.toString()}`, "admin"],
-                    "delivery_assigned",
-                    {
-                        orderId: orderId.toString(),
-                        deliveryBoyId: deliveryBoyId.toString(),
-                        userId: order.user.toString(),
-                    }
-                );
-            }
+            emitToRooms(
+                [`delivery:${deliveryBoyId}`, `user:${order.user.toString()}`, "admin"],
+                "delivery_assigned",
+                {
+                    orderId: orderId.toString(),
+                    deliveryBoyId: deliveryBoyId.toString(),
+                    userId: order.user.toString(),
+                    checkoutGroupId: order.checkoutGroupId
+                }
+            );
         } catch (emitErr: any) {
             console.error("[Socket] delivery_assigned emit error:", emitErr.message);
         }
@@ -138,9 +186,14 @@ export const getDeliveryById = async (req: Request, res: Response): Promise<void
             return;
         }
 
+        const deliveryObj = delivery.toObject();
+        if (deliveryObj.order) {
+            deliveryObj.order = await populateSiblingForDelivery(deliveryObj.order);
+        }
+
         res.status(200).json({
             success: true,
-            delivery
+            delivery: deliveryObj
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -165,10 +218,19 @@ export const getDeliveriesByDeliveryBoy = async (req: Request, res: Response): P
             .sort({ createdAt: -1 })
             .lean();
 
+        const enrichedDeliveries = await Promise.all(
+            deliveries.map(async (d: any) => {
+                if (d.order) {
+                    d.order = await populateSiblingForDelivery(d.order);
+                }
+                return d;
+            })
+        );
+
         res.status(200).json({
             success: true,
-            count: deliveries.length,
-            deliveries
+            count: enrichedDeliveries.length,
+            deliveries: enrichedDeliveries
         });
     } catch (error: any) {
         res.status(500).json({ success: false, message: error.message });
@@ -297,10 +359,12 @@ export const getPendingDeliveries = async (req: Request, res: Response): Promise
             { path: "items.groceryItem", select: "name" }
         ]);
 
+        const enrichedOrders = await Promise.all(populated.map(populateSiblingForDelivery));
+
         res.status(200).json({
             success: true,
-            count: populated.length,
-            orders: populated
+            count: enrichedOrders.length,
+            orders: enrichedOrders
         });
     } catch (error: any) {
         console.error("Failed to load pending deliveries:", error);
@@ -344,6 +408,25 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
         order.orderStatus = "accepted_by_delivery";
         await order.save();
 
+        // If part of mixed order, assign sibling order to the same partner with earnings: 0
+        if (order.checkoutGroupId) {
+            const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } });
+            if (sibling && sibling.orderStatus !== "cancelled") {
+                const existingSiblingDelivery = await Delivery.findOne({ order: sibling._id });
+                if (!existingSiblingDelivery) {
+                    const siblingDelivery = new Delivery({
+                        order: sibling._id,
+                        deliveryBoy: deliveryBoyId,
+                        status: "assigned",
+                        earnings: 0 // one payout for group recorded on primary order
+                    });
+                    await siblingDelivery.save();
+                    sibling.orderStatus = "accepted_by_delivery";
+                    await sibling.save();
+                }
+            }
+        }
+
         // Invalidate Redis caches
         await redisService.del(`order:detail:${orderId}`);
         await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
@@ -369,6 +452,7 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
                 orderType: order.orderType,
                 restaurantId: order.restaurant?.toString(),
                 zoneId: (order as any).deliveryZone?.toString(),
+                checkoutGroupId: order.checkoutGroupId
             };
             emitToRooms(rooms, "delivery_accepted", payload);
             emitToRooms(rooms, "order_status_updated", payload);
@@ -558,11 +642,20 @@ export const getMyDeliveries = async (req: Request, res: Response): Promise<void
             Delivery.countDocuments(filter)
         ]);
 
+        const enrichedList = await Promise.all(
+            list.map(async (d: any) => {
+                if (d.order) {
+                    d.order = await populateSiblingForDelivery(d.order);
+                }
+                return d;
+            })
+        );
+
         res.status(200).json({
             success: true,
-            count: list.length,
+            count: enrichedList.length,
             meta: { total, page, pages: Math.ceil(total / limit), limit },
-            deliveries: list
+            deliveries: enrichedList
         });
     } catch (error: any) {
         console.error("Failed to fetch courier deliveries:", error);

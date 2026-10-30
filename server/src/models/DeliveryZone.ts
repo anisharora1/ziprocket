@@ -38,6 +38,9 @@ export interface IDeliveryZone extends BaseDocument {
     convenienceFee: number;
     convenienceFeeActive: boolean;
     
+    // Flat fee when ordering from both food and grocery simultaneously
+    multiVendorFee: number;
+    
     // Surge pricing rules
     surgeMultiplier: number;
     surgeActive: boolean;
@@ -76,7 +79,9 @@ const deliveryZoneSchema = new Schema<IDeliveryZone>({
     convenienceFeeActive: { type: Boolean, required: true, default: false },
     
     surgeMultiplier: { type: Number, required: true, default: 1.0, min: [0.1, "Must be positive"] },
-    surgeActive: { type: Boolean, required: true, default: false }
+    surgeActive: { type: Boolean, required: true, default: false },
+
+    multiVendorFee: { type: Number, required: true, default: 5, min: [0, "Cannot be negative"] }
     
 }, { timestamps: true });
 

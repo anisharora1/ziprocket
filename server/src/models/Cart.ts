@@ -14,6 +14,7 @@ export interface ICartItem {
 export interface ICart extends BaseDocument {
     user: Types.ObjectId;
     items: ICartItem[];
+    groceryItems?: ICartItem[];
     vendorId: string | null;
     vendorName: string | null;
     orderType: "food" | "grocery" | null;
@@ -25,6 +26,16 @@ const cartSchema = new Schema<ICart>({
         {
             itemId: { type: String, required: true },
             menuItem: { type: Schema.Types.ObjectId, ref: "MenuItem", required: false },
+            groceryItem: { type: Schema.Types.ObjectId, ref: "GroceryProduct", required: false },
+            name: { type: String, required: true },
+            price: { type: Number, required: true },
+            quantity: { type: Number, required: true, default: 1 },
+            img: { type: String, required: false }
+        }
+    ],
+    groceryItems: [
+        {
+            itemId: { type: String, required: true },
             groceryItem: { type: Schema.Types.ObjectId, ref: "GroceryProduct", required: false },
             name: { type: String, required: true },
             price: { type: Number, required: true },
