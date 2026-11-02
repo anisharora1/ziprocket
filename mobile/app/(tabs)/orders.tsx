@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -33,6 +33,89 @@ import {
   Shadows,
   FontFamily,
 } from '../../src/constants/theme';
+
+export interface GroupedOrderDisplay {
+  id: string;
+  isGroup: boolean;
+  checkoutGroupId?: string;
+  foodOrder?: any;
+  groceryOrder?: any;
+  primaryOrder: any;
+  allOrders: any[];
+  isActive: boolean;
+  totalAmount: number;
+  multiVendorFee: number;
+  createdAt: string;
+}
+
+export function groupCustomerOrders(rawOrders: any[]): GroupedOrderDisplay[] {
+  const groupsMap = new Map<string, any[]>();
+  const singles: any[] = [];
+
+  for (const order of rawOrders) {
+    if (order.checkoutGroupId) {
+      const list = groupsMap.get(order.checkoutGroupId) || [];
+      list.push(order);
+      groupsMap.set(order.checkoutGroupId, list);
+    } else {
+      singles.push(order);
+    }
+  }
+
+  const result: GroupedOrderDisplay[] = [];
+
+  // Process grouped orders
+  for (const [groupId, groupOrders] of groupsMap.entries()) {
+    const food = groupOrders.find((o) => o.groupRole === 'food' || o.orderType === 'food');
+    const grocery = groupOrders.find((o) => o.groupRole === 'grocery' || o.orderType === 'grocery');
+    const primary = food || groupOrders[0];
+
+    const isActive = groupOrders.some((o) =>
+      ['pending', 'placed', 'accepted', 'preparing', 'accepted_by_delivery', 'on_the_way'].includes(
+        o.orderStatus || o.status
+      )
+    );
+
+    const totalAmount = groupOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0);
+    const multiVendorFee = food?.multiVendorFee || primary.multiVendorFee || 0;
+
+    result.push({
+      id: groupId,
+      isGroup: groupOrders.length > 1 || Boolean(food && grocery),
+      checkoutGroupId: groupId,
+      foodOrder: food,
+      groceryOrder: grocery,
+      primaryOrder: primary,
+      allOrders: groupOrders,
+      isActive,
+      totalAmount,
+      multiVendorFee,
+      createdAt: primary.createdAt,
+    });
+  }
+
+  // Process single orders
+  for (const order of singles) {
+    const isActive = ['pending', 'placed', 'accepted', 'preparing', 'accepted_by_delivery', 'on_the_way'].includes(
+      order.orderStatus || order.status
+    );
+    result.push({
+      id: order._id,
+      isGroup: false,
+      primaryOrder: order,
+      allOrders: [order],
+      isActive,
+      totalAmount: Number(order.totalAmount) || 0,
+      multiVendorFee: 0,
+      createdAt: order.createdAt,
+    });
+  }
+
+  // Sort by createdAt descending
+  return result.sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+}
 
 const TRACKING_STEPS = [
   { id: 0, title: 'Confirming Order', description: 'Verifying your order details...', icon: 'hourglass-top' as const },
@@ -161,7 +244,10 @@ export default function OrdersScreen() {
     if (!items || items.length === 0) return 'Items loaded';
     return items
       .map((item) => {
-        const name = orderType === 'food' ? item.menuItem?.name : item.groceryItem?.name;
+        const name =
+          orderType === 'food'
+            ? item.menuItem?.name || item.name
+            : item.groceryItem?.name || item.name;
         return `${item.quantity}x ${name || 'Item'}`;
       })
       .join(', ');
@@ -236,19 +322,15 @@ export default function OrdersScreen() {
     }
   };
 
-  // Active vs Past
-  const activeOrders = orders.filter((o) =>
-    ['pending', 'placed', 'accepted', 'preparing', 'accepted_by_delivery', 'on_the_way'].includes(
-      o.orderStatus || o.status
-    )
-  );
-  const pastOrders = orders.filter((o) =>
-    ['delivered', 'cancelled'].includes(o.orderStatus || o.status)
-  );
+  // Group orders sharing checkoutGroupId
+  const groupedOrders = useMemo(() => groupCustomerOrders(orders), [orders]);
+  const activeGroups = groupedOrders.filter((g) => g.isActive);
+  const pastGroups = groupedOrders.filter((g) => !g.isActive);
 
-  const currentActiveOrder = activeOrders[0];
-  const activeStep = currentActiveOrder
-    ? getStatusStep(currentActiveOrder.orderStatus || currentActiveOrder.status)
+  const currentActiveGroup = activeGroups[0];
+  const primaryActiveOrder = currentActiveGroup?.primaryOrder;
+  const activeStep = primaryActiveOrder
+    ? getStatusStep(primaryActiveOrder.orderStatus || primaryActiveOrder.status)
     : 0;
 
   if (user && orders.length === 0 && (!isOnline || ordersFetchStatus === 'paused' || ordersError)) {
@@ -302,8 +384,8 @@ export default function OrdersScreen() {
       <Header />
 
       <FlatList
-        data={pastOrders}
-        keyExtractor={(item) => item._id}
+        data={pastGroups}
+        keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}
@@ -317,17 +399,17 @@ export default function OrdersScreen() {
             <Text style={styles.pageTitle}>Your Orders</Text>
 
             {/* Multiple Active Orders Notification Alert */}
-            {activeOrders.length > 1 && (
+            {activeGroups.length > 1 && (
               <View style={styles.alertBanner}>
                 <MaterialIcons name="info" size={20} color={Colors.warning} />
                 <Text style={styles.alertText}>
-                  Aapke abhi {activeOrders.length} active orders hain. Niche sabse naye order ka live status hai.
+                  Aapke abhi {activeGroups.length} active orders hain. Niche sabse naye order ka live status hai.
                 </Text>
               </View>
             )}
 
             {/* Active Order Section */}
-            {currentActiveOrder && (
+            {currentActiveGroup && (
               <View style={styles.activeSection}>
                 <View style={styles.sectionTitleRow}>
                   <MaterialIcons name="access-time" size={20} color={Colors.primary} />
@@ -338,24 +420,86 @@ export default function OrdersScreen() {
                   {/* Active Header */}
                   <View style={styles.activeCardHeader}>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.orderIdText}>
-                        ID: #ORD-{currentActiveOrder._id.substring(currentActiveOrder._id.length - 6).toUpperCase()}
-                      </Text>
-                      <Text style={styles.activeRestaurantName}>
-                        {currentActiveOrder.orderType === 'food'
-                          ? currentActiveOrder.restaurant?.name || 'Restaurant Partner'
-                          : 'ZipGrocery Delivery'}
-                      </Text>
-                      <Text style={styles.itemsSummary}>
-                        {getItemsSummary(currentActiveOrder.items, currentActiveOrder.orderType)}
-                      </Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        <Text style={styles.orderIdText}>
+                          ID: #ORD-{currentActiveGroup.id.substring(currentActiveGroup.id.length - 6).toUpperCase()}
+                        </Text>
+                        {currentActiveGroup.isGroup && (
+                          <View style={styles.mixedBadge}>
+                            <Text style={styles.mixedBadgeText}>Mixed Order</Text>
+                          </View>
+                        )}
+                      </View>
+
+                      {currentActiveGroup.isGroup ? (
+                        <View style={{ marginTop: 4 }}>
+                          {currentActiveGroup.foodOrder && (
+                            <View style={styles.orderPartCard}>
+                              <View style={styles.orderPartHeader}>
+                                <View style={styles.orderPartTitleRow}>
+                                  <MaterialIcons name="restaurant" size={14} color={Colors.primary} />
+                                  <Text style={styles.orderPartTitle} numberOfLines={1}>
+                                    Food from {currentActiveGroup.foodOrder.restaurant?.name || 'Restaurant'}
+                                  </Text>
+                                </View>
+                                <View style={styles.partStatusBadgeOrange}>
+                                  <Text style={styles.partStatusTextOrange}>
+                                    {currentActiveGroup.foodOrder.orderStatus}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.orderPartSummary}>
+                                {getItemsSummary(currentActiveGroup.foodOrder.items, 'food')}
+                              </Text>
+                            </View>
+                          )}
+
+                          {currentActiveGroup.groceryOrder && (
+                            <View style={styles.orderPartCard}>
+                              <View style={styles.orderPartHeader}>
+                                <View style={styles.orderPartTitleRow}>
+                                  <MaterialIcons name="local-mall" size={14} color={Colors.emerald600} />
+                                  <Text style={styles.orderPartTitle} numberOfLines={1}>
+                                    Groceries
+                                  </Text>
+                                </View>
+                                <View style={styles.partStatusBadgeEmerald}>
+                                  <Text style={styles.partStatusTextEmerald}>
+                                    {currentActiveGroup.groceryOrder.orderStatus}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.orderPartSummary}>
+                                {getItemsSummary(currentActiveGroup.groceryOrder.items, 'grocery')}
+                              </Text>
+                            </View>
+                          )}
+
+                          {currentActiveGroup.multiVendorFee > 0 && (
+                            <Text style={styles.multiVendorFeeNotice}>
+                              Includes ₹{currentActiveGroup.multiVendorFee} one-time multi-vendor fee
+                            </Text>
+                          )}
+                        </View>
+                      ) : (
+                        <>
+                          <Text style={styles.activeRestaurantName}>
+                            {primaryActiveOrder.orderType === 'food'
+                              ? primaryActiveOrder.restaurant?.name || 'Restaurant Partner'
+                              : 'ZipGrocery Delivery'}
+                          </Text>
+                          <Text style={styles.itemsSummary}>
+                            {getItemsSummary(primaryActiveOrder.items, primaryActiveOrder.orderType)}
+                          </Text>
+                        </>
+                      )}
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.activeAmount}>
-                        ₹{currentActiveOrder.totalAmount?.toLocaleString()}
+                        ₹{currentActiveGroup.totalAmount?.toLocaleString()}
                       </Text>
                       <Text style={styles.orderTimeText}>
-                        {new Date(currentActiveOrder.createdAt).toLocaleTimeString([], {
+                        {new Date(currentActiveGroup.createdAt).toLocaleTimeString([], {
                           hour: '2-digit',
                           minute: '2-digit',
                         })}
@@ -364,15 +508,15 @@ export default function OrdersScreen() {
                   </View>
 
                   {/* Delivery Confirmation OTP for Prepaid (ONLINE) Orders */}
-                  {currentActiveOrder.paymentMethod === 'ONLINE' &&
-                    (currentActiveOrder.orderStatus === 'on_the_way' ||
-                      currentActiveOrder.orderStatus === 'accepted_by_delivery') &&
-                    currentActiveOrder.deliveryOtp && (
+                  {primaryActiveOrder?.paymentMethod === 'ONLINE' &&
+                    (primaryActiveOrder?.orderStatus === 'on_the_way' ||
+                      primaryActiveOrder?.orderStatus === 'accepted_by_delivery') &&
+                    primaryActiveOrder?.deliveryOtp && (
                       <View style={styles.otpBanner}>
                         <Text style={styles.otpBannerLabel}>
                           Yeh OTP delivery partner ko delivery ke samay batayein
                         </Text>
-                        <Text style={styles.otpCode}>{currentActiveOrder.deliveryOtp}</Text>
+                        <Text style={styles.otpCode}>{primaryActiveOrder.deliveryOtp}</Text>
                       </View>
                     )}
 
@@ -432,29 +576,52 @@ export default function OrdersScreen() {
                       style={styles.supportButton}
                       onPress={() =>
                         Linking.openURL(
-                          `tel:${currentActiveOrder.restaurant?.phone || '9117662441'}`
+                          `tel:${currentActiveGroup.foodOrder?.restaurant?.phone || primaryActiveOrder?.restaurant?.phone || '9117662441'}`
                         )
                       }
                     >
                       <Text style={styles.supportButtonText}>CONTACT SUPPORT</Text>
                     </Pressable>
 
-                    {['pending', 'placed'].includes(currentActiveOrder.orderStatus) &&
-                      currentActiveOrder.paymentMethod === 'COD' && (
+                    {currentActiveGroup.isGroup ? (
+                      <>
+                        {currentActiveGroup.foodOrder &&
+                          ['pending', 'placed'].includes(currentActiveGroup.foodOrder.orderStatus) && (
+                            <Pressable
+                              style={styles.cancelButton}
+                              onPress={() => handleOpenCancelModal(currentActiveGroup.foodOrder._id)}
+                            >
+                              <Text style={styles.cancelButtonText}>CANCEL FOOD</Text>
+                            </Pressable>
+                          )}
+                        {currentActiveGroup.groceryOrder &&
+                          ['pending', 'placed'].includes(currentActiveGroup.groceryOrder.orderStatus) && (
+                            <Pressable
+                              style={styles.cancelButton}
+                              onPress={() => handleOpenCancelModal(currentActiveGroup.groceryOrder._id)}
+                            >
+                              <Text style={styles.cancelButtonText}>CANCEL GROCERY</Text>
+                            </Pressable>
+                          )}
+                      </>
+                    ) : (
+                      ['pending', 'placed'].includes(primaryActiveOrder.orderStatus) &&
+                      primaryActiveOrder.paymentMethod === 'COD' && (
                         <Pressable
                           style={styles.cancelButton}
-                          onPress={() => handleOpenCancelModal(currentActiveOrder._id)}
+                          onPress={() => handleOpenCancelModal(primaryActiveOrder._id)}
                         >
                           <Text style={styles.cancelButtonText}>CANCEL ORDER</Text>
                         </Pressable>
-                      )}
+                      )
+                    )}
                   </View>
                 </View>
               </View>
             )}
 
             {/* Empty State when no orders exist at all */}
-            {orders.length === 0 && (
+            {groupedOrders.length === 0 && (
               <View style={styles.emptyCard}>
                 <View style={styles.emptyIconCircle}>
                   <MaterialIcons name="receipt-long" size={40} color={Colors.primary} />
@@ -473,7 +640,7 @@ export default function OrdersScreen() {
             )}
 
             {/* Past Orders Heading */}
-            {pastOrders.length > 0 && (
+            {pastGroups.length > 0 && (
               <View style={styles.sectionTitleRow}>
                 <MaterialIcons name="history" size={20} color={Colors.textMuted} />
                 <Text style={styles.sectionTitle}>Purane Orders</Text>
@@ -481,9 +648,9 @@ export default function OrdersScreen() {
             )}
           </View>
         }
-        renderItem={({ item: order }) => {
-          const isCancelled = order.orderStatus === 'cancelled';
-          const summary = getItemsSummary(order.items, order.orderType);
+        renderItem={({ item: group }) => {
+          const primary = group.primaryOrder;
+          const isCancelled = group.allOrders.every((o) => o.orderStatus === 'cancelled');
 
           return (
             <View style={styles.pastOrderCard}>
@@ -505,12 +672,16 @@ export default function OrdersScreen() {
                       { color: isCancelled ? Colors.error : Colors.success },
                     ]}
                   >
-                    {order.orderStatus || order.status}
+                    {group.isGroup
+                      ? isCancelled
+                        ? 'Cancelled'
+                        : 'Completed'
+                      : primary.orderStatus || primary.status}
                   </Text>
                 </View>
 
                 <Text style={styles.pastDateText}>
-                  {new Date(order.createdAt).toLocaleDateString([], {
+                  {new Date(group.createdAt).toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric',
                     year: 'numeric',
@@ -518,50 +689,138 @@ export default function OrdersScreen() {
                 </Text>
               </View>
 
-              <Text style={styles.pastRestaurantName}>
-                {order.orderType === 'food'
-                  ? order.restaurant?.name || 'Restaurant Partner'
-                  : 'ZipGrocery Basket'}
-              </Text>
-              <Text style={styles.pastSummaryText}>{summary}</Text>
+              {group.isGroup ? (
+                <View style={{ marginTop: 2 }}>
+                  {group.foodOrder && (
+                    <View style={styles.orderPartCard}>
+                      <View style={styles.orderPartHeader}>
+                        <View style={styles.orderPartTitleRow}>
+                          <MaterialIcons name="restaurant" size={14} color={Colors.primary} />
+                          <Text style={styles.orderPartTitle} numberOfLines={1}>
+                            Food from {group.foodOrder.restaurant?.name || 'Restaurant'}
+                          </Text>
+                        </View>
+                        <View style={styles.partStatusBadgeGray}>
+                          <Text style={styles.partStatusTextGray}>
+                            {group.foodOrder.orderStatus}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.orderPartSummary} numberOfLines={1}>
+                        {getItemsSummary(group.foodOrder.items, 'food')}
+                      </Text>
+                    </View>
+                  )}
 
-              {/* Rating Section */}
-              {!isCancelled && order.orderType === 'food' && !order.rating && (
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratingPromptText}>Order ko star dein:</Text>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Pressable key={star} onPress={() => handleRateOrder(order._id, star)}>
-                        <Text style={styles.starIcon}>★</Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  {group.groceryOrder && (
+                    <View style={styles.orderPartCard}>
+                      <View style={styles.orderPartHeader}>
+                        <View style={styles.orderPartTitleRow}>
+                          <MaterialIcons name="local-mall" size={14} color={Colors.emerald600} />
+                          <Text style={styles.orderPartTitle} numberOfLines={1}>
+                            Groceries
+                          </Text>
+                        </View>
+                        <View style={styles.partStatusBadgeGray}>
+                          <Text style={styles.partStatusTextGray}>
+                            {group.groceryOrder.orderStatus}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={styles.orderPartSummary} numberOfLines={1}>
+                        {getItemsSummary(group.groceryOrder.items, 'grocery')}
+                      </Text>
+                    </View>
+                  )}
+
+                  {group.multiVendorFee > 0 && (
+                    <Text style={styles.multiVendorFeeNotice}>
+                      Includes ₹{group.multiVendorFee} multi-vendor fee
+                    </Text>
+                  )}
                 </View>
+              ) : (
+                <>
+                  <Text style={styles.pastRestaurantName}>
+                    {primary.orderType === 'food'
+                      ? primary.restaurant?.name || 'Restaurant Partner'
+                      : 'ZipGrocery Basket'}
+                  </Text>
+                  <Text style={styles.pastSummaryText}>
+                    {getItemsSummary(primary.items, primary.orderType)}
+                  </Text>
+                </>
               )}
 
-              {!isCancelled && order.rating && (
-                <View style={styles.ratingRow}>
-                  <Text style={styles.ratedText}>
-                    Aapki rating: {'★'.repeat(order.rating)}
-                    {'☆'.repeat(5 - order.rating)}
-                  </Text>
-                </View>
+              {/* Rating Section */}
+              {group.isGroup ? (
+                group.foodOrder &&
+                !isCancelled &&
+                !group.foodOrder.rating && (
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingPromptText}>Order ko star dein:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Pressable key={star} onPress={() => handleRateOrder(group.foodOrder._id, star)}>
+                          <Text style={styles.starIcon}>★</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )
+              ) : (
+                !isCancelled &&
+                primary.orderType === 'food' &&
+                !primary.rating && (
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratingPromptText}>Order ko star dein:</Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Pressable key={star} onPress={() => handleRateOrder(primary._id, star)}>
+                          <Text style={styles.starIcon}>★</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </View>
+                )
+              )}
+
+              {group.isGroup ? (
+                !isCancelled &&
+                group.foodOrder?.rating && (
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratedText}>
+                      Aapki rating: {'★'.repeat(group.foodOrder.rating)}
+                      {'☆'.repeat(5 - group.foodOrder.rating)}
+                    </Text>
+                  </View>
+                )
+              ) : (
+                !isCancelled &&
+                primary.rating && (
+                  <View style={styles.ratingRow}>
+                    <Text style={styles.ratedText}>
+                      Aapki rating: {'★'.repeat(primary.rating)}
+                      {'☆'.repeat(5 - primary.rating)}
+                    </Text>
+                  </View>
+                )
               )}
 
               <View style={styles.pastFooter}>
                 <View>
-                  <Text style={styles.pastAmount}>₹{order.totalAmount?.toLocaleString()}</Text>
-                  {order.paymentMethod === 'ONLINE' && (
+                  <Text style={styles.pastAmount}>₹{group.totalAmount?.toLocaleString()}</Text>
+                  {primary.paymentMethod === 'ONLINE' && (
                     <Text
                       style={[
                         styles.paymentStatusText,
                         {
                           color:
-                            order.paymentStatus === 'paid' ? Colors.success : Colors.error,
+                            primary.paymentStatus === 'paid' ? Colors.success : Colors.error,
                         },
                       ]}
                     >
-                      {order.paymentStatus === 'paid' ? 'PAID' : 'BAKI (UNPAID)'}
+                      {primary.paymentStatus === 'paid' ? 'PAID' : 'BAKI (UNPAID)'}
                     </Text>
                   )}
                 </View>
@@ -569,8 +828,14 @@ export default function OrdersScreen() {
                 <Pressable
                   style={styles.reorderButton}
                   onPress={() => {
-                    if (order.orderType === 'food' && order.restaurant?._id) {
-                      router.push(`/restaurants/${order.restaurant._id}` as any);
+                    const restId =
+                      group.foodOrder?.restaurant?._id ||
+                      group.foodOrder?.restaurant ||
+                      (primary.orderType === 'food'
+                        ? primary.restaurant?._id || primary.restaurant
+                        : null);
+                    if (restId) {
+                      router.push(`/restaurants/${restId}` as any);
                     } else {
                       router.push('/grocery' as any);
                     }
@@ -1231,5 +1496,97 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.white,
     letterSpacing: 0.5,
+  },
+  mixedBadge: {
+    backgroundColor: '#F3E8FF',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#E9D5FF',
+  },
+  mixedBadgeText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#7E22CE',
+    textTransform: 'uppercase',
+  },
+  orderPartCard: {
+    backgroundColor: Colors.slate50,
+    padding: 10,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.slate100,
+    marginTop: 6,
+  },
+  orderPartHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  orderPartTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    marginRight: 8,
+  },
+  orderPartTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.slate800,
+  },
+  orderPartSummary: {
+    fontFamily: FontFamily.medium,
+    fontSize: 11,
+    color: Colors.slate500,
+  },
+  partStatusBadgeOrange: {
+    backgroundColor: '#FFEDD5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  partStatusTextOrange: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.primary,
+    textTransform: 'uppercase',
+  },
+  partStatusBadgeEmerald: {
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  partStatusTextEmerald: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#065F46',
+    textTransform: 'uppercase',
+  },
+  partStatusBadgeGray: {
+    backgroundColor: Colors.slate200,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  partStatusTextGray: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    fontWeight: '800',
+    color: Colors.slate700,
+    textTransform: 'uppercase',
+  },
+  multiVendorFeeNotice: {
+    fontFamily: FontFamily.bold,
+    fontSize: 11,
+    color: Colors.slate400,
+    marginTop: 6,
   },
 });
