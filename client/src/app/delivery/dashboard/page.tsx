@@ -46,6 +46,8 @@ interface SiblingSummary {
 interface Order {
   _id: string;
   checkoutGroupId?: string;
+  groupCodAmount?: number;
+  groupItemCount?: number;
   groupRole?: "food" | "grocery";
   siblingSummary?: SiblingSummary;
   sibling?: SiblingSummary;
@@ -106,6 +108,8 @@ interface DeliveryRecord {
   status: string;
   earnings: number;
   createdAt: string;
+  groupCodAmount?: number;
+  groupItemCount?: number;
 }
 
 export default function DeliveryDashboardPage() {
@@ -275,6 +279,15 @@ export default function DeliveryDashboardPage() {
       const res = await apiClient.post("/delivery/deliver", { orderId, otp });
       if (res.data.success) {
         alert("Delivery completed! Great job.");
+        const deliveredTask = activeDeliveries.find((t) => t.order?._id === orderId);
+        const checkoutGroupId = deliveredTask?.order?.checkoutGroupId;
+        setActiveDeliveries((prev) =>
+          prev.filter((t) => {
+            if (t.order?._id === orderId) return false;
+            if (checkoutGroupId && t.order?.checkoutGroupId === checkoutGroupId) return false;
+            return true;
+          })
+        );
         setActiveTab("history"); // Move to history tab
         fetchDashboardData();
       }
@@ -664,6 +677,16 @@ export default function DeliveryDashboardPage() {
             const orderId = `#ORD-${order._id.substring(order._id.length - 6).toUpperCase()}`;
             const sibling = order.siblingSummary || order.sibling;
             const hasSibling = Boolean(sibling);
+            const isSiblingOfActiveGroup = Boolean(
+              order.checkoutGroupId &&
+              activeDeliveries.some(
+                (t) =>
+                  t.order?.checkoutGroupId === order.checkoutGroupId &&
+                  t.order?._id !== order._id &&
+                  (order.groupRole === "grocery" && t.order?.groupRole === "food" ||
+                   (!order.groupRole && String(t.order?._id) < String(order._id)))
+              )
+            );
 
             const restName = order.orderType === 'food' ? (order.restaurant?.name || "Restaurant Partner") : (sibling?.pickupName || "Restaurant Partner");
             const restAddress = order.orderType === 'food' ? (order.restaurant?.address || "Restaurant Address") : (sibling?.pickupAddress || "Restaurant Address");
@@ -823,6 +846,13 @@ export default function DeliveryDashboardPage() {
                   </div>
                 </div>
 
+                {order.checkoutGroupId && (order.paymentMethod === 'COD' || ((order.groupCodAmount || 0) > 0)) && (
+                  <div className="p-3 bg-amber-50/90 border border-amber-200 rounded-xl text-xs font-black text-amber-900 flex items-center justify-between">
+                    <span>Collect Rs {order.groupCodAmount ?? order.totalAmount} in cash (food + groceries + fees)</span>
+                    <span className="text-[10px] uppercase tracking-wider bg-amber-200/70 text-amber-900 px-2 py-0.5 rounded font-black">COD</span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3 mt-1">
                   <a
                     href={`tel:${order.user?.phone || '9999999999'}`}
@@ -831,14 +861,20 @@ export default function DeliveryDashboardPage() {
                     <MdCall className="text-[16px]" />
                     Call Client
                   </a>
-                  <button
-                    onClick={() => handleDeliverOrder(order._id, order.paymentMethod)}
-                    disabled={actioningId === order._id}
-                    className="flex items-center justify-center gap-1.5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
-                  >
-                    <MdCheckCircle className="text-[16px]" />
-                    Delivered
-                  </button>
+                  {isSiblingOfActiveGroup ? (
+                    <div className="flex items-center justify-center gap-1.5 py-3.5 px-2 bg-purple-50 text-purple-700 border border-purple-200 text-xs font-black uppercase tracking-wider rounded-xl text-center select-none">
+                      Part of mixed order
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => handleDeliverOrder(order._id, order.paymentMethod)}
+                      disabled={actioningId === order._id}
+                      className="flex items-center justify-center gap-1.5 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95"
+                    >
+                      <MdCheckCircle className="text-[16px]" />
+                      Delivered
+                    </button>
+                  )}
                 </div>
               </div>
             );
