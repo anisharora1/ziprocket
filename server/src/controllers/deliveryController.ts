@@ -9,28 +9,54 @@ import * as redisService from "../services/redisService";
 import { handleOrderDelivered } from "../utils/orderCompletion";
 
 // Helper to enrich delivery order with sibling pickup details for mixed orders
-async function populateSiblingForDelivery(order: any): Promise<any> {
-    if (!order || !order.checkoutGroupId) return order;
+export async function populateSiblingForDelivery(order: any): Promise<any> {
+    if (!order) return order;
     const orderObj = typeof order.toObject === "function" ? order.toObject() : { ...order };
-    const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } })
-        .populate("restaurant", "name address location phone")
-        .populate("deliveryZone", "name center radiusKm pincodes")
-        .lean();
-    if (sibling) {
-        orderObj.siblingSummary = {
-            orderId: sibling._id,
-            orderType: sibling.orderType,
-            groupRole: sibling.groupRole,
-            status: sibling.orderStatus,
-            itemCount: sibling.items?.length || 0,
-            pickupAddress: sibling.orderType === "food"
-                ? ((sibling.restaurant as any)?.address || (sibling.restaurant as any)?.name || "Restaurant")
-                : ((sibling.deliveryZone as any)?.name || "Grocery Hub"),
-            pickupLocation: sibling.orderType === "food"
-                ? (sibling.restaurant as any)?.location
-                : (sibling.deliveryZone as any)?.center
-        };
+
+    const getItemsCount = (items?: any[]) => {
+        if (!items || !items.length) return 0;
+        return items.reduce((sum: number, it: any) => sum + (it.quantity || 1), 0);
+    };
+
+    let groupCodAmount = orderObj.paymentMethod === "COD" ? (orderObj.totalAmount || 0) : 0;
+    let groupItemCount = getItemsCount(orderObj.items);
+
+    if (orderObj.checkoutGroupId) {
+        const sibling = await Order.findOne({ checkoutGroupId: orderObj.checkoutGroupId, _id: { $ne: orderObj._id } })
+            .populate("restaurant", "name address location phone")
+            .populate("deliveryZone", "name center radiusKm pincodes")
+            .lean();
+        if (sibling) {
+            orderObj.siblingSummary = {
+                orderId: sibling._id,
+                orderType: sibling.orderType,
+                groupRole: sibling.groupRole,
+                status: sibling.orderStatus,
+                itemCount: sibling.items?.length || 0,
+                pickupAddress: sibling.orderType === "food"
+                    ? ((sibling.restaurant as any)?.address || (sibling.restaurant as any)?.name || "Restaurant")
+                    : ((sibling.deliveryZone as any)?.name || "Grocery Hub"),
+                pickupLocation: sibling.orderType === "food"
+                    ? (sibling.restaurant as any)?.location
+                    : (sibling.deliveryZone as any)?.center
+            };
+            orderObj.sibling = orderObj.siblingSummary;
+
+            if (sibling.orderStatus !== "cancelled") {
+                groupItemCount += getItemsCount(sibling.items);
+                if (sibling.paymentMethod === "COD") {
+                    if (orderObj.paymentMethod === "COD") {
+                        groupCodAmount += (sibling.totalAmount || 0);
+                    } else {
+                        groupCodAmount = sibling.totalAmount || 0;
+                    }
+                }
+            }
+        }
     }
+
+    orderObj.groupCodAmount = groupCodAmount;
+    orderObj.groupItemCount = groupItemCount;
     return orderObj;
 }
 
@@ -186,9 +212,11 @@ export const getDeliveryById = async (req: Request, res: Response): Promise<void
             return;
         }
 
-        const deliveryObj = delivery.toObject();
+        const deliveryObj: any = delivery.toObject();
         if (deliveryObj.order) {
             deliveryObj.order = await populateSiblingForDelivery(deliveryObj.order);
+            deliveryObj.groupCodAmount = deliveryObj.order.groupCodAmount;
+            deliveryObj.groupItemCount = deliveryObj.order.groupItemCount;
         }
 
         res.status(200).json({
@@ -222,6 +250,8 @@ export const getDeliveriesByDeliveryBoy = async (req: Request, res: Response): P
             deliveries.map(async (d: any) => {
                 if (d.order) {
                     d.order = await populateSiblingForDelivery(d.order);
+                    d.groupCodAmount = d.order.groupCodAmount;
+                    d.groupItemCount = d.order.groupItemCount;
                 }
                 return d;
             })
@@ -526,73 +556,139 @@ export const deliverOrder = async (req: Request, res: Response): Promise<void> =
             return;
         }
 
-        if (order.paymentMethod === "ONLINE") {
-            if (!otp) {
-                res.status(400).json({ success: false, message: "Please ask the customer for their 4-digit delivery code." });
-                return;
-            }
-            if (otp !== order.deliveryOtp) {
-                res.status(400).json({ success: false, message: "Incorrect delivery code. Please check with the customer and try again." });
-                return;
-            }
-        }
+        const tappedAlreadyDelivered = delivery.status === "delivered" && order.orderStatus === "delivered";
 
-        // Upload delivery proof to Cloudinary if provided
-        if (req.file) {
+        // Deliver tapped order if not already delivered
+        if (!tappedAlreadyDelivered) {
+            if (order.paymentMethod === "ONLINE") {
+                if (!otp) {
+                    res.status(400).json({ success: false, message: "Please ask the customer for their 4-digit delivery code." });
+                    return;
+                }
+                if (otp !== order.deliveryOtp) {
+                    res.status(400).json({ success: false, message: "Incorrect delivery code. Please check with the customer and try again." });
+                    return;
+                }
+            }
+
+            // Upload delivery proof to Cloudinary if provided
+            if (req.file) {
+                try {
+                    const uploadResult = await uploadToCloudinary(req.file.buffer, "delivery-proofs");
+                    delivery.deliveryProof = uploadResult;
+                } catch (uploadError) {
+                    console.error("Failed to upload delivery proof:", uploadError);
+                    res.status(500).json({ success: false, message: "Failed to upload delivery proof image." });
+                    return;
+                }
+            }
+
+            delivery.status = "delivered";
+            await delivery.save();
+
+            // Fulfill Mongoose Order
+            order.orderStatus = "delivered";
+            order.deliveredAt = order.deliveredAt || new Date();
+            if (order.paymentMethod === "COD") {
+                order.paymentStatus = "paid"; // cash collected on doorstep
+            }
+            order.deliveryOtp = undefined; // clear it after successful use, no reason to keep it around
+            await order.save();
+
+            // Increment total orders count for the restaurant and invalidate cache
+            await handleOrderDelivered(order);
+
+            // Invalidate Redis caches so fresh data is returned on refetch
+            await redisService.del(`order:detail:${orderId}`);
+            await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
+
+            // --- Socket.IO: Notify customer, seller, grocery moderator, admin, and delivery boy ---
             try {
-                const uploadResult = await uploadToCloudinary(req.file.buffer, "delivery-proofs");
-                delivery.deliveryProof = uploadResult;
-            } catch (uploadError) {
-                console.error("Failed to upload delivery proof:", uploadError);
-                res.status(500).json({ success: false, message: "Failed to upload delivery proof image." });
-                return;
+                const rooms: string[] = [
+                    `user:${order.user.toString()}`,
+                    "admin",
+                    `delivery:${deliveryBoyId?.toString()}`,
+                ];
+                if (order.orderType === "food" && order.restaurant) {
+                    rooms.push(`seller:${order.restaurant.toString()}`);
+                } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
+                    rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                }
+                const payload = {
+                    orderId: orderId.toString(),
+                    orderStatus: "delivered",
+                    orderType: order.orderType,
+                    restaurantId: order.restaurant?.toString(),
+                    zoneId: (order as any).deliveryZone?.toString(),
+                    userId: order.user.toString(),
+                    paymentStatus: order.paymentStatus,
+                };
+                emitToRooms(rooms, "order_delivered", payload);
+                emitToRooms(rooms, "order_status_updated", payload);
+            } catch (emitErr: any) {
+                console.error("[Socket] order_delivered emit error:", emitErr.message);
             }
         }
 
-        delivery.status = "delivered";
-        await delivery.save();
+        // If part of mixed order, deliver sibling order for the same delivery boy
+        if (order.checkoutGroupId) {
+            const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } });
+            if (sibling && sibling.orderStatus !== "cancelled") {
+                const siblingDelivery = await Delivery.findOne({ order: sibling._id, deliveryBoy: deliveryBoyId });
+                if (siblingDelivery) {
+                    const siblingAlreadyDelivered = siblingDelivery.status === "delivered" && sibling.orderStatus === "delivered";
+                    if (!siblingAlreadyDelivered) {
+                        if (siblingDelivery.status !== "delivered") {
+                            siblingDelivery.status = "delivered";
+                            if (delivery.deliveryProof && !siblingDelivery.deliveryProof) {
+                                siblingDelivery.deliveryProof = delivery.deliveryProof;
+                            }
+                            await siblingDelivery.save();
+                        }
 
-        // Fulfill Mongoose Order
-        order.orderStatus = "delivered";
-        order.deliveredAt = new Date();
-        if (order.paymentMethod === "COD") {
-            order.paymentStatus = "paid"; // cash collected on doorstep
-        }
-        order.deliveryOtp = undefined; // clear it after successful use, no reason to keep it around
-        await order.save();
+                        if (sibling.orderStatus !== "delivered") {
+                            sibling.orderStatus = "delivered";
+                            sibling.deliveredAt = sibling.deliveredAt || new Date();
+                            if (sibling.paymentMethod === "COD") {
+                                sibling.paymentStatus = "paid";
+                            }
+                            sibling.deliveryOtp = undefined;
+                            await sibling.save();
 
-        // Increment total orders count for the restaurant and invalidate cache
-        await handleOrderDelivered(order);
+                            await handleOrderDelivered(sibling);
 
-        // Invalidate Redis caches so fresh data is returned on refetch
-        await redisService.del(`order:detail:${orderId}`);
-        await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
+                            await redisService.del(`order:detail:${sibling._id.toString()}`);
+                            await redisService.deletePattern(`order:user_recent:${sibling.user.toString()}*`);
 
-        // --- Socket.IO: Notify customer, seller, grocery moderator, admin, and delivery boy ---
-        try {
-            const rooms: string[] = [
-                `user:${order.user.toString()}`,
-                "admin",
-                `delivery:${deliveryBoyId?.toString()}`,
-            ];
-            if (order.orderType === "food" && order.restaurant) {
-                rooms.push(`seller:${order.restaurant.toString()}`);
-            } else if (order.orderType === "grocery" && (order as any).deliveryZone) {
-                rooms.push(`grocery:${(order as any).deliveryZone.toString()}`);
+                            try {
+                                const siblingRooms: string[] = [
+                                    `user:${sibling.user.toString()}`,
+                                    "admin",
+                                    `delivery:${deliveryBoyId?.toString()}`,
+                                ];
+                                if (sibling.orderType === "food" && sibling.restaurant) {
+                                    siblingRooms.push(`seller:${sibling.restaurant.toString()}`);
+                                } else if (sibling.orderType === "grocery" && (sibling as any).deliveryZone) {
+                                    siblingRooms.push(`grocery:${(sibling as any).deliveryZone.toString()}`);
+                                }
+                                const siblingPayload = {
+                                    orderId: sibling._id.toString(),
+                                    orderStatus: "delivered",
+                                    orderType: sibling.orderType,
+                                    restaurantId: sibling.restaurant?.toString(),
+                                    zoneId: (sibling as any).deliveryZone?.toString(),
+                                    userId: sibling.user.toString(),
+                                    paymentStatus: sibling.paymentStatus,
+                                };
+                                emitToRooms(siblingRooms, "order_delivered", siblingPayload);
+                                emitToRooms(siblingRooms, "order_status_updated", siblingPayload);
+                            } catch (emitErr: any) {
+                                console.error("[Socket] sibling order_delivered emit error:", emitErr.message);
+                            }
+                        }
+                    }
+                }
             }
-            const payload = {
-                orderId: orderId.toString(),
-                orderStatus: "delivered",
-                orderType: order.orderType,
-                restaurantId: order.restaurant?.toString(),
-                zoneId: (order as any).deliveryZone?.toString(),
-                userId: order.user.toString(),
-                paymentStatus: order.paymentStatus,
-            };
-            emitToRooms(rooms, "order_delivered", payload);
-            emitToRooms(rooms, "order_status_updated", payload);
-        } catch (emitErr: any) {
-            console.error("[Socket] order_delivered emit error:", emitErr.message);
         }
 
         res.status(200).json({
@@ -646,6 +742,8 @@ export const getMyDeliveries = async (req: Request, res: Response): Promise<void
             list.map(async (d: any) => {
                 if (d.order) {
                     d.order = await populateSiblingForDelivery(d.order);
+                    d.groupCodAmount = d.order.groupCodAmount;
+                    d.groupItemCount = d.order.groupItemCount;
                 }
                 return d;
             })
