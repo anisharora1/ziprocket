@@ -13,16 +13,24 @@ export default function FloatingCartButton({ bottomOffset = 16 }: FloatingCartBu
   const router = useRouter();
   const { cart } = useCart();
 
-  if (cart.items.length === 0) return null;
+  const foodItems = cart.items || [];
+  const groceryItems = cart.groceryItems || [];
 
-  const totalItems = cart.items.reduce(
-    (sum, item) => sum + (Number(item?.quantity) || 1),
-    0
-  );
-  const totalPrice = cart.items.reduce(
-    (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
-    0
-  );
+  const totalItems =
+    foodItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0) +
+    groceryItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+
+  const totalPrice =
+    foodItems.reduce(
+      (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
+      0
+    ) +
+    groceryItems.reduce(
+      (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
+      0
+    );
+
+  if (totalItems === 0) return null;
 
   return (
     <View style={[styles.container, { bottom: bottomOffset }]}>

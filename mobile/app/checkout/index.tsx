@@ -41,6 +41,13 @@ interface BillDetails {
   zoneId?: string;
   zoneName?: string;
   itemTotal: number;
+  foodItemTotal?: number;
+  groceryItemTotal?: number;
+  multiVendorFee?: number;
+  foodShortfall?: number;
+  grocerShortfall?: number;
+  minOrderValueFood?: number;
+  minOrderValueGrocery?: number;
   deliveryFee: number;
   freeDeliveryThreshold?: number;
   smallOrderFee?: number;
@@ -276,18 +283,40 @@ export default function CheckoutScreen() {
   const targetAddress = customAddressText || userAddress || '';
   const targetPincode = customPincode || userPincode || '';
 
+  const isMixedOrder = Boolean(
+    cart.isMixed || (cart.orderType === 'food' && (cart.groceryItems?.length || 0) > 0)
+  );
+  const foodItems = useMemo(
+    () => (isMixedOrder || cart.orderType === 'food' ? cart.items : []),
+    [isMixedOrder, cart.orderType, cart.items]
+  );
+  const groceryItems = useMemo(
+    () =>
+      isMixedOrder
+        ? cart.groceryItems || []
+        : cart.orderType === 'grocery'
+          ? cart.items
+          : [],
+    [isMixedOrder, cart.orderType, cart.items, cart.groceryItems]
+  );
+  const totalItemsCount = cart.items.length + (cart.groceryItems?.length || 0);
+
   const itemTotal = useMemo(
     () =>
-      cart.items.reduce(
+      (cart.items || []).reduce(
+        (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
+        0
+      ) +
+      (cart.groceryItems || []).reduce(
         (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
         0
       ),
-    [cart.items]
+    [cart.items, cart.groceryItems]
   );
 
   // Calculate bill from backend
   const fetchBillDetails = useCallback(async () => {
-    if (cart.items.length === 0) {
+    if (cart.items.length === 0 && (cart.groceryItems?.length || 0) === 0) {
       setBillDetails(null);
       setLoadingBill(false);
       return;
@@ -307,17 +336,27 @@ export default function CheckoutScreen() {
       setCheckoutError(null);
       setCheckoutReason(null);
 
+      const formattedFoodItems = foodItems.map((c) => ({
+        menuItem: c.id.replace('food-', ''),
+        price: c.price,
+        quantity: c.quantity,
+      }));
+
+      const formattedGroceryItems = groceryItems.map((c) => ({
+        groceryItem: c.id.replace('groc-', ''),
+        price: c.price,
+        quantity: c.quantity,
+      }));
+
       const payload = {
         vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-        items: cart.items.map((c) => ({
-          menuItem: cart.orderType === 'food' ? c.id.replace('food-', '') : undefined,
-          groceryItem: cart.orderType === 'grocery' ? c.id.replace('groc-', '') : undefined,
-          price: c.price,
-          quantity: c.quantity,
-        })),
+        items: isMixedOrder
+          ? formattedFoodItems
+          : (cart.orderType === 'food' ? formattedFoodItems : formattedGroceryItems),
+        groceryItems: isMixedOrder ? formattedGroceryItems : undefined,
         userLat: targetCoords.lat,
         userLng: targetCoords.lng,
-        orderType: cart.orderType || 'food',
+        orderType: isMixedOrder ? 'mixed' : (cart.orderType || 'food'),
         pincode: targetPincode,
         address: {
           fullAddress: targetAddress,
@@ -371,6 +410,10 @@ export default function CheckoutScreen() {
     }
   }, [
     cart.items,
+    cart.groceryItems,
+    foodItems,
+    groceryItems,
+    isMixedOrder,
     cart.vendorId,
     cart.orderType,
     hasValidLocation,
@@ -484,22 +527,30 @@ export default function CheckoutScreen() {
     amountNeededForFreeDelivery > 0 &&
     activeFreeDeliveryThreshold > 0;
 
+  const foodShortfall =
+    billDetails?.foodShortfall !== undefined ? Number(billDetails.foodShortfall) : 0;
+  const grocerShortfall =
+    billDetails?.grocerShortfall !== undefined ? Number(billDetails.grocerShortfall) : 0;
+  const hasPerPartShortfall = isMixedOrder && (foodShortfall > 0 || grocerShortfall > 0);
+
   const activeMinOrderValue =
     billDetails?.minOrderValue !== undefined
       ? Number(billDetails.minOrderValue)
       : cart.orderType === 'food'
         ? settings?.minOrderValueFood || 0
         : settings?.minOrderValueGrocery || 0;
-  const isBelowMinimum =
-    billDetails?.isBelowMinimum !== undefined
+  const isBelowMinimum = isMixedOrder
+    ? hasPerPartShortfall
+    : (billDetails?.isBelowMinimum !== undefined
       ? Boolean(billDetails.isBelowMinimum)
-      : itemTotal < activeMinOrderValue;
-  const amountNeededForMinOrder =
-    billDetails?.amountNeededForMinOrder !== undefined
+      : itemTotal < activeMinOrderValue);
+  const amountNeededForMinOrder = isMixedOrder
+    ? foodShortfall + grocerShortfall
+    : (billDetails?.amountNeededForMinOrder !== undefined
       ? Number(billDetails.amountNeededForMinOrder)
       : isBelowMinimum
         ? Math.max(0, activeMinOrderValue - itemTotal)
-        : 0;
+        : 0);
 
   // Auto-redirect effect for notifCard
   useEffect(() => {
@@ -721,7 +772,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    if (cart.items.length === 0) {
+    if (cart.items.length === 0 && (cart.groceryItems?.length || 0) === 0) {
       showCard({
         type: 'warning',
         title: 'Cart Khali Hai',
@@ -806,9 +857,14 @@ export default function CheckoutScreen() {
     setPlacingOrder(true);
 
     try {
-      const orderItems = cart.items.map((c) => ({
-        menuItem: cart.orderType === 'food' ? c.id.replace('food-', '') : undefined,
-        groceryItem: cart.orderType === 'grocery' ? c.id.replace('groc-', '') : undefined,
+      const formattedFoodItems = foodItems.map((c) => ({
+        menuItem: c.id.replace('food-', ''),
+        quantity: c.quantity,
+        price: c.price,
+      }));
+
+      const formattedGroceryItems = groceryItems.map((c) => ({
+        groceryItem: c.id.replace('groc-', ''),
         quantity: c.quantity,
         price: c.price,
       }));
@@ -816,8 +872,11 @@ export default function CheckoutScreen() {
       // COD Path with server-verified bill and unified target coordinates
       const orderRes = await apiClient.post('/orders', {
         user: user._id,
-        restaurant: cart.orderType === 'food' ? cart.vendorId : undefined,
-        items: orderItems,
+        restaurant: isMixedOrder || cart.orderType === 'food' ? cart.vendorId : undefined,
+        items: isMixedOrder
+          ? formattedFoodItems
+          : (cart.orderType === 'food' ? formattedFoodItems : formattedGroceryItems),
+        groceryItems: isMixedOrder ? formattedGroceryItems : undefined,
         totalAmount: Number(billDetails.grandTotal) + (billDetails.discountAmount || 0),
         deliveryCharge: Number(billDetails.deliveryFee),
         paymentMethod: 'COD',
@@ -830,7 +889,7 @@ export default function CheckoutScreen() {
           deliveryAddress: targetDeliveryAddress,
         },
         phone: customPhone || user?.phone || '',
-        orderType: cart.orderType,
+        orderType: isMixedOrder ? 'mixed' : cart.orderType,
         couponCode: appliedCouponCode || undefined,
       });
 
@@ -838,14 +897,19 @@ export default function CheckoutScreen() {
         setOrderPlaced(true);
         clearCart();
         promptPermission('order_placed');
+        const checkoutGroupId = orderRes.data?.checkoutGroupId;
+        const targetUrl = checkoutGroupId
+          ? `/(tabs)/orders?groupId=${checkoutGroupId}`
+          : '/(tabs)/orders';
         showCard({
           type: 'success',
           title: '🎉 Order Confirm Ho Gaya!',
-          message:
-            'Aapka Cash on Delivery order successfully place ho gaya hai. Aap ise Orders section mein live track kar sakte hain.',
-          onAction: () => router.replace('/(tabs)/orders' as any),
+          message: isMixedOrder
+            ? 'Aapka Mixed Food & Grocery order successfully place ho gaya hai. Aap ise Orders section mein live track kar sakte hain.'
+            : 'Aapka Cash on Delivery order successfully place ho gaya hai. Aap ise Orders section mein live track kar sakte hain.',
+          onAction: () => router.replace(targetUrl as any),
           actionLabel: 'Order Track Karein',
-          redirectTo: '/(tabs)/orders',
+          redirectTo: targetUrl,
           redirectDelay: 2500,
         });
       } else {
@@ -881,7 +945,7 @@ export default function CheckoutScreen() {
   };
 
   // If empty and not placed, render empty view
-  if (cart.items.length === 0 && !orderPlaced) {
+  if (totalItemsCount === 0 && !orderPlaced) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <View style={styles.header}>
@@ -1080,42 +1144,134 @@ export default function CheckoutScreen() {
         <View style={styles.sectionContainer}>
           <Text style={styles.sectionLabel}>Order Items (Samaan)</Text>
           <View style={styles.itemsCard}>
-            {cart.items.map((item, index) => (
-              <View
-                key={item.id}
-                style={[
-                  styles.itemRow,
-                  index < cart.items.length - 1 && styles.itemRowBorder,
-                ]}
-              >
-                <View style={styles.itemImgWrapper}>
-                  {item.img ? (
-                    <OptimizedImage
-                      src={item.img}
-                      alt={item.name}
-                      preset="thumbnail"
-                      style={styles.itemImg}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <MaterialIcons
-                      name={cart.orderType === 'grocery' ? 'shopping-bag' : 'fastfood'}
-                      size={20}
-                      color={Colors.slate300}
-                    />
-                  )}
-                </View>
-                <View style={styles.itemInfoCol}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {item.name}
+            {isMixedOrder ? (
+              <>
+                <View style={styles.mixedSubHeader}>
+                  <Text style={styles.mixedSubHeaderTitle}>
+                    Food from {cart.vendorName || 'Restaurant'}
                   </Text>
-                  <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                  <Text style={styles.mixedSubHeaderCount}>
+                    {foodItems.length} {foodItems.length === 1 ? 'item' : 'items'}
+                  </Text>
                 </View>
-                <Text style={styles.itemLineTotal}>
-                  ₹{(Number(item?.price) || 0) * (Number(item?.quantity) || 1)}
-                </Text>
-              </View>
-            ))}
+                {foodItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.itemRow,
+                      index < foodItems.length - 1 && styles.itemRowBorder,
+                    ]}
+                  >
+                    <View style={styles.itemImgWrapper}>
+                      {item.img ? (
+                        <OptimizedImage
+                          src={item.img}
+                          alt={item.name}
+                          preset="thumbnail"
+                          style={styles.itemImg}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <MaterialIcons
+                          name="fastfood"
+                          size={20}
+                          color={Colors.slate300}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.itemInfoCol}>
+                      <Text style={styles.itemName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                    </View>
+                    <Text style={styles.itemLineTotal}>
+                      ₹{(Number(item?.price) || 0) * (Number(item?.quantity) || 1)}
+                    </Text>
+                  </View>
+                ))}
+
+                <View style={[styles.mixedSubHeader, styles.mixedSubHeaderBorderTop]}>
+                  <Text style={styles.mixedSubHeaderTitle}>Groceries</Text>
+                  <Text style={styles.mixedSubHeaderCount}>
+                    {groceryItems.length} {groceryItems.length === 1 ? 'item' : 'items'}
+                  </Text>
+                </View>
+                {groceryItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.itemRow,
+                      index < groceryItems.length - 1 && styles.itemRowBorder,
+                    ]}
+                  >
+                    <View style={styles.itemImgWrapper}>
+                      {item.img ? (
+                        <OptimizedImage
+                          src={item.img}
+                          alt={item.name}
+                          preset="thumbnail"
+                          style={styles.itemImg}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <MaterialIcons
+                          name="shopping-bag"
+                          size={20}
+                          color={Colors.slate300}
+                        />
+                      )}
+                    </View>
+                    <View style={styles.itemInfoCol}>
+                      <Text style={styles.itemName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                    </View>
+                    <Text style={styles.itemLineTotal}>
+                      ₹{(Number(item?.price) || 0) * (Number(item?.quantity) || 1)}
+                    </Text>
+                  </View>
+                ))}
+              </>
+            ) : (
+              cart.items.map((item, index) => (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.itemRow,
+                    index < cart.items.length - 1 && styles.itemRowBorder,
+                  ]}
+                >
+                  <View style={styles.itemImgWrapper}>
+                    {item.img ? (
+                      <OptimizedImage
+                        src={item.img}
+                        alt={item.name}
+                        preset="thumbnail"
+                        style={styles.itemImg}
+                        contentFit="cover"
+                      />
+                    ) : (
+                      <MaterialIcons
+                        name={cart.orderType === 'grocery' ? 'shopping-bag' : 'fastfood'}
+                        size={20}
+                        color={Colors.slate300}
+                      />
+                    )}
+                  </View>
+                  <View style={styles.itemInfoCol}>
+                    <Text style={styles.itemName} numberOfLines={1}>
+                      {item.name}
+                    </Text>
+                    <Text style={styles.itemQty}>Qty: {item.quantity}</Text>
+                  </View>
+                  <Text style={styles.itemLineTotal}>
+                    ₹{(Number(item?.price) || 0) * (Number(item?.quantity) || 1)}
+                  </Text>
+                </View>
+              ))
+            )}
           </View>
         </View>
 
@@ -1295,21 +1451,46 @@ export default function CheckoutScreen() {
                 </View>
               ) : null}
 
-              {/* Minimum order nudge */}
-              {isBelowMinimum && activeMinOrderValue > 0 ? (
-                <View style={styles.warningNudgeBox}>
-                  <MaterialIcons name="warning" size={18} color="#D97706" />
-                  <View style={styles.nudgeTextCol}>
-                    <Text style={styles.warningNudgeTitle}>
-                      Minimum order ke liye ₹{amountNeededForMinOrder.toFixed(0)} aur jodein
-                    </Text>
-                    <Text style={styles.warningNudgeSub}>
-                      {cart.orderType === 'food' ? 'Food' : 'Grocery'} ke liye minimum order ₹
-                      {activeMinOrderValue} hai
-                    </Text>
+              {/* Minimum order nudge / Shortfalls */}
+              {isMixedOrder ? (
+                <>
+                  {foodShortfall > 0 && (
+                    <View style={styles.warningNudgeBox}>
+                      <MaterialIcons name="warning" size={18} color="#D97706" />
+                      <View style={styles.nudgeTextCol}>
+                        <Text style={styles.warningNudgeTitle}>
+                          Add Rs {foodShortfall.toFixed(0)} more from {cart.vendorName || 'restaurant'} to order together
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                  {grocerShortfall > 0 && (
+                    <View style={styles.warningNudgeBox}>
+                      <MaterialIcons name="warning" size={18} color="#D97706" />
+                      <View style={styles.nudgeTextCol}>
+                        <Text style={styles.warningNudgeTitle}>
+                          Add Rs {grocerShortfall.toFixed(0)} more groceries (minimum Rs {billDetails?.minOrderValueGrocery || 0})
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+                </>
+              ) : (
+                isBelowMinimum && activeMinOrderValue > 0 ? (
+                  <View style={styles.warningNudgeBox}>
+                    <MaterialIcons name="warning" size={18} color="#D97706" />
+                    <View style={styles.nudgeTextCol}>
+                      <Text style={styles.warningNudgeTitle}>
+                        Minimum order ke liye ₹{amountNeededForMinOrder.toFixed(0)} aur jodein
+                      </Text>
+                      <Text style={styles.warningNudgeSub}>
+                        {cart.orderType === 'food' ? 'Food' : 'Grocery'} ke liye minimum order ₹
+                        {activeMinOrderValue} hai
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              ) : null}
+                ) : null
+              )}
 
               {/* Breakdown Rows */}
               <View style={styles.breakdownRows}>
@@ -1369,6 +1550,15 @@ export default function CheckoutScreen() {
                     <Text style={styles.billLabel}>Convenience Fee</Text>
                     <Text style={styles.billVal}>
                       ₹{(Number(billDetails.convenienceFee) || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {billDetails && Number(billDetails.multiVendorFee) > 0 ? (
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Multi-vendor fee</Text>
+                    <Text style={styles.billVal}>
+                      ₹{(Number(billDetails.multiVendorFee) || 0).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
@@ -1471,7 +1661,11 @@ export default function CheckoutScreen() {
                     : checkoutError
                       ? getReasonTitle(checkoutReason)
                       : isBelowMinimum
-                        ? `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
+                        ? isMixedOrder
+                          ? (foodShortfall > 0
+                            ? `Add Rs ${foodShortfall.toFixed(0)} more from restaurant`
+                            : `Add Rs ${grocerShortfall.toFixed(0)} more groceries`)
+                          : `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
                         : 'Order Confirm Karein'}
             </Text>
           )}
@@ -2119,6 +2313,31 @@ const styles = StyleSheet.create({
     borderColor: Colors.slate100,
     overflow: 'hidden',
     ...Shadows.sm,
+  },
+  mixedSubHeader: {
+    backgroundColor: Colors.slate50,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+  },
+  mixedSubHeaderBorderTop: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.slate100,
+  },
+  mixedSubHeaderTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.slate700,
+  },
+  mixedSubHeaderCount: {
+    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    color: Colors.slate500,
   },
   itemRow: {
     flexDirection: 'row',

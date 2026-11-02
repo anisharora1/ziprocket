@@ -15,6 +15,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { useCart } from '../../src/context/CartContext';
 import { usePlatform } from '../../src/context/PlatformContext';
 import { useSocket } from '../../src/context/SocketContext';
+import { useLocation } from '../../src/context/LocationContext';
 import { apiClient, isNetworkError } from '../../src/services/api';
 import { getIsOnline, onReconnect } from '../../src/services/network';
 import OptimizedImage from '../../src/components/OptimizedImage';
@@ -31,16 +32,17 @@ export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const { cart, updateQuantity, clearCart, addToCart } = useCart();
   const {
-    isPlatformCurrentlyOpen,
     getPlatformStatusMessage,
     isGroceryCurrentlyOpen,
     getGroceryStatusMessage,
   } = usePlatform();
   const { socket } = useSocket();
+  const { location, pincode, address } = useLocation();
 
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loadingRecs, setLoadingRecs] = useState(false);
   const [vendorAvailability, setVendorAvailability] = useState<string>('open');
+  const [multiVendorFee, setMultiVendorFee] = useState<number | null>(null);
 
   // Socket listener for real-time restaurant status changes
   useEffect(() => {
@@ -107,6 +109,52 @@ export default function CartScreen() {
     return unsub;
   }, [fetchVendorStatus]);
 
+  // Fetch multiVendorFee from the server bill endpoint when cart is mixed
+  useEffect(() => {
+    if (!cart.isMixed) {
+      setMultiVendorFee(null);
+      return;
+    }
+
+    const fetchMixedFee = async () => {
+      try {
+        const payload: any = {
+          vendorId: cart.vendorId,
+          items: cart.items.map((c) => ({
+            menuItem: c.id.replace('food-', ''),
+            price: c.price,
+            quantity: c.quantity,
+          })),
+          groceryItems: (cart.groceryItems || []).map((c) => ({
+            groceryItem: c.id.replace('groc-', ''),
+            price: c.price,
+            quantity: c.quantity,
+          })),
+          orderType: 'mixed',
+          userLat: location?.lat || 28.6139,
+          userLng: location?.lng || 77.2090,
+          pincode: pincode || undefined,
+          address: address ? { fullAddress: address } : undefined,
+        };
+        const res = await apiClient.post('/delivery-zones/calculate-bill', payload);
+        if (res.data?.multiVendorFee !== undefined) {
+          setMultiVendorFee(Number(res.data.multiVendorFee));
+        }
+      } catch (err) {
+        try {
+          const zoneRes = await apiClient.get('/delivery-zones');
+          if (zoneRes.data?.zones?.[0]?.multiVendorFee !== undefined) {
+            setMultiVendorFee(Number(zoneRes.data.zones[0].multiVendorFee));
+          }
+        } catch (e) {
+          console.warn('[Cart] Failed to fetch multi-vendor fee:', e);
+        }
+      }
+    };
+
+    fetchMixedFee();
+  }, [cart.isMixed, cart.vendorId, cart.items, cart.groceryItems, location, pincode, address]);
+
   const platformMsg = getPlatformStatusMessage();
 
   const isCartServiceClosed = useMemo(() => {
@@ -129,20 +177,46 @@ export default function CartScreen() {
     return null;
   }, [platformMsg, cart.orderType, getGroceryStatusMessage, vendorAvailability]);
 
-  const items = cart?.items || [];
+  const isMixed = cart.isMixed;
+  const foodItems = useMemo(
+    () => (cart.orderType === 'food' ? cart.items || [] : []),
+    [cart.orderType, cart.items]
+  );
+  const groceryItems = useMemo(
+    () => (cart.orderType === 'grocery' ? cart.items || [] : cart.groceryItems || []),
+    [cart.orderType, cart.items, cart.groceryItems]
+  );
+
+  const totalItemsCount =
+    foodItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0) +
+    groceryItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
+
+  const foodSubtotal = foodItems.reduce(
+    (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
+    0
+  );
+  const grocerySubtotal = groceryItems.reduce(
+    (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
+    0
+  );
+  const basketSubtotal = foodSubtotal + grocerySubtotal;
 
   // Fetch recommendations whenever cart items change
   const fetchRecommendations = useCallback(async () => {
-    if (items.length === 0) {
+    if (totalItemsCount === 0) {
       setRecommendations([]);
       return;
     }
     try {
       setLoadingRecs(true);
+      const allCartItemIds = [
+        ...foodItems.map((i) => i.id),
+        ...groceryItems.map((i) => i.id),
+      ];
       const res = await apiClient.post('/recommendations', {
         orderType: cart.orderType,
         vendorId: cart.orderType === 'food' ? cart.vendorId : 'grocery',
-        cartItemIds: items.map((i) => i.id),
+        cartItemIds: allCartItemIds,
       });
       if (res.data?.success) {
         setRecommendations(res.data.recommendations || []);
@@ -154,7 +228,7 @@ export default function CartScreen() {
     } finally {
       setLoadingRecs(false);
     }
-  }, [items, cart.orderType, cart.vendorId]);
+  }, [totalItemsCount, foodItems, groceryItems, cart.orderType, cart.vendorId]);
 
   useEffect(() => {
     fetchRecommendations();
@@ -169,7 +243,7 @@ export default function CartScreen() {
   }, [fetchRecommendations]);
 
   const handleAddRecommendedItem = (item: any) => {
-    const isGrocery = cart.orderType === 'grocery';
+    const isGrocery = cart.orderType === 'grocery' || item.category !== undefined;
     const itemId = isGrocery ? `groc-${item._id}` : `food-${item._id}`;
 
     addToCart({
@@ -180,21 +254,15 @@ export default function CartScreen() {
         quantity: 1,
         img: item.images?.[0] || '',
       },
-      vendorId: cart.orderType === 'food' ? cart.vendorId! : 'grocery',
-      vendorName: cart.orderType === 'food' ? cart.vendorName! : 'Grocery Store',
-      orderType: cart.orderType!,
+      vendorId: isGrocery ? 'zip-grocery-hub' : (cart.vendorId || item.restaurant?._id || item.restaurant),
+      vendorName: isGrocery ? 'ZipGrocery Stores' : (cart.vendorName || item.restaurant?.name || 'Restaurant'),
+      orderType: isGrocery ? 'grocery' : 'food',
     });
   };
 
-  const itemTotal = items.reduce(
-    (sum, item) => sum + (Number(item?.price) || 0) * (Number(item?.quantity) || 1),
-    0
-  );
-  const totalQuantity = items.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0);
-
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      {/* 1. Header: White bar, bottom border 1px slate-100 */}
+      {/* Header: White bar, bottom border 1px slate-100 */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Pressable
@@ -207,7 +275,7 @@ export default function CartScreen() {
           <Text style={styles.headerTitle}>Aapka Cart</Text>
         </View>
 
-        {items.length > 0 ? (
+        {totalItemsCount > 0 ? (
           <Pressable
             onPress={clearCart}
             style={styles.clearAllBtn}
@@ -223,12 +291,12 @@ export default function CartScreen() {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          items.length > 0 && { paddingBottom: 130 + insets.bottom },
+          totalItemsCount > 0 && { paddingBottom: 130 + insets.bottom },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {items.length === 0 ? (
-          /* 3. Empty state card: Blinkit style */
+        {totalItemsCount === 0 ? (
+          /* Empty state card: Blinkit style */
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconCircle}>
               <MaterialIcons name="shopping-basket" size={36} color={Colors.slate300} />
@@ -254,24 +322,20 @@ export default function CartScreen() {
           </View>
         ) : (
           <View style={styles.contentBlocks}>
-            {/* 4. "Ordering From" banner */}
-            <View style={styles.vendorBanner}>
-              <View style={styles.vendorIconBox}>
-                <MaterialIcons
-                  name={cart.orderType === 'grocery' ? 'store' : 'restaurant'}
-                  size={18}
-                  color={Colors.primary}
-                />
+            {/* Mixed Order Notice */}
+            {isMixed && (
+              <View style={styles.mixedNoticeCard}>
+                <MaterialIcons name="info" size={20} color={Colors.warning} style={styles.mixedNoticeIcon} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.mixedNoticeTitle}>Mixed Cart Order</Text>
+                  <Text style={styles.mixedNoticeText}>
+                    Mixed order: a one-time Rs {multiVendorFee !== null ? multiVendorFee : 5} multi-vendor fee applies
+                  </Text>
+                </View>
               </View>
-              <View style={styles.vendorDetails}>
-                <Text style={styles.vendorLabel}>ORDERING FROM</Text>
-                <Text style={styles.vendorName} numberOfLines={1}>
-                  {cart.vendorName || 'Selected Vendor'}
-                </Text>
-              </View>
-            </View>
+            )}
 
-            {/* 5. Closed warning banner */}
+            {/* Closed warning banner */}
             {isCartServiceClosed && cartServiceMessage ? (
               <View style={styles.closedWarningBanner}>
                 <MaterialIcons
@@ -287,82 +351,171 @@ export default function CartScreen() {
               </View>
             ) : null}
 
-            {/* 6. Items card */}
-            <View style={styles.itemsCard}>
-              {items.map((item, index) => (
-                <View
-                  key={item.id}
-                  style={[
-                    styles.itemRow,
-                    index < items.length - 1 && styles.itemRowBorder,
-                  ]}
-                >
-                  {/* Thumbnail */}
-                  <View style={styles.itemImgWrapper}>
-                    {item.img ? (
-                      <OptimizedImage
-                        src={item.img}
-                        alt={item.name}
-                        preset="thumbnail"
-                        style={styles.itemImg}
-                        contentFit="cover"
-                      />
-                    ) : (
-                      <MaterialIcons
-                        name={cart.orderType === 'grocery' ? 'shopping-bag' : 'fastfood'}
-                        size={20}
-                        color={Colors.slate300}
-                      />
-                    )}
+            {/* SECTION 1: FOOD ITEMS (WHEN PRESENT) */}
+            {foodItems.length > 0 && (
+              <View style={styles.sectionCard}>
+                {/* Section Header */}
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <View style={styles.foodIconCircle}>
+                      <MaterialIcons name="restaurant" size={16} color={Colors.primary} />
+                    </View>
+                    <View>
+                      <Text style={styles.sectionCategoryLabel}>RESTAURANT</Text>
+                      <Text style={styles.sectionVendorName} numberOfLines={1}>
+                        From {cart.vendorName || 'Restaurant Partner'}
+                      </Text>
+                    </View>
                   </View>
-
-                  {/* Title & Price */}
-                  <View style={styles.itemDetails}>
-                    <Text style={styles.itemName} numberOfLines={1}>
-                      {item.name}
-                    </Text>
-                    <Text style={styles.itemPrice}>₹{item.price}</Text>
-                  </View>
-
-                  {/* Quantity Stepper */}
-                  <View style={styles.stepperContainer}>
-                    <Pressable
-                      style={styles.stepperBtn}
-                      onPress={() => updateQuantity(item.id, item.quantity - 1)}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <MaterialIcons name="remove" size={15} color={Colors.primary} />
-                    </Pressable>
-                    <Text style={styles.stepperQty}>{item.quantity}</Text>
-                    <Pressable
-                      style={styles.stepperBtn}
-                      onPress={() => updateQuantity(item.id, item.quantity + 1)}
-                      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-                    >
-                      <MaterialIcons name="add" size={15} color={Colors.primary} />
-                    </Pressable>
-                  </View>
+                  <Text style={styles.sectionSubtotal}>₹{foodSubtotal.toFixed(2)}</Text>
                 </View>
-              ))}
 
-              {/* Add More Items Footer */}
-              <Pressable
-                style={styles.addMoreBtn}
-                onPress={() => {
-                  if (cart.orderType === 'grocery') {
-                    router.push('/grocery' as any);
-                  } else if (cart.vendorId) {
-                    router.push(`/restaurants/${cart.vendorId}` as any);
-                  } else {
-                    router.push('/(tabs)/home' as any);
-                  }
-                }}
-              >
-                <Text style={styles.addMoreText}>+ ADD MORE ITEMS</Text>
-              </Pressable>
-            </View>
+                {/* Items List */}
+                {foodItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.itemRow,
+                      index < foodItems.length - 1 && styles.itemRowBorder,
+                    ]}
+                  >
+                    <View style={styles.itemImgWrapper}>
+                      {item.img ? (
+                        <OptimizedImage
+                          src={item.img}
+                          alt={item.name}
+                          preset="thumbnail"
+                          style={styles.itemImg}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <MaterialIcons name="fastfood" size={20} color={Colors.slate300} />
+                      )}
+                    </View>
 
-            {/* 7. Smart Recommendations Section */}
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemPrice}>₹{item.price}</Text>
+                    </View>
+
+                    <View style={styles.stepperContainer}>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => updateQuantity(item.id, item.quantity - 1)}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <MaterialIcons name="remove" size={15} color={Colors.primary} />
+                      </Pressable>
+                      <Text style={styles.stepperQty}>{item.quantity}</Text>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <MaterialIcons name="add" size={15} color={Colors.primary} />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Add More Food Items */}
+                <Pressable
+                  style={styles.addMoreBtn}
+                  onPress={() => {
+                    if (cart.vendorId) {
+                      router.push(`/restaurants/${cart.vendorId}` as any);
+                    } else {
+                      router.push('/(tabs)/home' as any);
+                    }
+                  }}
+                >
+                  <Text style={styles.addMoreFoodText}>+ ADD MORE FOOD ITEMS</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* SECTION 2: GROCERY ITEMS (WHEN PRESENT) */}
+            {groceryItems.length > 0 && (
+              <View style={styles.sectionCard}>
+                {/* Section Header */}
+                <View style={styles.sectionHeader}>
+                  <View style={styles.sectionHeaderLeft}>
+                    <View style={styles.groceryIconCircle}>
+                      <MaterialIcons name="store" size={16} color={Colors.emerald700} />
+                    </View>
+                    <View>
+                      <Text style={styles.sectionCategoryLabel}>DEPOT</Text>
+                      <Text style={styles.sectionVendorName} numberOfLines={1}>
+                        Groceries
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sectionSubtotal}>₹{grocerySubtotal.toFixed(2)}</Text>
+                </View>
+
+                {/* Items List */}
+                {groceryItems.map((item, index) => (
+                  <View
+                    key={item.id}
+                    style={[
+                      styles.itemRow,
+                      index < groceryItems.length - 1 && styles.itemRowBorder,
+                    ]}
+                  >
+                    <View style={styles.itemImgWrapper}>
+                      {item.img ? (
+                        <OptimizedImage
+                          src={item.img}
+                          alt={item.name}
+                          preset="thumbnail"
+                          style={styles.itemImg}
+                          contentFit="cover"
+                        />
+                      ) : (
+                        <MaterialIcons name="shopping-bag" size={20} color={Colors.slate300} />
+                      )}
+                    </View>
+
+                    <View style={styles.itemDetails}>
+                      <Text style={styles.itemName} numberOfLines={1}>
+                        {item.name}
+                      </Text>
+                      <Text style={styles.itemPrice}>₹{item.price}</Text>
+                    </View>
+
+                    <View style={styles.stepperContainer}>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => updateQuantity(item.id, item.quantity - 1)}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <MaterialIcons name="remove" size={15} color={Colors.primary} />
+                      </Pressable>
+                      <Text style={styles.stepperQty}>{item.quantity}</Text>
+                      <Pressable
+                        style={styles.stepperBtn}
+                        onPress={() => updateQuantity(item.id, item.quantity + 1)}
+                        hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+                      >
+                        <MaterialIcons name="add" size={15} color={Colors.primary} />
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+
+                {/* Add More Groceries */}
+                <Pressable
+                  style={styles.addMoreBtn}
+                  onPress={() => router.push('/grocery' as any)}
+                >
+                  <Text style={styles.addMoreGroceryText}>+ ADD MORE GROCERIES</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {/* Recommendations Section */}
             {recommendations.length > 0 ? (
               <View style={styles.recommendationsSection}>
                 <View style={styles.recommendationsHeader}>
@@ -390,7 +543,6 @@ export default function CartScreen() {
                     contentContainerStyle={styles.recsListContent}
                     renderItem={({ item: rec }) => (
                       <View style={styles.recCard}>
-                        {/* Image */}
                         <View style={styles.recImgWrapper}>
                           {rec.images?.[0] ? (
                             <OptimizedImage
@@ -400,26 +552,22 @@ export default function CartScreen() {
                               style={styles.recImg}
                               contentFit="cover"
                             />
+                          ) : rec.category !== undefined ? (
+                            <MaterialIcons name="shopping-bag" size={24} color={Colors.slate300} />
                           ) : (
-                            <MaterialIcons
-                              name={cart.orderType === 'grocery' ? 'shopping-bag' : 'fastfood'}
-                              size={24}
-                              color={Colors.slate300}
-                            />
+                            <MaterialIcons name="fastfood" size={24} color={Colors.slate300} />
                           )}
                         </View>
 
-                        {/* Name & Size */}
                         <Text style={styles.recName} numberOfLines={2}>
                           {rec.name}
                         </Text>
-                        {cart.orderType === 'grocery' && rec.weightSize ? (
+                        {rec.weightSize ? (
                           <Text style={styles.recSize} numberOfLines={1}>
                             {rec.weightSize}
                           </Text>
                         ) : null}
 
-                        {/* Price & Add Button */}
                         <View style={styles.recFooter}>
                           <Text style={styles.recPrice}>₹{rec.price}</Text>
                           <Pressable
@@ -439,15 +587,15 @@ export default function CartScreen() {
         )}
       </ScrollView>
 
-      {/* 8. Fixed Bottom Checkout Bar (when cart has items) */}
-      {items.length > 0 ? (
+      {/* Fixed Bottom Checkout Bar (when cart has items) */}
+      {totalItemsCount > 0 ? (
         <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 16) }]}>
           <View style={styles.subtotalBlock}>
             <Text style={styles.subtotalLabel}>BASKET SUBTOTAL</Text>
             <View style={styles.subtotalValueRow}>
-              <Text style={styles.subtotalAmount}>₹{itemTotal.toFixed(2)}</Text>
+              <Text style={styles.subtotalAmount}>₹{basketSubtotal.toFixed(2)}</Text>
               <Text style={styles.itemCountText}>
-                ({totalQuantity} {totalQuantity === 1 ? 'ITEM' : 'ITEMS'})
+                ({totalItemsCount} {totalItemsCount === 1 ? 'ITEM' : 'ITEMS'})
               </Text>
             </View>
           </View>
@@ -535,7 +683,7 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.md,
   },
   contentBlocks: {
-    gap: 20,
+    gap: 16,
   },
   emptyCard: {
     backgroundColor: Colors.surface,
@@ -616,41 +764,33 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
-  vendorBanner: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.lg,
+  mixedNoticeCard: {
+    backgroundColor: '#FFFBEB',
     borderWidth: 1,
-    borderColor: Colors.slate100,
+    borderColor: '#FDE68A',
+    borderRadius: BorderRadius.xl,
     padding: 14,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     gap: 12,
     ...Shadows.sm,
   },
-  vendorIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: Colors.orange50,
-    alignItems: 'center',
-    justifyContent: 'center',
+  mixedNoticeIcon: {
+    marginTop: 1,
   },
-  vendorDetails: {
-    flex: 1,
-  },
-  vendorLabel: {
-    fontFamily: FontFamily.extraBold,
-    fontSize: 9,
-    fontWeight: '900',
-    color: Colors.slate450,
-    letterSpacing: 1.5,
-  },
-  vendorName: {
-    fontFamily: FontFamily.extraBold,
+  mixedNoticeTitle: {
+    fontFamily: FontFamily.bold,
     fontSize: 13,
-    fontWeight: '900',
-    color: Colors.slate800,
-    marginTop: 3,
+    fontWeight: '700',
+    color: '#78350F',
+    lineHeight: 18,
+  },
+  mixedNoticeText: {
+    fontFamily: FontFamily.medium,
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 18,
+    marginTop: 2,
   },
   closedWarningBanner: {
     backgroundColor: Colors.roseWarningBg,
@@ -683,13 +823,65 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 18,
   },
-  itemsCard: {
+  sectionCard: {
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.slate100,
     overflow: 'hidden',
     ...Shadows.sm,
+  },
+  sectionHeader: {
+    padding: 14,
+    backgroundColor: 'rgba(248, 250, 252, 0.7)',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.slate100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    marginRight: 8,
+  },
+  foodIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.orange50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  groceryIconCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#D1FAE5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sectionCategoryLabel: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 9,
+    fontWeight: '900',
+    color: Colors.slate400,
+    letterSpacing: 1.5,
+  },
+  sectionVendorName: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 13,
+    fontWeight: '900',
+    color: Colors.slate800,
+    marginTop: 2,
+  },
+  sectionSubtotal: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 12,
+    fontWeight: '900',
+    color: Colors.slate700,
   },
   itemRow: {
     flexDirection: 'row',
@@ -762,11 +954,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.slate50,
   },
-  addMoreText: {
+  addMoreFoodText: {
     fontFamily: FontFamily.extraBold,
     fontSize: 11,
     fontWeight: '900',
     color: Colors.primary,
+    letterSpacing: 1,
+  },
+  addMoreGroceryText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: 11,
+    fontWeight: '900',
+    color: Colors.emerald700,
     letterSpacing: 1,
   },
   recommendationsSection: {
