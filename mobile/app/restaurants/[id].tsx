@@ -133,7 +133,7 @@ export default function RestaurantDetailScreen() {
   }, [categories, activeCategory, groupedItems]);
 
   const getCartQuantity = (itemId: string) => {
-    const found = cart.items.find((i) => i.id === `food-${itemId}`);
+    const found = cart.items.find((i) => i.id === `food-${itemId}` || i.id === itemId);
     return found ? found.quantity : 0;
   };
 

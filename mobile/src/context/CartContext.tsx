@@ -26,9 +26,11 @@ export interface CartItem {
 
 export interface CartState {
   items: CartItem[];
+  groceryItems: CartItem[];
   vendorId: string | null;
   vendorName: string | null;
   orderType: 'food' | 'grocery' | null;
+  isMixed: boolean;
 }
 
 export interface AddToCartPayload {
@@ -59,12 +61,35 @@ let hasWarnedSyncFailure = false;
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+function computeIsMixed(orderType: string | null, items: CartItem[], groceryItems: CartItem[]): boolean {
+  return Boolean(orderType === 'food' && items.length > 0 && groceryItems.length > 0);
+}
+
+function mergeItemList(localList: CartItem[], backendList: CartItem[]): CartItem[] {
+  const mergedMap = new Map<string, CartItem>();
+  backendList.forEach((item) => mergedMap.set(item.id, item));
+  localList.forEach((item) => {
+    if (mergedMap.has(item.id)) {
+      const existing = mergedMap.get(item.id)!;
+      mergedMap.set(item.id, {
+        ...item,
+        quantity: Math.max(item.quantity, existing.quantity),
+      });
+    } else {
+      mergedMap.set(item.id, item);
+    }
+  });
+  return Array.from(mergedMap.values());
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
   const [cart, setCart] = useState<CartState>({
     items: [],
+    groceryItems: [],
     vendorId: null,
     vendorName: null,
     orderType: null,
+    isMixed: false,
   });
 
   const [showReplaceAlert, setShowReplaceAlert] = useState(false);
@@ -94,11 +119,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed && typeof parsed === 'object') {
+            const loadedItems: CartItem[] = Array.isArray(parsed.items) ? parsed.items : [];
+            const loadedGroceryItems: CartItem[] = Array.isArray(parsed.groceryItems) ? parsed.groceryItems : [];
+            const loadedOrderType = parsed.orderType || null;
             setCart({
-              items: Array.isArray(parsed.items) ? parsed.items : [],
+              items: loadedItems,
+              groceryItems: loadedGroceryItems,
               vendorId: parsed.vendorId || null,
               vendorName: parsed.vendorName || null,
-              orderType: parsed.orderType || null,
+              orderType: loadedOrderType,
+              isMixed: computeIsMixed(loadedOrderType, loadedItems, loadedGroceryItems),
             });
           }
         }
@@ -127,9 +157,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
       cartVersionRef.current += 1;
       const emptyState: CartState = {
         items: [],
+        groceryItems: [],
         vendorId: null,
         vendorName: null,
         orderType: null,
+        isMixed: false,
       };
       setCart(emptyState);
       AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
@@ -154,35 +186,53 @@ export function CartProvider({ children }: { children: ReactNode }) {
               quantity: Number(i.quantity),
               img: i.img,
             }));
+            const backendGroceryItems: CartItem[] = (backendCart.groceryItems || []).map((i: any) => ({
+              id: i.itemId || i.id,
+              name: i.name,
+              price: Number(i.price),
+              quantity: Number(i.quantity),
+              img: i.img,
+            }));
 
             setCart((currentLocalCart) => {
+              const localHasItems = currentLocalCart.items.length > 0 || (currentLocalCart.groceryItems || []).length > 0;
+
               // Case A: Local cart has items
-              if (currentLocalCart.items.length > 0) {
-                // If same vendor and orderType, merge items
+              if (localHasItems) {
+                // If both are food from same restaurant, merge food and grocery lists
                 if (
                   backendCart.vendorId &&
                   currentLocalCart.vendorId === backendCart.vendorId &&
-                  currentLocalCart.orderType === backendCart.orderType
+                  currentLocalCart.orderType === 'food' &&
+                  backendCart.orderType === 'food'
                 ) {
-                  const mergedMap = new Map<string, CartItem>();
-                  backendItems.forEach((item) => mergedMap.set(item.id, item));
-                  currentLocalCart.items.forEach((item) => {
-                    if (mergedMap.has(item.id)) {
-                      const existing = mergedMap.get(item.id)!;
-                      mergedMap.set(item.id, {
-                        ...item,
-                        quantity: Math.max(item.quantity, existing.quantity),
-                      });
-                    } else {
-                      mergedMap.set(item.id, item);
-                    }
-                  });
-
+                  const mergedItems = mergeItemList(currentLocalCart.items, backendItems);
+                  const mergedGrocery = mergeItemList(currentLocalCart.groceryItems || [], backendGroceryItems);
                   const mergedState: CartState = {
-                    items: Array.from(mergedMap.values()),
+                    items: mergedItems,
+                    groceryItems: mergedGrocery,
                     vendorId: currentLocalCart.vendorId,
                     vendorName: currentLocalCart.vendorName,
-                    orderType: currentLocalCart.orderType,
+                    orderType: 'food',
+                    isMixed: computeIsMixed('food', mergedItems, mergedGrocery),
+                  };
+                  saveToLocalStorage(mergedState);
+                  return mergedState;
+                }
+
+                // If both are pure grocery carts, merge items
+                if (
+                  currentLocalCart.orderType === 'grocery' &&
+                  backendCart.orderType === 'grocery'
+                ) {
+                  const mergedItems = mergeItemList(currentLocalCart.items, backendItems);
+                  const mergedState: CartState = {
+                    items: mergedItems,
+                    groceryItems: [],
+                    vendorId: currentLocalCart.vendorId,
+                    vendorName: currentLocalCart.vendorName,
+                    orderType: 'grocery',
+                    isMixed: false,
                   };
                   saveToLocalStorage(mergedState);
                   return mergedState;
@@ -194,12 +244,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
               }
 
               // Case B: Local cart was empty, adopt backend cart if it has items
-              if (backendItems.length > 0) {
+              if (backendItems.length > 0 || backendGroceryItems.length > 0) {
                 const newCartState: CartState = {
                   items: backendItems,
+                  groceryItems: backendGroceryItems,
                   vendorId: backendCart.vendorId || null,
                   vendorName: backendCart.vendorName || null,
                   orderType: backendCart.orderType || null,
+                  isMixed: computeIsMixed(backendCart.orderType, backendItems, backendGroceryItems),
                 };
                 saveToLocalStorage(newCartState);
                 return newCartState;
@@ -236,14 +288,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
             quantity: Number(i.quantity),
             img: i.img,
           }));
-          if (backendItems.length > 0) {
+          const backendGroceryItems: CartItem[] = (backendCart.groceryItems || []).map((i: any) => ({
+            id: i.itemId || i.id,
+            name: i.name,
+            price: Number(i.price),
+            quantity: Number(i.quantity),
+            img: i.img,
+          }));
+
+          if (backendItems.length > 0 || backendGroceryItems.length > 0) {
             setCart((currentLocalCart) => {
-              if (currentLocalCart.items.length === 0) {
+              const localHasItems = currentLocalCart.items.length > 0 || (currentLocalCart.groceryItems || []).length > 0;
+              if (!localHasItems) {
                 const newCartState: CartState = {
                   items: backendItems,
+                  groceryItems: backendGroceryItems,
                   vendorId: backendCart.vendorId || null,
                   vendorName: backendCart.vendorName || null,
                   orderType: backendCart.orderType || null,
+                  isMixed: computeIsMixed(backendCart.orderType, backendItems, backendGroceryItems),
                 };
                 saveToLocalStorage(newCartState);
                 return newCartState;
@@ -272,6 +335,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       try {
         await apiClient.post('/cart', {
           items: cart.items,
+          groceryItems: cart.groceryItems || [],
           vendorId: cart.vendorId,
           vendorName: cart.vendorName,
           orderType: cart.orderType,
@@ -294,50 +358,133 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     cartVersionRef.current += 1;
 
-    // If cart is empty, simply initialize
-    if (cart.items.length === 0) {
+    // 1. If cart is completely empty, simply add the item
+    if (cart.items.length === 0 && (cart.groceryItems?.length || 0) === 0) {
       setCart({
         items: [{ ...payload.item, quantity: 1 }],
+        groceryItems: [],
         vendorId: payload.vendorId,
         vendorName: payload.vendorName,
         orderType: payload.orderType,
+        isMixed: false,
       });
       return;
     }
 
-    // Rule: Reject if different vendor or different orderType
-    if (cart.vendorId !== payload.vendorId || cart.orderType !== payload.orderType) {
-      setPendingPayload(payload);
-      setShowReplaceAlert(true);
-      return;
+    // 2. If current cart is a grocery-only cart
+    if (cart.orderType === 'grocery') {
+      if (payload.orderType === 'grocery') {
+        // Adding more grocery items - keep working exactly as today
+        setCart((prev) => {
+          const existingIndex = prev.items.findIndex((i) => i.id === payload.item.id);
+          let newItems: CartItem[];
+          if (existingIndex >= 0) {
+            newItems = [...prev.items];
+            newItems[existingIndex] = {
+              ...newItems[existingIndex],
+              quantity: newItems[existingIndex].quantity + 1,
+            };
+          } else {
+            newItems = [...prev.items, { ...payload.item, quantity: 1 }];
+          }
+          return { ...prev, items: newItems, groceryItems: [], isMixed: false };
+        });
+        return;
+      }
+
+      if (payload.orderType === 'food') {
+        // Restaurant item when the cart holds only groceries:
+        // -> becomes the restaurant part, groceries move to groceryItems
+        setCart((prev) => {
+          const newFoodItems: CartItem[] = [{ ...payload.item, quantity: 1 }];
+          const newGroceryItems: CartItem[] = [...prev.items];
+          return {
+            items: newFoodItems,
+            groceryItems: newGroceryItems,
+            vendorId: payload.vendorId,
+            vendorName: payload.vendorName,
+            orderType: 'food',
+            isMixed: true,
+          };
+        });
+        return;
+      }
     }
 
-    // Same vendor: increment quantity or append item
-    setCart((prev) => {
-      const existingIndex = prev.items.findIndex((i) => i.id === payload.item.id);
-      if (existingIndex >= 0) {
-        const nextItems = [...prev.items];
-        nextItems[existingIndex] = {
-          ...nextItems[existingIndex],
-          quantity: nextItems[existingIndex].quantity + 1,
-        };
-        return { ...prev, items: nextItems };
+    // 3. If current cart has a restaurant (orderType === 'food')
+    if (cart.orderType === 'food') {
+      if (payload.orderType === 'food') {
+        // Restaurant item: check if same restaurant or different
+        if (cart.vendorId !== payload.vendorId) {
+          // Different restaurant -> keep existing "replace cart?" alert (only restaurants conflict)
+          setPendingPayload(payload);
+          setShowReplaceAlert(true);
+          return;
+        }
+
+        // Same restaurant -> add to items / update quantity
+        setCart((prev) => {
+          const existingIndex = prev.items.findIndex((i) => i.id === payload.item.id);
+          let newItems: CartItem[];
+          if (existingIndex >= 0) {
+            newItems = [...prev.items];
+            newItems[existingIndex] = {
+              ...newItems[existingIndex],
+              quantity: newItems[existingIndex].quantity + 1,
+            };
+          } else {
+            newItems = [...prev.items, { ...payload.item, quantity: 1 }];
+          }
+          return {
+            ...prev,
+            items: newItems,
+            isMixed: computeIsMixed('food', newItems, prev.groceryItems || []),
+          };
+        });
+        return;
       }
-      return {
-        ...prev,
-        items: [...prev.items, { ...payload.item, quantity: 1 }],
-      };
-    });
+
+      if (payload.orderType === 'grocery') {
+        // Grocery item when the cart has a restaurant -> add to groceryItems (no alert)
+        setCart((prev) => {
+          const existingIndex = (prev.groceryItems || []).findIndex((i) => i.id === payload.item.id);
+          let newGroceryItems: CartItem[];
+          if (existingIndex >= 0) {
+            newGroceryItems = [...(prev.groceryItems || [])];
+            newGroceryItems[existingIndex] = {
+              ...newGroceryItems[existingIndex],
+              quantity: newGroceryItems[existingIndex].quantity + 1,
+            };
+          } else {
+            newGroceryItems = [...(prev.groceryItems || []), { ...payload.item, quantity: 1 }];
+          }
+          return {
+            ...prev,
+            groceryItems: newGroceryItems,
+            isMixed: computeIsMixed('food', prev.items, newGroceryItems),
+          };
+        });
+        return;
+      }
+    }
   };
 
   const confirmReplaceCart = () => {
     cartVersionRef.current += 1;
     if (pendingPayload) {
-      setCart({
-        items: [{ ...pendingPayload.item, quantity: 1 }],
-        vendorId: pendingPayload.vendorId,
-        vendorName: pendingPayload.vendorName,
-        orderType: pendingPayload.orderType,
+      setCart((prev) => {
+        // Replacing the restaurant: previous restaurant items are replaced,
+        // grocery items are preserved as groceryItems.
+        const newFoodItems = [{ ...pendingPayload.item, quantity: 1 }];
+        const existingGroceries = prev.groceryItems || [];
+        return {
+          items: newFoodItems,
+          groceryItems: existingGroceries,
+          vendorId: pendingPayload.vendorId,
+          vendorName: pendingPayload.vendorName,
+          orderType: 'food',
+          isMixed: computeIsMixed('food', newFoodItems, existingGroceries),
+        };
       });
       setPendingPayload(null);
       setShowReplaceAlert(false);
@@ -356,11 +503,61 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
     cartVersionRef.current += 1;
     setCart((prev) => {
-      const nextItems = prev.items.filter((i) => i.id !== itemId);
-      if (nextItems.length === 0) {
-        return { items: [], vendorId: null, vendorName: null, orderType: null };
+      const inItems = prev.items.some((i) => i.id === itemId);
+      const inGrocery = (prev.groceryItems || []).some((i) => i.id === itemId);
+
+      let newItems = prev.items;
+      let newGroceryItems = prev.groceryItems || [];
+
+      if (inItems) {
+        newItems = prev.items.filter((i) => i.id !== itemId);
       }
-      return { ...prev, items: nextItems };
+      if (inGrocery) {
+        newGroceryItems = (prev.groceryItems || []).filter((i) => i.id !== itemId);
+      }
+
+      // If items became empty:
+      if (newItems.length === 0) {
+        if (newGroceryItems.length > 0) {
+          // If grocery items remain, promote them back to a pure grocery cart
+          return {
+            items: newGroceryItems,
+            groceryItems: [],
+            vendorId: 'zip-grocery-hub',
+            vendorName: 'ZipGrocery Stores',
+            orderType: 'grocery',
+            isMixed: false,
+          };
+        }
+        // Cart is completely empty
+        return {
+          items: [],
+          groceryItems: [],
+          vendorId: null,
+          vendorName: null,
+          orderType: null,
+          isMixed: false,
+        };
+      }
+
+      // Items still has elements, check groceryItems
+      if (newGroceryItems.length === 0 && prev.orderType === 'grocery') {
+        return {
+          items: [],
+          groceryItems: [],
+          vendorId: null,
+          vendorName: null,
+          orderType: null,
+          isMixed: false,
+        };
+      }
+
+      return {
+        ...prev,
+        items: newItems,
+        groceryItems: newGroceryItems,
+        isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems),
+      };
     });
   };
 
@@ -374,15 +571,40 @@ export function CartProvider({ children }: { children: ReactNode }) {
       removeFromCart(itemId);
       return;
     }
-    setCart((prev) => ({
-      ...prev,
-      items: prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i)),
-    }));
+
+    setCart((prev) => {
+      const inItems = prev.items.some((i) => i.id === itemId);
+      const inGrocery = (prev.groceryItems || []).some((i) => i.id === itemId);
+
+      let newItems = prev.items;
+      let newGroceryItems = prev.groceryItems || [];
+
+      if (inItems) {
+        newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
+      }
+      if (inGrocery) {
+        newGroceryItems = (prev.groceryItems || []).map((i) => (i.id === itemId ? { ...i, quantity } : i));
+      }
+
+      return {
+        ...prev,
+        items: newItems,
+        groceryItems: newGroceryItems,
+        isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems),
+      };
+    });
   };
 
   const clearCart = () => {
     cartVersionRef.current += 1;
-    setCart({ items: [], vendorId: null, vendorName: null, orderType: null });
+    setCart({
+      items: [],
+      groceryItems: [],
+      vendorId: null,
+      vendorName: null,
+      orderType: null,
+      isMixed: false,
+    });
   };
 
   const contextValue = useMemo(

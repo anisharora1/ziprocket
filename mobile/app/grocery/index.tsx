@@ -110,7 +110,7 @@ export default function GroceryIndexScreen() {
   });
 
   const getCartQuantity = (productId: string) => {
-    const item = cart.items.find((i) => i.id === `groc-${productId}`);
+    const item = [...cart.items, ...(cart.groceryItems || [])].find((i) => i.id === `groc-${productId}` || i.id === productId);
     return item ? item.quantity : 0;
   };
 

@@ -31,7 +31,7 @@ export default function PopularGroceries() {
 
   const getCartQuantity = (id: string) => {
     return (
-      cart.items.find((i) => i.id === `groc-${id}` || i.id === id)?.quantity || 0
+      [...cart.items, ...(cart.groceryItems || [])].find((i) => i.id === `groc-${id}` || i.id === id)?.quantity || 0
     );
   };
 
