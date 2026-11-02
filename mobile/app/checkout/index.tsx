@@ -286,10 +286,19 @@ export default function CheckoutScreen() {
   const isMixedOrder = Boolean(
     cart.isMixed || (cart.orderType === 'food' && (cart.groceryItems?.length || 0) > 0)
   );
-  const foodItems = isMixedOrder || cart.orderType === 'food' ? cart.items : [];
-  const groceryItems = isMixedOrder
-    ? (cart.groceryItems || [])
-    : (cart.orderType === 'grocery' ? cart.items : []);
+  const foodItems = useMemo(
+    () => (isMixedOrder || cart.orderType === 'food' ? cart.items : []),
+    [isMixedOrder, cart.orderType, cart.items]
+  );
+  const groceryItems = useMemo(
+    () =>
+      isMixedOrder
+        ? cart.groceryItems || []
+        : cart.orderType === 'grocery'
+          ? cart.items
+          : [],
+    [isMixedOrder, cart.orderType, cart.items, cart.groceryItems]
+  );
   const totalItemsCount = cart.items.length + (cart.groceryItems?.length || 0);
 
   const itemTotal = useMemo(

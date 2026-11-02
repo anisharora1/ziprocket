@@ -178,8 +178,14 @@ export default function CartScreen() {
   }, [platformMsg, cart.orderType, getGroceryStatusMessage, vendorAvailability]);
 
   const isMixed = cart.isMixed;
-  const foodItems = cart.orderType === 'food' ? (cart.items || []) : [];
-  const groceryItems = cart.orderType === 'grocery' ? (cart.items || []) : (cart.groceryItems || []);
+  const foodItems = useMemo(
+    () => (cart.orderType === 'food' ? cart.items || [] : []),
+    [cart.orderType, cart.items]
+  );
+  const groceryItems = useMemo(
+    () => (cart.orderType === 'grocery' ? cart.items || [] : cart.groceryItems || []),
+    [cart.orderType, cart.items, cart.groceryItems]
+  );
 
   const totalItemsCount =
     foodItems.reduce((sum, item) => sum + (Number(item?.quantity) || 1), 0) +
