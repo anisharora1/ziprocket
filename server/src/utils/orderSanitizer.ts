@@ -9,6 +9,7 @@ export function sanitizeOrderForRestaurant(order: any): any {
     delete obj.siblingSummary;
     delete obj.deliveryOtp;
     delete obj.moderator;
+    delete obj.deliveryPartner;
 
     if (Array.isArray(obj.items)) {
         obj.items = obj.items.filter((item: any) => !item.groceryItem);
@@ -25,6 +26,7 @@ export function sanitizeOrderForGrocery(order: any): any {
     delete obj.siblingOrder;
     delete obj.siblingSummary;
     delete obj.deliveryOtp;
+    delete obj.deliveryPartner;
 
     if (Array.isArray(obj.items)) {
         obj.items = obj.items.filter((item: any) => !item.menuItem);
@@ -34,6 +36,8 @@ export function sanitizeOrderForGrocery(order: any): any {
 
 export function buildRestaurantSocketPayload(event: string, order: any, extra: Record<string, any> = {}): any {
     const sanitizedOrder = sanitizeOrderForRestaurant(order);
+    const safeExtra = { ...extra };
+    delete safeExtra.deliveryPartner;
     return {
         event,
         order: sanitizedOrder,
@@ -42,7 +46,7 @@ export function buildRestaurantSocketPayload(event: string, order: any, extra: R
         orderType: "food",
         restaurantId: (order.restaurant?._id || order.restaurant)?.toString(),
         userId: (order.user?._id || order.user)?.toString(),
-        ...extra
+        ...safeExtra
     };
 }
 
@@ -61,4 +65,3 @@ export function buildRestaurantPushPayload(order: any, title?: string, body?: st
         }
     };
 }
-

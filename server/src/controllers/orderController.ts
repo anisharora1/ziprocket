@@ -16,6 +16,7 @@ import { emitToRooms } from "../services/socketService";
 import { handleOrderDelivered } from "../utils/orderCompletion";
 import { validateAndPriceOrder, finalizeOrderPlacement, finalizeMixedOrderPlacement } from "../utils/orderValidation";
 import { sanitizeOrderForRestaurant, sanitizeOrderForGrocery } from "../utils/orderSanitizer";
+import { attachDeliveryPartner } from "../utils/deliveryPartnerHelper";
 
 // Create a new order (primarily for COD flow; ONLINE orders are created upon verified payment)
 export const createOrder = async (req: Request, res: Response): Promise<void> => {
@@ -191,6 +192,7 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
         // --- SECURE OWNERSHIP CHECK (parallelized) ---
         let isSeller = false;
         let isGroceryModerator = false;
+        let isDelivery = false;
         const userId = req.user?._id?.toString();
         const isCustomer = userId === (order.user?._id || order.user)?.toString();
 
@@ -209,7 +211,7 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
                 ]);
 
                 isSeller = !!(restaurant && restaurant.owner?.toString() === userId);
-                const isDelivery = !!activeDelivery;
+                isDelivery = !!activeDelivery;
                 const zoneId = (order.deliveryZone?._id || order.deliveryZone)?.toString();
                 isGroceryModerator = !!(modUser?.assignedZones?.map((z: any) => z.toString()).includes(zoneId));
 
@@ -242,8 +244,9 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
         }
 
         // For customer, delivery partner, or admin: attach sibling summary if mixed
+        let siblingOrder: any = null;
         if (order.checkoutGroupId) {
-            const siblingOrder = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } })
+            siblingOrder = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } })
                 .populate("restaurant", "name address location phone")
                 .populate("deliveryZone", "name center radiusKm pincodes")
                 .lean();
@@ -269,6 +272,18 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
             delete order.deliveryOtp;
         }
 
+        // Attach delivery partner contact for customer and admin response paths (and assigned delivery boy)
+        // For mixed orders both siblings get it
+        if (isCustomer || req.user?.role === "admin" || isDelivery) {
+            await attachDeliveryPartner(order);
+            if (order.sibling && siblingOrder) {
+                const [siblingWithPartner] = await attachDeliveryPartner([{ _id: siblingOrder._id, orderStatus: siblingOrder.orderStatus }]);
+                if (siblingWithPartner?.deliveryPartner) {
+                    order.sibling.deliveryPartner = siblingWithPartner.deliveryPartner;
+                }
+            }
+        }
+
         res.status(200).json({
             success: true,
             order
@@ -282,6 +297,15 @@ export const getOrderById = async (req: Request, res: Response): Promise<void> =
 export const getUserOrders = async (req: Request, res: Response): Promise<void> => {
     try {
         const userId = req.params.userId;
+        const currentUserId = req.user?._id?.toString();
+
+        // Ownership check: only admin or the user themselves can view these orders
+        if (req.user?.role !== "admin" && userId !== currentUserId) {
+            console.warn(`[SECURITY WARNING] Unauthorized user orders access attempt. User: ${req.user?._id}, RequestedUser: ${userId}`);
+            res.status(403).json({ success: false, message: "Unauthorized" });
+            return;
+        }
+
         const page = Math.max(1, parseInt(req.query.page as string) || 1);
         const limit = Math.max(1, Math.min(50, parseInt(req.query.limit as string) || 20));
         const skip = (page - 1) * limit;
@@ -289,6 +313,10 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
 
         const cachedUserOrders = await redisService.getJson<any>(cacheKey);
         if (cachedUserOrders) {
+            // Attach delivery partner in-memory after cache read so phone numbers are never stored in Redis
+            if (Array.isArray(cachedUserOrders.orders)) {
+                await attachDeliveryPartner(cachedUserOrders.orders);
+            }
             res.status(200).json(cachedUserOrders);
             return;
         }
@@ -313,8 +341,11 @@ export const getUserOrders = async (req: Request, res: Response): Promise<void> 
             orders
         };
 
-        // Cache page for 10 minutes
+        // Cache page for 10 minutes (BEFORE attaching delivery partner so phone number is never cached)
         await redisService.setJson(cacheKey, responseData, 600);
+
+        // Attach delivery partner contact AFTER caching
+        await attachDeliveryPartner(orders);
 
         res.status(200).json(responseData);
     } catch (error: any) {

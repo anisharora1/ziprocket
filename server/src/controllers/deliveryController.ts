@@ -439,6 +439,7 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
         await order.save();
 
         // If part of mixed order, assign sibling order to the same partner with earnings: 0
+        let assignedSibling: any = null;
         if (order.checkoutGroupId) {
             const sibling = await Order.findOne({ checkoutGroupId: order.checkoutGroupId, _id: { $ne: order._id } });
             if (sibling && sibling.orderStatus !== "cancelled") {
@@ -453,12 +454,16 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
                     await siblingDelivery.save();
                     sibling.orderStatus = "accepted_by_delivery";
                     await sibling.save();
+                    assignedSibling = sibling;
                 }
             }
         }
 
         // Invalidate Redis caches
         await redisService.del(`order:detail:${orderId}`);
+        if (assignedSibling) {
+            await redisService.del(`order:detail:${assignedSibling._id.toString()}`);
+        }
         await redisService.deletePattern(`order:user_recent:${order.user.toString()}*`);
 
         // --- Socket.IO: Notify customer, admin, seller/moderator that a delivery boy accepted ---
@@ -486,6 +491,31 @@ export const acceptDeliveryOrder = async (req: Request, res: Response): Promise<
             };
             emitToRooms(rooms, "delivery_accepted", payload);
             emitToRooms(rooms, "order_status_updated", payload);
+
+            // Also emit for the sibling order so customer apps refetch both orders
+            if (assignedSibling) {
+                const siblingRooms: string[] = [`user:${assignedSibling.user.toString()}`, "admin"];
+                if ((assignedSibling as any).deliveryZone) {
+                    siblingRooms.push(`delivery_zone:${(assignedSibling as any).deliveryZone.toString()}`);
+                }
+                if (assignedSibling.orderType === "food" && assignedSibling.restaurant) {
+                    siblingRooms.push(`seller:${assignedSibling.restaurant.toString()}`);
+                } else if (assignedSibling.orderType === "grocery" && (assignedSibling as any).deliveryZone) {
+                    siblingRooms.push(`grocery:${(assignedSibling as any).deliveryZone.toString()}`);
+                }
+                const siblingPayload = {
+                    orderId: assignedSibling._id.toString(),
+                    orderStatus: "accepted_by_delivery",
+                    deliveryBoyId: deliveryBoyId?.toString(),
+                    userId: assignedSibling.user.toString(),
+                    orderType: assignedSibling.orderType,
+                    restaurantId: assignedSibling.restaurant?.toString(),
+                    zoneId: (assignedSibling as any).deliveryZone?.toString(),
+                    checkoutGroupId: assignedSibling.checkoutGroupId
+                };
+                emitToRooms(siblingRooms, "delivery_accepted", siblingPayload);
+                emitToRooms(siblingRooms, "order_status_updated", siblingPayload);
+            }
         } catch (emitErr: any) {
             console.error("[Socket] delivery_accepted emit error:", emitErr.message);
         }
