@@ -171,7 +171,17 @@ export default function OrdersScreen() {
     onOrderStatusUpdated: (data) => {
       if (data?.orderId && data?.orderStatus) {
         queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-          prev.map((o) => (o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o))
+          prev.map((o) =>
+            o._id === data.orderId
+              ? {
+                  ...o,
+                  orderStatus: data.orderStatus,
+                  ...(['delivered', 'cancelled'].includes(data.orderStatus)
+                    ? { deliveryPartner: undefined }
+                    : {}),
+                }
+              : o
+          )
         );
         invalidateOrders();
       }
@@ -179,7 +189,17 @@ export default function OrdersScreen() {
     onDeliveryStatusUpdated: (data) => {
       if (data?.orderId && data?.status) {
         queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-          prev.map((o) => (o._id === data.orderId ? { ...o, orderStatus: data.status } : o))
+          prev.map((o) =>
+            o._id === data.orderId
+              ? {
+                  ...o,
+                  orderStatus: data.status,
+                  ...(['delivered', 'cancelled'].includes(data.status)
+                    ? { deliveryPartner: undefined }
+                    : {}),
+                }
+              : o
+          )
         );
         invalidateOrders();
       }
@@ -195,7 +215,11 @@ export default function OrdersScreen() {
     onOrderDelivered: (data) => {
       if (data?.orderId) {
         queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-          prev.map((o) => (o._id === data.orderId ? { ...o, orderStatus: 'delivered' } : o))
+          prev.map((o) =>
+            o._id === data.orderId
+              ? { ...o, orderStatus: 'delivered', deliveryPartner: undefined }
+              : o
+          )
         );
         invalidateOrders();
       }
@@ -203,7 +227,11 @@ export default function OrdersScreen() {
     onOrderCancelled: (data) => {
       if (data?.orderId) {
         queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-          prev.map((o) => (o._id === data.orderId ? { ...o, orderStatus: 'cancelled' } : o))
+          prev.map((o) =>
+            o._id === data.orderId
+              ? { ...o, orderStatus: 'cancelled', deliveryPartner: undefined }
+              : o
+          )
         );
         invalidateOrders();
       }
@@ -332,6 +360,10 @@ export default function OrdersScreen() {
   const activeStep = primaryActiveOrder
     ? getStatusStep(primaryActiveOrder.orderStatus || primaryActiveOrder.status)
     : 0;
+  const deliveryPartner = currentActiveGroup?.isActive
+    ? (currentActiveGroup.allOrders?.find((o: any) => o?.deliveryPartner?.phone)?.deliveryPartner ||
+       primaryActiveOrder?.deliveryPartner)
+    : null;
 
   if (user && orders.length === 0 && (!isOnline || ordersFetchStatus === 'paused' || ordersError)) {
     return (
@@ -570,15 +602,39 @@ export default function OrdersScreen() {
                     })}
                   </View>
 
+                  {/* Delivery Partner Contact Row */}
+                  {currentActiveGroup?.isActive && deliveryPartner?.phone && (
+                    <View style={styles.deliveryPartnerRow}>
+                      <View style={styles.deliveryPartnerInfo}>
+                        <View style={styles.deliveryPartnerIconCircle}>
+                          <MaterialIcons name="two-wheeler" size={18} color={Colors.emerald800} />
+                        </View>
+                        <Text style={styles.deliveryPartnerText} numberOfLines={1}>
+                          Delivery partner: {deliveryPartner.name || 'Delivery Partner'}
+                        </Text>
+                      </View>
+                      <Pressable
+                        style={styles.callPartnerButton}
+                        onPress={() => Linking.openURL(`tel:${deliveryPartner.phone}`)}
+                      >
+                        <MaterialIcons name="call" size={14} color={Colors.white} />
+                        <Text style={styles.callPartnerButtonText}>CALL</Text>
+                      </Pressable>
+                    </View>
+                  )}
+
                   {/* Action Buttons */}
                   <View style={styles.activeActionsRow}>
                     <Pressable
                       style={styles.supportButton}
-                      onPress={() =>
-                        Linking.openURL(
-                          `tel:${currentActiveGroup.foodOrder?.restaurant?.phone || primaryActiveOrder?.restaurant?.phone || '9117662441'}`
-                        )
-                      }
+                      onPress={() => {
+                        const supportPhone = deliveryPartner?.phone
+                          ? '9117662441'
+                          : (currentActiveGroup.foodOrder?.restaurant?.phone ||
+                             primaryActiveOrder?.restaurant?.phone ||
+                             '9117662441');
+                        Linking.openURL(`tel:${supportPhone}`);
+                      }}
                     >
                       <Text style={styles.supportButtonText}>CONTACT SUPPORT</Text>
                     </Pressable>
@@ -1130,6 +1186,56 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.textMuted,
     marginTop: 2,
+  },
+  deliveryPartnerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    backgroundColor: Colors.successLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm + 2,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  deliveryPartnerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+    marginRight: Spacing.xs,
+  },
+  deliveryPartnerIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deliveryPartnerText: {
+    fontFamily: FontFamily.bold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.slate800,
+    flex: 1,
+  },
+  callPartnerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    backgroundColor: Colors.emerald700,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+  },
+  callPartnerButtonText: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.xs,
+    color: Colors.white,
+    letterSpacing: 0.5,
   },
   activeActionsRow: {
     flexDirection: 'row',
