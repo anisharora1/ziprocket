@@ -25,6 +25,7 @@ import {
     MdHourglassTop,
     MdStore,
     MdShoppingBag,
+    MdCall,
 } from "react-icons/md";
 
 interface GroupedOrderDisplay {
@@ -165,7 +166,11 @@ export default function OrdersPage() {
         onOrderStatusUpdated: (data) => {
             if (data?.orderId && data?.orderStatus) {
                 queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.orderStatus } : o)
+                    prev.map(o => o._id === data.orderId ? {
+                        ...o,
+                        orderStatus: data.orderStatus,
+                        ...(['delivered', 'cancelled'].includes(data.orderStatus) ? { deliveryPartner: undefined } : {})
+                    } : o)
                 );
                 invalidateOrders();
             }
@@ -173,7 +178,11 @@ export default function OrdersPage() {
         onDeliveryStatusUpdated: (data) => {
             if (data?.orderId && data?.status) {
                 queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: data.status } : o)
+                    prev.map(o => o._id === data.orderId ? {
+                        ...o,
+                        orderStatus: data.status,
+                        ...(['delivered', 'cancelled'].includes(data.status) ? { deliveryPartner: undefined } : {})
+                    } : o)
                 );
                 invalidateOrders();
             }
@@ -189,7 +198,7 @@ export default function OrdersPage() {
         onOrderDelivered: (data) => {
             if (data?.orderId) {
                 queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'delivered' } : o)
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'delivered', deliveryPartner: undefined } : o)
                 );
                 invalidateOrders();
             }
@@ -197,7 +206,7 @@ export default function OrdersPage() {
         onOrderCancelled: (data) => {
             if (data?.orderId) {
                 queryClient.setQueryData(['orders', 'customer', user?._id], (prev: any[] = []) =>
-                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'cancelled' } : o)
+                    prev.map(o => o._id === data.orderId ? { ...o, orderStatus: 'cancelled', deliveryPartner: undefined } : o)
                 );
                 invalidateOrders();
             }
@@ -419,6 +428,9 @@ export default function OrdersPage() {
     const currentActiveGroup = activeGroups[0];
     const primaryActiveOrder = currentActiveGroup?.primaryOrder;
     const activeStep = primaryActiveOrder ? getStatusStep(primaryActiveOrder.orderStatus || primaryActiveOrder.status) : 0;
+    const deliveryPartner = currentActiveGroup?.isActive
+        ? (currentActiveGroup.allOrders?.find((o: any) => o?.deliveryPartner?.phone)?.deliveryPartner || primaryActiveOrder?.deliveryPartner)
+        : null;
 
     return (
         <div className="bg-surface text-on-surface pb-28 min-h-screen w-full font-sans">
@@ -604,9 +616,30 @@ export default function OrdersPage() {
                                 </div>
                             </div>
 
+                            {/* Delivery Partner Contact Card */}
+                            {currentActiveGroup?.isActive && deliveryPartner?.phone && (
+                                <div className="mt-6 p-4 rounded-2xl bg-emerald-50/80 border border-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                                            <MdTwoWheeler className="text-[20px]" />
+                                        </div>
+                                        <p className="text-sm font-black text-slate-800 truncate">
+                                            Your delivery partner: {deliveryPartner.name || "Delivery Partner"}
+                                        </p>
+                                    </div>
+                                    <a
+                                        href={`tel:${deliveryPartner.phone}`}
+                                        className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider rounded-xl transition-all shadow-sm active:scale-95 flex items-center justify-center gap-1.5 shrink-0"
+                                    >
+                                        <MdCall className="text-[14px]" />
+                                        Call {deliveryPartner.phone}
+                                    </a>
+                                </div>
+                            )}
+
                             <div className="mt-8 pt-4 border-t border-slate-100 flex gap-3">
                                 <a
-                                    href={`tel:${primaryActiveOrder?.restaurant?.phone || '9117662441'}`}
+                                    href={`tel:${deliveryPartner?.phone ? '9117662441' : (primaryActiveOrder?.restaurant?.phone || '9117662441')}`}
                                     className="flex-1 py-3 text-xs font-black uppercase tracking-wider text-center text-slate-700 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors border border-slate-200"
                                 >
                                     Contact Support
