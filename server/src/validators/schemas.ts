@@ -59,3 +59,88 @@ export const userRegisterSchema = z.object({
     email: z.string().email().optional().or(z.literal("")),
     role: z.enum(["customer", "seller", "delivery_boy", "grocery_moderator"]).optional().default("customer")
 });
+
+
+/**
+ * Validates and normalizes discountedPrice relative to price.
+ * - An empty or 0 discountedPrice means no discount and must be stored as undefined.
+ * - Otherwise, discountedPrice must be a positive number lower than price.
+ */
+export function validateDiscountedPrice(
+    discountedPrice: any,
+    price: number
+): { isValid: true; value: number | undefined } | { isValid: false; message: string } {
+    if (
+        discountedPrice === undefined ||
+        discountedPrice === null ||
+        discountedPrice === "" ||
+        (typeof discountedPrice === "string" && discountedPrice.trim() === "")
+    ) {
+        return { isValid: true, value: undefined };
+    }
+
+    const num = Number(discountedPrice);
+    if (isNaN(num)) {
+        return { isValid: false, message: "Discounted price must be lower than the price" };
+    }
+
+    if (num === 0) {
+        return { isValid: true, value: undefined };
+    }
+
+    if (num < 0 || num >= Number(price)) {
+        return { isValid: false, message: "Discounted price must be lower than the price" };
+    }
+
+    return { isValid: true, value: num };
+}
+
+export const createMenuItemSchema = z.object({
+    name: z.string().min(1, "Name is required"),
+    price: z.number().nonnegative("Price must be a valid non-negative number"),
+    discountedPrice: z.any().optional()
+}).refine(data => {
+    return validateDiscountedPrice(data.discountedPrice, data.price).isValid;
+}, {
+    message: "Discounted price must be lower than the price",
+    path: ["discountedPrice"]
+});
+
+export const updateMenuItemSchema = z.object({
+    name: z.string().optional(),
+    price: z.number().nonnegative("Price must be a valid non-negative number").optional(),
+    discountedPrice: z.any().optional()
+}).refine(data => {
+    if (data.price !== undefined && data.discountedPrice !== undefined) {
+        return validateDiscountedPrice(data.discountedPrice, data.price).isValid;
+    }
+    return true;
+}, {
+    message: "Discounted price must be lower than the price",
+    path: ["discountedPrice"]
+});
+
+export const createGroceryProductSchema = z.object({
+    name: z.string().min(1, "Name is required"),
+    price: z.number().nonnegative("Price cannot be negative"),
+    discountedPrice: z.any().optional()
+}).refine(data => {
+    return validateDiscountedPrice(data.discountedPrice, data.price).isValid;
+}, {
+    message: "Discounted price must be lower than the price",
+    path: ["discountedPrice"]
+});
+
+export const updateGroceryProductSchema = z.object({
+    name: z.string().optional(),
+    price: z.number().nonnegative("Price cannot be negative").optional(),
+    discountedPrice: z.any().optional()
+}).refine(data => {
+    if (data.price !== undefined && data.discountedPrice !== undefined) {
+        return validateDiscountedPrice(data.discountedPrice, data.price).isValid;
+    }
+    return true;
+}, {
+    message: "Discounted price must be lower than the price",
+    path: ["discountedPrice"]
+});

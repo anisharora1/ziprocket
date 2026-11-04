@@ -31,7 +31,22 @@ const menuItemSchema = new Schema<IMenuItem>({
 
     price: { type: Number, required: true, min: [0, "Price cannot be negative"] },
 
-    discountedPrice: { type: Number, min: [0, "Cannot be negative"] },
+    discountedPrice: {
+        type: Number,
+        min: [0, "Cannot be negative"],
+        validate: {
+            validator: function(this: any, val: number | undefined | null) {
+                if (val === undefined || val === null || val === 0) return true;
+                const update = this.getUpdate ? this.getUpdate() : undefined;
+                const price = this.price !== undefined ? this.price : (update ? (update.price ?? update.$set?.price) : undefined);
+                if (price !== undefined && !isNaN(price)) {
+                    return val > 0 && val < price;
+                }
+                return val > 0;
+            },
+            message: "Discounted price must be lower than the price"
+        }
+    },
 
     isFeatured: { type: Boolean, default: false },
 
