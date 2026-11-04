@@ -16,6 +16,7 @@ import {
   MdPhotoCamera,
 } from "react-icons/md";
 
+import DiscountBadge from "@/components/DiscountBadge";
 import { GROCERY_CATEGORIES_MAP } from "@/lib/groceryCategories";
 
 interface Product {
@@ -63,6 +64,7 @@ export default function ModeratorProducts() {
   const [subcategory, setSubcategory] = useState("Fresh Vegetables");
   const [price, setPrice] = useState("");
   const [discountedPrice, setDiscountedPrice] = useState("");
+  const [discountError, setDiscountError] = useState("");
   const [stockQuantity, setStockQuantity] = useState("");
   const [unit, setUnit] = useState<"kg" | "gram" | "litre" | "packet" | "piece">("piece");
   const [weightSize, setWeightSize] = useState("");
@@ -137,6 +139,7 @@ export default function ModeratorProducts() {
     setSubcategory("Fresh Vegetables");
     setPrice("");
     setDiscountedPrice("");
+    setDiscountError("");
     setStockQuantity("");
     setUnit("piece");
     setWeightSize("");
@@ -158,6 +161,7 @@ export default function ModeratorProducts() {
     setSubcategory(product.subcategory || "");
     setPrice(String(product.price || ""));
     setDiscountedPrice(String(product.discountedPrice || ""));
+    setDiscountError("");
     setStockQuantity(String(product.stockQuantity || ""));
     setUnit(product.unit || "piece");
     setWeightSize(product.weightSize || "");
@@ -184,6 +188,16 @@ export default function ModeratorProducts() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const p = Number(price);
+    const dp = discountedPrice !== "" ? Number(discountedPrice) : undefined;
+    if (dp !== undefined && !isNaN(dp) && dp > 0) {
+      if (isNaN(p) || dp >= p) {
+        setDiscountError("Discounted price must be lower than the price");
+        return;
+      }
+    }
+
     setSubmitting(true);
 
     const formData = new FormData();
@@ -412,15 +426,27 @@ export default function ModeratorProducts() {
 
                       {/* Pricing */}
                       <td className="py-4 px-6">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm font-black text-slate-800">
-                            ₹{product.discountedPrice ? product.discountedPrice : product.price}
-                          </span>
-                          {product.discountedPrice && (
-                            <span className="text-xs font-bold text-slate-400 line-through">
-                              ₹{product.price}
+                        <div className="flex items-center justify-between gap-1.5 flex-wrap">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-sm font-black text-slate-800">
+                              ₹{product.discountedPrice &&
+                              Number(product.discountedPrice) > 0 &&
+                              Number(product.discountedPrice) < Number(product.price)
+                                ? product.discountedPrice
+                                : product.price}
                             </span>
-                          )}
+                            {product.discountedPrice &&
+                              Number(product.discountedPrice) > 0 &&
+                              Number(product.discountedPrice) < Number(product.price) && (
+                                <span className="text-xs font-bold text-slate-400 line-through">
+                                  ₹{product.price}
+                                </span>
+                              )}
+                          </div>
+                          <DiscountBadge
+                            price={product.price}
+                            discountedPrice={product.discountedPrice}
+                          />
                         </div>
                         {product.offerBadge && (
                           <span className="inline-block px-1.5 py-0.5 bg-red-50 text-red-600 font-extrabold text-[9px] rounded mt-1">
@@ -651,7 +677,10 @@ export default function ModeratorProducts() {
                     min={1}
                     placeholder="e.g. 150"
                     value={price}
-                    onChange={(e) => setPrice(e.target.value)}
+                    onChange={(e) => {
+                      setPrice(e.target.value);
+                      if (discountError) setDiscountError("");
+                    }}
                     className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200/70 focus:border-emerald-500 focus:bg-white rounded-2xl text-sm font-bold text-slate-800 transition-colors placeholder:text-slate-300 focus:outline-none"
                   />
                 </div>
@@ -664,9 +693,15 @@ export default function ModeratorProducts() {
                     min={0}
                     placeholder="e.g. 135"
                     value={discountedPrice}
-                    onChange={(e) => setDiscountedPrice(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-200/70 focus:border-emerald-500 focus:bg-white rounded-2xl text-sm font-bold text-slate-800 transition-colors placeholder:text-slate-300 focus:outline-none"
+                    onChange={(e) => {
+                      setDiscountedPrice(e.target.value);
+                      if (discountError) setDiscountError("");
+                    }}
+                    className={`w-full px-4 py-3 bg-slate-50 border-2 ${discountError ? "border-red-500" : "border-slate-200/70"} focus:border-emerald-500 focus:bg-white rounded-2xl text-sm font-bold text-slate-800 transition-colors placeholder:text-slate-300 focus:outline-none`}
                   />
+                  {discountError && (
+                    <p className="text-[11px] text-red-500 font-semibold mt-1">{discountError}</p>
+                  )}
                 </div>
 
                 {/* Stock Quantity */}

@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import OptimizedImage from "./OptimizedImage";
+import DiscountBadge from "./DiscountBadge";
 
 export interface CarouselItem {
   name: string;
@@ -197,16 +198,26 @@ export default function RestaurantCardCarousel({
                   </span>
                 )}
               </div>
-              <p className="text-[10px] font-extrabold text-amber-300 leading-tight mt-0.5 flex items-baseline gap-1">
-                {item.discountedPrice !== undefined && item.discountedPrice !== null && Number(item.discountedPrice) > 0 ? (
-                  <>
-                    <span>₹{item.discountedPrice}</span>
-                    <span className="line-through text-white/60 text-[9px]">₹{item.price}</span>
-                  </>
-                ) : (
-                  <span>₹{item.price}</span>
-                )}
-              </p>
+              <div className="mt-0.5 flex flex-wrap items-center justify-between gap-1 w-full">
+                <div className="text-[10px] font-extrabold text-amber-300 leading-tight flex items-baseline gap-1 shrink-0">
+                  {item.discountedPrice !== undefined &&
+                  item.discountedPrice !== null &&
+                  Number(item.discountedPrice) > 0 &&
+                  Number(item.discountedPrice) < Number(item.price) ? (
+                    <>
+                      <span>₹{item.discountedPrice}</span>
+                      <span className="line-through text-white/60 text-[9px]">₹{item.price}</span>
+                    </>
+                  ) : (
+                    <span>₹{item.price}</span>
+                  )}
+                </div>
+                <DiscountBadge
+                  price={item.price}
+                  discountedPrice={item.discountedPrice}
+                  className="ml-auto"
+                />
+              </div>
             </div>
           </div>
         ))}

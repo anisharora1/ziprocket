@@ -9,6 +9,7 @@ import { useCart } from "@/context/CartContext";
 import { usePlatform } from "@/context/PlatformContext";
 import OptimizedImage from "@/components/OptimizedImage";
 import ProductCard from "@/components/ProductCard";
+import DiscountBadge from "@/components/DiscountBadge";
 import BottomNavBar from "@/components/BottomNavBar";
 import { MdArrowBack, MdSearch, MdClose, MdSearchOff, MdStar } from "react-icons/md";
 
@@ -86,7 +87,7 @@ function SearchResultsContent() {
       item: {
         id: `food-${item._id}`,
         name: item.name,
-        price: item.discountedPrice && Number(item.discountedPrice) > 0 ? item.discountedPrice : item.price,
+        price: item.discountedPrice && Number(item.discountedPrice) > 0 && Number(item.discountedPrice) < Number(item.price) ? item.discountedPrice : item.price,
         quantity: 1,
         img: (item.images && item.images[0]) || ""
       },
@@ -259,15 +260,24 @@ function SearchResultsContent() {
                             </p>
                           </div>
                           <div className="flex items-center gap-4 shrink-0">
-                            <div className="flex items-baseline gap-1">
-                              {item.discountedPrice && Number(item.discountedPrice) > 0 ? (
-                                <>
-                                  <span className="text-[13.5px] font-black text-slate-800">₹{item.discountedPrice}</span>
-                                  <span className="text-[11px] font-semibold text-slate-400 line-through">₹{item.price}</span>
-                                </>
-                              ) : (
-                                <span className="text-[13.5px] font-black text-slate-800">₹{item.price}</span>
-                              )}
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <div className="flex items-baseline gap-1 shrink-0">
+                                {item.discountedPrice &&
+                                Number(item.discountedPrice) > 0 &&
+                                Number(item.discountedPrice) < Number(item.price) ? (
+                                  <>
+                                    <span className="text-[13.5px] font-black text-slate-800">₹{item.discountedPrice}</span>
+                                    <span className="text-[11px] font-semibold text-slate-400 line-through">₹{item.price}</span>
+                                  </>
+                                ) : (
+                                  <span className="text-[13.5px] font-black text-slate-800">₹{item.price}</span>
+                                )}
+                              </div>
+                              <DiscountBadge
+                                price={item.price}
+                                discountedPrice={item.discountedPrice}
+                                className="ml-auto"
+                              />
                             </div>
                             
                             {isFoodInCart(item._id) ? (

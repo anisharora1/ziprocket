@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "../../../services/api";
 import { useAuth } from "../../../context/AuthContext";
+import DiscountBadge from "@/components/DiscountBadge";
 import { MdAdd, MdEdit, MdDelete, MdClose } from "react-icons/md";
 
 interface MenuItem {
@@ -47,6 +48,7 @@ export default function SellerMenuPage() {
   const [removedImages, setRemovedImages] = useState<string[]>([]);
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [discountError, setDiscountError] = useState("");
 
   useEffect(() => {
     if (authLoading) return;
@@ -91,6 +93,9 @@ export default function SellerMenuPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "discountedPrice" || name === "price") {
+      setDiscountError("");
+    }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -104,6 +109,15 @@ export default function SellerMenuPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!restaurantId) return;
+
+    const p = Number(formData.price);
+    const dp = formData.discountedPrice !== "" ? Number(formData.discountedPrice) : undefined;
+    if (dp !== undefined && !isNaN(dp) && dp > 0) {
+      if (isNaN(p) || dp >= p) {
+        setDiscountError("Discounted price must be lower than the price");
+        return;
+      }
+    }
 
     const form = new FormData();
     form.append("name", formData.name);
@@ -201,6 +215,7 @@ export default function SellerMenuPage() {
     setExistingImages(Array.isArray(item.images) ? item.images : []);
     setRemovedImages([]);
     setImageFiles([]); // Reset files as we might not upload new ones
+    setDiscountError("");
     setIsModalOpen(true);
   };
 
@@ -221,6 +236,7 @@ export default function SellerMenuPage() {
     setRemovedImages([]);
     setImageFiles([]);
     setEditingItemId(null);
+    setDiscountError("");
   };
 
   if (authLoading || isDataLoading) {
@@ -279,10 +295,14 @@ export default function SellerMenuPage() {
               )}
               
               <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm border border-white/20 flex items-center gap-1.5 z-10">
-                {item.discountedPrice !== undefined && item.discountedPrice !== null && Number(item.discountedPrice) > 0 ? (
+                {item.discountedPrice !== undefined &&
+                item.discountedPrice !== null &&
+                Number(item.discountedPrice) > 0 &&
+                Number(item.discountedPrice) < Number(item.price) ? (
                   <>
                     <span className="line-through text-slate-400 text-[11px]">₹{item.price}</span>
                     <span className="text-emerald-700 font-bold text-[12px]">₹{item.discountedPrice}</span>
+                    <DiscountBadge price={item.price} discountedPrice={item.discountedPrice} />
                   </>
                 ) : (
                   <span className="text-[12px] font-bold text-emerald-700">₹{item.price}</span>
@@ -455,8 +475,13 @@ export default function SellerMenuPage() {
                       value={formData.discountedPrice}
                       onChange={handleInputChange}
                       placeholder="Optional"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 text-sm" 
+                      className={`w-full px-3 py-2 bg-slate-50 border rounded-lg focus:outline-none focus:ring-2 text-slate-900 text-sm ${
+                        discountError ? "border-red-400 focus:ring-red-400" : "border-slate-200 focus:ring-emerald-500"
+                      }`}
                     />
+                    {discountError && (
+                      <p className="text-[11px] text-red-500 font-semibold mt-1">{discountError}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Prep Time (mins)</label>

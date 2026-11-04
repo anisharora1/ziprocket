@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useLocation } from "@/context/LocationContext";
 import { apiClient } from "@/services/api";
 import OptimizedImage from "./OptimizedImage";
+import DiscountBadge from "./DiscountBadge";
 import {
   MdSearch,
   MdClose,
@@ -280,15 +281,24 @@ export default function SearchBar() {
                             from {item.restaurant?.name || "Local Kitchen"}
                           </span>
                         </div>
-                        <div className="flex items-baseline gap-1 shrink-0 pl-2">
-                          {item.discountedPrice && Number(item.discountedPrice) > 0 ? (
-                            <>
-                              <span className="text-[12px] font-black text-slate-700">₹{item.discountedPrice}</span>
-                              <span className="text-[10px] font-semibold text-slate-400 line-through">₹{item.price}</span>
-                            </>
-                          ) : (
-                            <span className="text-[12px] font-black text-slate-700">₹{item.price}</span>
-                          )}
+                        <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 pl-2">
+                          <div className="flex items-baseline gap-1 shrink-0">
+                            {item.discountedPrice &&
+                            Number(item.discountedPrice) > 0 &&
+                            Number(item.discountedPrice) < Number(item.price) ? (
+                              <>
+                                <span className="text-[12px] font-black text-slate-700">₹{item.discountedPrice}</span>
+                                <span className="text-[10px] font-semibold text-slate-400 line-through">₹{item.price}</span>
+                              </>
+                            ) : (
+                              <span className="text-[12px] font-black text-slate-700">₹{item.price}</span>
+                            )}
+                          </div>
+                          <DiscountBadge
+                            price={item.price}
+                            discountedPrice={item.discountedPrice}
+                            className="ml-auto"
+                          />
                         </div>
                       </div>
                     ))}
@@ -330,9 +340,25 @@ export default function SearchBar() {
                             </span>
                           </div>
                         </div>
-                        <span className="text-[12px] font-black text-slate-700 shrink-0 pl-2">
-                          ₹{prod.discountedPrice || prod.price}
-                        </span>
+                        <div className="flex flex-wrap items-center justify-between gap-1 shrink-0 pl-2">
+                          <div className="flex items-baseline gap-1 shrink-0">
+                            {prod.discountedPrice &&
+                            Number(prod.discountedPrice) > 0 &&
+                            Number(prod.discountedPrice) < Number(prod.price) ? (
+                              <>
+                                <span className="text-[12px] font-black text-slate-700">₹{prod.discountedPrice}</span>
+                                <span className="text-[10px] font-semibold text-slate-400 line-through">₹{prod.price}</span>
+                              </>
+                            ) : (
+                              <span className="text-[12px] font-black text-slate-700">₹{prod.price}</span>
+                            )}
+                          </div>
+                          <DiscountBadge
+                            price={prod.price}
+                            discountedPrice={prod.discountedPrice}
+                            className="ml-auto"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
