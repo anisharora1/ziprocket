@@ -7,6 +7,7 @@ import Header from "@/components/Header";
 import BottomNavBar from "@/components/BottomNavBar";
 import FloatingCartButton from "@/components/FloatingCartButton";
 import OptimizedImage from "@/components/OptimizedImage";
+import DiscountBadge from "@/components/DiscountBadge";
 import { apiClient } from "@/services/api";
 import { useCart } from "@/context/CartContext";
 import { usePlatform } from "@/context/PlatformContext";
@@ -199,7 +200,11 @@ export default function RestaurantDetailClient({
   };
 
   const getEffectivePrice = (item: MenuItemType) => {
-    if (item.discountedPrice && Number(item.discountedPrice) > 0) {
+    if (
+      item.discountedPrice &&
+      Number(item.discountedPrice) > 0 &&
+      Number(item.discountedPrice) < Number(item.price)
+    ) {
       return Number(item.discountedPrice);
     }
     return Number(item.price);
@@ -826,18 +831,25 @@ export default function RestaurantDetailClient({
                               </div>
 
                               {/* Card Footer: Price & Add to Cart Controls */}
-                              <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 mt-auto">
-                                <div className="flex items-baseline gap-1.5">
-                                  <span className="font-black text-slate-900 text-sm sm:text-base">
-                                    ₹{effectivePrice}
-                                  </span>
-                                  {item.discountedPrice &&
-                                    Number(item.discountedPrice) > 0 &&
-                                    item.price > item.discountedPrice && (
-                                      <span className="text-[11px] font-semibold text-slate-400 line-through">
-                                        ₹{item.price}
-                                      </span>
-                                    )}
+                              <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 mt-auto gap-2">
+                                <div className="flex flex-wrap items-center justify-between gap-1 flex-1">
+                                  <div className="flex items-baseline gap-1.5 shrink-0">
+                                    <span className="font-black text-slate-900 text-sm sm:text-base">
+                                      ₹{effectivePrice}
+                                    </span>
+                                    {item.discountedPrice &&
+                                      Number(item.discountedPrice) > 0 &&
+                                      item.price > item.discountedPrice && (
+                                        <span className="text-[11px] font-semibold text-slate-400 line-through">
+                                          ₹{item.price}
+                                        </span>
+                                      )}
+                                  </div>
+                                  <DiscountBadge
+                                    price={item.price}
+                                    discountedPrice={item.discountedPrice}
+                                    className="ml-auto"
+                                  />
                                 </div>
 
                                 {qty > 0 ? (
@@ -992,19 +1004,26 @@ export default function RestaurantDetailClient({
 
                 {/* Price and Cart Action Footer */}
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
-                  <div>
+                  <div className="flex-1">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">Total Price</p>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-black text-slate-900">
-                        ₹{getEffectivePrice(selectedItem)}
-                      </span>
-                      {selectedItem.discountedPrice &&
-                        Number(selectedItem.discountedPrice) > 0 &&
-                        selectedItem.price > selectedItem.discountedPrice && (
-                          <span className="text-sm font-bold text-slate-400 line-through">
-                            ₹{selectedItem.price}
-                          </span>
-                        )}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-baseline gap-1.5 shrink-0">
+                        <span className="text-2xl font-black text-slate-900">
+                          ₹{getEffectivePrice(selectedItem)}
+                        </span>
+                        {selectedItem.discountedPrice &&
+                          Number(selectedItem.discountedPrice) > 0 &&
+                          selectedItem.price > selectedItem.discountedPrice && (
+                            <span className="text-sm font-bold text-slate-400 line-through">
+                              ₹{selectedItem.price}
+                            </span>
+                          )}
+                      </div>
+                      <DiscountBadge
+                        price={selectedItem.price}
+                        discountedPrice={selectedItem.discountedPrice}
+                        className="ml-auto"
+                      />
                     </div>
                   </div>
 

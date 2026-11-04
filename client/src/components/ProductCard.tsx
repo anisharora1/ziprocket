@@ -5,6 +5,7 @@ import OptimizedImage from "./OptimizedImage";
 import { useCart } from "@/context/CartContext";
 import { usePlatform } from "@/context/PlatformContext";
 import { MdImage } from "react-icons/md";
+import DiscountBadge from "./DiscountBadge";
 
 export interface Product {
   _id: string;
@@ -35,7 +36,12 @@ export default function ProductCard({
   addToCart,
   updateQuantity,
 }: ProductCardProps) {
-  const currentPrice = prod.discountedPrice || prod.price;
+  const hasValidDiscount =
+    prod.discountedPrice !== undefined &&
+    prod.discountedPrice !== null &&
+    Number(prod.discountedPrice) > 0 &&
+    Number(prod.discountedPrice) < Number(prod.price);
+  const currentPrice = hasValidDiscount ? Number(prod.discountedPrice) : Number(prod.price);
   const { isGroceryCurrentlyOpen } = usePlatform();
   const isGroceryOpen = isGroceryCurrentlyOpen();
 
@@ -141,13 +147,20 @@ export default function ProductCard({
           {prod.weightSize}
         </span>
 
-        <div className="mt-auto flex items-baseline gap-1.5">
-          <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
-          {prod.discountedPrice && (
-            <span className="text-xs font-semibold text-slate-400 line-through">
-              ₹{prod.price}
-            </span>
-          )}
+        <div className="mt-auto flex flex-wrap items-center justify-between gap-1 w-full pt-1">
+          <div className="flex items-baseline gap-1.5 shrink-0">
+            <span className="text-sm font-black text-slate-900">₹{currentPrice}</span>
+            {hasValidDiscount && (
+              <span className="text-xs font-semibold text-slate-400 line-through">
+                ₹{prod.price}
+              </span>
+            )}
+          </div>
+          <DiscountBadge
+            price={prod.price}
+            discountedPrice={prod.discountedPrice}
+            className="ml-auto"
+          />
         </div>
       </div>
     </div>

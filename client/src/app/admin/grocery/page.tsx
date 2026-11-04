@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { apiClient } from "@/services/api";
 import { MdSearch, MdImage } from "react-icons/md";
+import DiscountBadge from "@/components/DiscountBadge";
 
 import { GROCERY_CATEGORIES_MAP } from "@/lib/groceryCategories";
 
@@ -217,10 +218,29 @@ export default function AdminGroceryAuditor() {
                       <p className="text-[9px] font-bold text-slate-400">{product.subcategory}</p>
                     </td>
                     <td className="py-4 px-6 text-xs text-slate-700 font-bold">
-                      ₹{product.discountedPrice || product.price}
-                      {product.discountedPrice && (
-                        <span className="text-[10px] text-slate-400 line-through pl-1.5">₹{product.price}</span>
-                      )}
+                      <div className="flex flex-wrap items-center justify-between gap-1">
+                        <div className="flex items-baseline gap-1 shrink-0">
+                          <span>
+                            ₹{product.discountedPrice &&
+                            Number(product.discountedPrice) > 0 &&
+                            Number(product.discountedPrice) < Number(product.price)
+                              ? product.discountedPrice
+                              : product.price}
+                          </span>
+                          {product.discountedPrice &&
+                            Number(product.discountedPrice) > 0 &&
+                            Number(product.discountedPrice) < Number(product.price) && (
+                              <span className="text-[10px] text-slate-400 line-through">
+                                ₹{product.price}
+                              </span>
+                            )}
+                        </div>
+                        <DiscountBadge
+                          price={product.price}
+                          discountedPrice={product.discountedPrice}
+                          className="ml-auto"
+                        />
+                      </div>
                     </td>
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black ${product.isAvailable && product.stockQuantity > 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
