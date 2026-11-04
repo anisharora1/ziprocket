@@ -6,6 +6,7 @@ import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinary
 import * as restaurantCacheService from "../services/restaurantCacheService";
 import { emitToRooms } from "../services/socketService";
 import { isWithinOperatingHours, isRestaurantAcceptingOrders } from "../utils/restaurantHours";
+import { validateDiscountedPrice } from "../validators/schemas";
 
 // Helper to safely delete from Cloudinary without crashing the request pipeline
 async function safeDeleteCloudinary(publicId?: string): Promise<void> {
@@ -418,13 +419,14 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
         const restaurantId = req.params.restaurantId;
 
         const parsedPrice = Number(price);
-        if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
+        if (price === undefined || isNaN(parsedPrice) || parsedPrice < 0) {
             res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
             return;
         }
 
-        if (discountedPrice !== undefined && Number(discountedPrice) > 0 && Number(discountedPrice) >= Number(price)) {
-            res.status(400).json({ success: false, message: "Discounted price must be lower than the original price." });
+        const discountValidation = validateDiscountedPrice(discountedPrice, parsedPrice);
+        if (!discountValidation.isValid) {
+            res.status(400).json({ success: false, message: discountValidation.message });
             return;
         }
 
@@ -459,7 +461,7 @@ export const addMenuItem = async (req: Request, res: Response): Promise<void> =>
             name,
             description,
             price: parsedPrice,
-            discountedPrice: (discountedPrice !== undefined && discountedPrice !== "" && discountedPrice !== null) ? Number(discountedPrice) : undefined,
+            discountedPrice: discountValidation.value,
             isFeatured: isFeatured === 'true' || isFeatured === true,
             prepTimeMinutes: parsedPrepTime,
             spiceLevel: ["none", "mild", "medium", "hot"].includes(spiceLevel) ? spiceLevel : "none",
@@ -523,12 +525,6 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
     try {
         const { name, description, price, discountedPrice, isFeatured, prepTimeMinutes, spiceLevel, category, isAvailable, isVeg, removedImages } = req.body;
 
-        const parsedPrice = Number(price);
-        if (price !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) {
-            res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
-            return;
-        }
-
         const menuItemToUpdate = await MenuItem.findById(req.params.menuItemId);
         if (!menuItemToUpdate) {
             res.status(404).json({ success: false, message: "Menu item not found" });
@@ -541,10 +537,34 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             return;
         }
 
-        const effectivePrice = price !== undefined ? parsedPrice : menuItemToUpdate.price;
-        if (discountedPrice !== undefined && Number(discountedPrice) > 0 && Number(discountedPrice) >= Number(effectivePrice)) {
-            res.status(400).json({ success: false, message: "Discounted price must be lower than the original price." });
+        const parsedPrice = price !== undefined ? Number(price) : undefined;
+        if (price !== undefined && (parsedPrice === undefined || isNaN(parsedPrice) || parsedPrice < 0)) {
+            res.status(400).json({ success: false, message: "Price must be a valid non-negative number." });
             return;
+        }
+
+        const effectivePrice = parsedPrice !== undefined ? parsedPrice : menuItemToUpdate.price;
+        const unsetFields: any = {};
+        let finalDiscountedPrice: number | undefined = undefined;
+        let shouldUpdateDiscount = false;
+
+        if (discountedPrice !== undefined) {
+            const discountValidation = validateDiscountedPrice(discountedPrice, effectivePrice);
+            if (!discountValidation.isValid) {
+                res.status(400).json({ success: false, message: discountValidation.message });
+                return;
+            }
+            shouldUpdateDiscount = true;
+            if (discountValidation.value === undefined) {
+                unsetFields.discountedPrice = 1;
+            } else {
+                finalDiscountedPrice = discountValidation.value;
+            }
+        } else if (parsedPrice !== undefined && menuItemToUpdate.discountedPrice !== undefined && Number(menuItemToUpdate.discountedPrice) > 0) {
+            if (Number(menuItemToUpdate.discountedPrice) >= effectivePrice) {
+                res.status(400).json({ success: false, message: "Discounted price must be lower than the price" });
+                return;
+            }
         }
 
         // Process removed images
@@ -599,12 +619,8 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             isVeg: isVeg !== undefined ? (isVeg === 'true' || isVeg === true) : undefined
         };
 
-        if (discountedPrice !== undefined) {
-            if (discountedPrice === "" || discountedPrice === null) {
-                updateFields.discountedPrice = null;
-            } else {
-                updateFields.discountedPrice = Number(discountedPrice);
-            }
+        if (shouldUpdateDiscount && finalDiscountedPrice !== undefined) {
+            updateFields.discountedPrice = finalDiscountedPrice;
         }
 
         if (isFeatured !== undefined) {
@@ -624,13 +640,21 @@ export const updateMenuItem = async (req: Request, res: Response): Promise<void>
             updateFields.spiceLevel = ["none", "mild", "medium", "hot"].includes(spiceLevel) ? spiceLevel : "none";
         }
 
+        const updateQuery: any = { ...updateFields };
+        if (Object.keys(unsetFields).length > 0) {
+            updateQuery.$unset = unsetFields;
+        }
+
         const updatedMenuItem = await MenuItem.findByIdAndUpdate(
             req.params.menuItemId,
-            updateFields,
+            updateQuery,
             { new: true, runValidators: true }
         );
 
         if (updatedMenuItem) {
+            if (unsetFields.discountedPrice) {
+                updatedMenuItem.discountedPrice = undefined;
+            }
             // Invalidate restaurant menu cache
             await restaurantCacheService.invalidateRestaurantCache(updatedMenuItem.restaurant.toString());
         }

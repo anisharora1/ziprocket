@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import GroceryProduct from "../models/GroceryProduct";
 import { uploadToCloudinary, deleteFromCloudinary } from "../services/cloudinaryService";
+import { validateDiscountedPrice } from "../validators/schemas";
 
 const generateSlug = (name: string): string => {
     return name
@@ -29,7 +30,19 @@ export const createGroceryProduct = async (req: Request, res: Response): Promise
             expiryDate
         } = req.body;
 
-        if ((price !== undefined && Number(price) < 0) || (discountedPrice !== undefined && Number(discountedPrice) < 0) || (stockQuantity !== undefined && Number(stockQuantity) < 0)) {
+        const parsedPrice = Number(price);
+        if (price === undefined || isNaN(parsedPrice) || parsedPrice < 0) {
+            res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
+            return;
+        }
+
+        const discountValidation = validateDiscountedPrice(discountedPrice, parsedPrice);
+        if (!discountValidation.isValid) {
+            res.status(400).json({ success: false, message: discountValidation.message });
+            return;
+        }
+
+        if (stockQuantity !== undefined && (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)) {
             res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
             return;
         }
@@ -51,8 +64,8 @@ export const createGroceryProduct = async (req: Request, res: Response): Promise
             category,
             subcategory,
             brand,
-            price: Number(price),
-            discountedPrice: discountedPrice ? Number(discountedPrice) : undefined,
+            price: parsedPrice,
+            discountedPrice: discountValidation.value,
             stockQuantity: Number(stockQuantity),
             unit,
             images: imageUrls,
@@ -153,19 +166,52 @@ export const getGroceryProductById = async (req: Request, res: Response): Promis
 export const updateGroceryProduct = async (req: Request, res: Response): Promise<void> => {
     try {
         const { id } = req.params;
+        const productToUpdate = await GroceryProduct.findById(id);
+        if (!productToUpdate) {
+            res.status(404).json({ success: false, message: "Product not found" });
+            return;
+        }
+
         const updateData: any = { ...req.body };
 
         // Cast numbers explicitly
-        if (updateData.price) updateData.price = Number(updateData.price);
-        if (updateData.discountedPrice !== undefined) {
-            updateData.discountedPrice = updateData.discountedPrice === "" ? null : Number(updateData.discountedPrice);
+        if (updateData.price !== undefined && updateData.price !== null) {
+            updateData.price = Number(updateData.price);
+            if (isNaN(updateData.price) || updateData.price < 0) {
+                res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
+                return;
+            }
         }
-        if (updateData.stockQuantity !== undefined) updateData.stockQuantity = Number(updateData.stockQuantity);
-        
-        const { price, discountedPrice, stockQuantity } = updateData;
-        if ((price !== undefined && price !== null && Number(price) < 0) || (discountedPrice !== undefined && discountedPrice !== null && Number(discountedPrice) < 0) || (stockQuantity !== undefined && stockQuantity !== null && Number(stockQuantity) < 0)) {
-            res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
-            return;
+
+        if (updateData.stockQuantity !== undefined && updateData.stockQuantity !== null) {
+            updateData.stockQuantity = Number(updateData.stockQuantity);
+            if (isNaN(updateData.stockQuantity) || updateData.stockQuantity < 0) {
+                res.status(400).json({ success: false, message: "Price, discounted price, and stock quantity cannot be negative." });
+                return;
+            }
+        }
+
+        const effectivePrice = updateData.price !== undefined && updateData.price !== null
+            ? updateData.price
+            : productToUpdate.price;
+
+        if (updateData.discountedPrice !== undefined) {
+            const discountValidation = validateDiscountedPrice(updateData.discountedPrice, effectivePrice);
+            if (!discountValidation.isValid) {
+                res.status(400).json({ success: false, message: discountValidation.message });
+                return;
+            }
+            if (discountValidation.value === undefined) {
+                delete updateData.discountedPrice;
+                updateData.$unset = { ...updateData.$unset, discountedPrice: 1 };
+            } else {
+                updateData.discountedPrice = discountValidation.value;
+            }
+        } else if (updateData.price !== undefined && updateData.price !== null && productToUpdate.discountedPrice !== undefined && Number(productToUpdate.discountedPrice) > 0) {
+            if (Number(productToUpdate.discountedPrice) >= effectivePrice) {
+                res.status(400).json({ success: false, message: "Discounted price must be lower than the price" });
+                return;
+            }
         }
 
         if (updateData.isAvailable !== undefined) {
@@ -173,12 +219,6 @@ export const updateGroceryProduct = async (req: Request, res: Response): Promise
         }
         if (updateData.isFeatured !== undefined) {
             updateData.isFeatured = updateData.isFeatured === "true" || updateData.isFeatured === true;
-        }
-
-        const productToUpdate = await GroceryProduct.findById(id);
-        if (!productToUpdate) {
-            res.status(404).json({ success: false, message: "Product not found" });
-            return;
         }
 
         // Handle image updates (append or replace)
@@ -209,6 +249,10 @@ export const updateGroceryProduct = async (req: Request, res: Response): Promise
         if (!product) {
             res.status(404).json({ success: false, message: "Product not found" });
             return;
+        }
+
+        if (updateData.$unset?.discountedPrice) {
+            product.discountedPrice = undefined;
         }
 
         res.status(200).json({

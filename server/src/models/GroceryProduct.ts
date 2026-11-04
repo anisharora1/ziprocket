@@ -34,7 +34,22 @@ const groceryProductSchema = new Schema<IGroceryProduct>({
     subcategory: { type: String, required: true },
     brand: { type: String, required: true },
     price: { type: Number, required: true, min: [0, "Price cannot be negative"] },
-    discountedPrice: { type: Number, min: [0, "Discounted price cannot be negative"] },
+    discountedPrice: {
+        type: Number,
+        min: [0, "Discounted price cannot be negative"],
+        validate: {
+            validator: function(this: any, val: number | undefined | null) {
+                if (val === undefined || val === null || val === 0) return true;
+                const update = this.getUpdate ? this.getUpdate() : undefined;
+                const price = this.price !== undefined ? this.price : (update ? (update.price ?? update.$set?.price) : undefined);
+                if (price !== undefined && !isNaN(price)) {
+                    return val > 0 && val < price;
+                }
+                return val > 0;
+            },
+            message: "Discounted price must be lower than the price"
+        }
+    },
     stockQuantity: { type: Number, required: true, default: 0, min: [0, "Stock cannot be negative"] },
     unit: { 
         type: String, 

@@ -1,6 +1,22 @@
 import MenuItem from "../models/MenuItem";
 import GroceryProduct from "../models/GroceryProduct";
 
+/**
+ * Returns discountedPrice when valid (positive number lower than base price), otherwise base price.
+ */
+function getEffectiveItemPrice(price: any, discountedPrice: any): number {
+    const basePrice = Number(price || 0);
+    const hasValidDiscount =
+        discountedPrice !== undefined &&
+        discountedPrice !== null &&
+        discountedPrice !== "" &&
+        !isNaN(Number(discountedPrice)) &&
+        Number(discountedPrice) > 0 &&
+        Number(discountedPrice) < basePrice;
+
+    return hasValidDiscount ? Number(discountedPrice) : basePrice;
+}
+
 export async function verifyItemPrices(items: any[], orderType: "food" | "grocery", restaurant?: string) {
     let verifiedItemTotal = 0;
     const verifiedItems: any[] = [];
@@ -20,10 +36,10 @@ export async function verifyItemPrices(items: any[], orderType: "food" | "grocer
             if (item.variantId && product.variants?.length) {
                 const variant = product.variants.find((v: any) => v._id.toString() === item.variantId);
                 if (!variant || !variant.isAvailable) throw new Error(`The selected option for "${product.name}" is no longer available.`);
-                realPrice = (variant.discountedPrice !== undefined && Number(variant.discountedPrice) > 0) ? variant.discountedPrice : (variant.price || 0);
+                realPrice = getEffectiveItemPrice(variant.price, variant.discountedPrice);
                 variantLabel = variant.label;
             } else {
-                realPrice = (product.discountedPrice !== undefined && Number(product.discountedPrice) > 0) ? product.discountedPrice : product.price;
+                realPrice = getEffectiveItemPrice(product.price, product.discountedPrice);
             }
         } else {
             const itemId = item.groceryItem || item._id || (typeof item.id === "string" ? item.id.replace(/^groc-/, "").replace(/^grocery-/, "") : item.id);
@@ -32,10 +48,10 @@ export async function verifyItemPrices(items: any[], orderType: "food" | "grocer
             if (item.variantId && product.variants?.length) {
                 const variant = product.variants.find((v: any) => v._id.toString() === item.variantId);
                 if (!variant) throw new Error(`The selected option for "${product.name}" is no longer available.`);
-                realPrice = (variant.discountedPrice !== undefined && Number(variant.discountedPrice) > 0) ? variant.discountedPrice : (variant.price || 0);
+                realPrice = getEffectiveItemPrice(variant.price, variant.discountedPrice);
                 variantLabel = variant.label;
             } else {
-                realPrice = (product.discountedPrice !== undefined && Number(product.discountedPrice) > 0) ? product.discountedPrice : product.price;
+                realPrice = getEffectiveItemPrice(product.price, product.discountedPrice);
             }
         }
 
