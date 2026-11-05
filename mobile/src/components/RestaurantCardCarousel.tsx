@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import OptimizedImage from './OptimizedImage';
+import DiscountBadge from './DiscountBadge';
 import { PopularItem } from '../types';
 import {
   Colors,
@@ -216,16 +217,23 @@ export default function RestaurantCardCarousel({
           </View>
 
           <View style={styles.priceRow}>
-            {hasDiscount ? (
-              <>
-                <Text style={styles.discountedPrice}>
-                  ₹{item.discountedPrice}
-                </Text>
-                <Text style={styles.originalPrice}>₹{item.price}</Text>
-              </>
-            ) : (
-              <Text style={styles.regularPrice}>₹{item.price}</Text>
-            )}
+            <View style={styles.priceValues}>
+              {hasDiscount ? (
+                <>
+                  <Text style={styles.discountedPrice}>
+                    ₹{item.discountedPrice}
+                  </Text>
+                  <Text style={styles.originalPrice}>₹{item.price}</Text>
+                </>
+              ) : (
+                <Text style={styles.regularPrice}>₹{item.price}</Text>
+              )}
+            </View>
+            <DiscountBadge
+              price={item.price}
+              discountedPrice={item.discountedPrice}
+              style={styles.carouselDiscountBadge}
+            />
           </View>
         </View>
       </Pressable>
@@ -307,7 +315,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 44,
     left: 12,
-    maxWidth: '70%',
+    maxWidth: '85%',
     backgroundColor: 'rgba(0, 0, 0, 0.65)',
     borderRadius: BorderRadius.md,
     paddingHorizontal: 8,
@@ -342,9 +350,20 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 4,
     marginTop: 2,
+  },
+  priceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  carouselDiscountBadge: {
+    marginLeft: 'auto',
+    alignSelf: 'flex-end',
   },
   discountedPrice: {
     fontFamily: FontFamily.extraBold,

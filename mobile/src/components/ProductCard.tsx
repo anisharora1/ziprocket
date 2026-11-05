@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import OptimizedImage from './OptimizedImage';
+import DiscountBadge from './DiscountBadge';
 import { usePlatform } from '../context/PlatformContext';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
@@ -34,7 +35,12 @@ export default function ProductCard({
   addToCart,
   updateQuantity,
 }: ProductCardProps) {
-  const currentPrice = prod.discountedPrice || prod.price;
+  const hasValidDiscount =
+    prod.discountedPrice !== undefined &&
+    prod.discountedPrice !== null &&
+    Number(prod.discountedPrice) > 0 &&
+    Number(prod.discountedPrice) < Number(prod.price);
+  const currentPrice = hasValidDiscount ? Number(prod.discountedPrice) : Number(prod.price);
   const { isGroceryCurrentlyOpen } = usePlatform();
   const isGroceryOpen = isGroceryCurrentlyOpen();
 
@@ -152,10 +158,17 @@ export default function ProductCard({
         ) : null}
 
         <View style={styles.priceRow}>
-          <Text style={styles.priceText}>₹{currentPrice}</Text>
-          {prod.discountedPrice && prod.price > prod.discountedPrice ? (
-            <Text style={styles.originalPriceText}>₹{prod.price}</Text>
-          ) : null}
+          <View style={styles.priceValues}>
+            <Text style={styles.priceText}>₹{currentPrice}</Text>
+            {hasValidDiscount ? (
+              <Text style={styles.originalPriceText}>₹{prod.price}</Text>
+            ) : null}
+          </View>
+          <DiscountBadge
+            price={prod.price}
+            discountedPrice={prod.discountedPrice}
+            style={styles.discountBadge}
+          />
         </View>
       </View>
     </View>
@@ -281,9 +294,16 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: Spacing.xs,
     marginTop: 'auto',
+  },
+  priceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: Spacing.xs,
   },
   priceText: {
     fontFamily: FontFamily.bold,
@@ -296,5 +316,9 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.xs,
     color: Colors.textMuted,
     textDecorationLine: 'line-through',
+  },
+  discountBadge: {
+    marginLeft: 'auto',
+    alignSelf: 'flex-end',
   },
 });
