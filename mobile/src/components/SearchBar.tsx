@@ -22,6 +22,7 @@ import { getIsOnline, onReconnect } from '../services/network';
 import { useLocation } from '../context/LocationContext';
 import { searchFocusStore } from '../services/searchFocusStore';
 import OptimizedImage from './OptimizedImage';
+import DiscountBadge from './DiscountBadge';
 import OfflineState from './OfflineState';
 import {
   Colors,
@@ -468,16 +469,25 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
                           </Text>
                         </View>
                         <View style={styles.priceCol}>
-                          {item.discountedPrice &&
-                          Number(item.discountedPrice) > 0 &&
-                          Number(item.price) > Number(item.discountedPrice) ? (
-                            <>
-                              <Text style={styles.priceText}>₹{item.discountedPrice}</Text>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceText}>
+                              ₹{item.discountedPrice &&
+                              Number(item.discountedPrice) > 0 &&
+                              Number(item.price) > Number(item.discountedPrice)
+                                ? item.discountedPrice
+                                : item.price}
+                            </Text>
+                            {item.discountedPrice &&
+                            Number(item.discountedPrice) > 0 &&
+                            Number(item.price) > Number(item.discountedPrice) ? (
                               <Text style={styles.originalPriceText}>₹{item.price}</Text>
-                            </>
-                          ) : (
-                            <Text style={styles.priceText}>₹{item.price}</Text>
-                          )}
+                            ) : null}
+                          </View>
+                          <DiscountBadge
+                            price={item.price}
+                            discountedPrice={item.discountedPrice}
+                            style={styles.searchDiscountBadge}
+                          />
                         </View>
                       </Pressable>
                     );
@@ -524,9 +534,27 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
                           {prod.weightSize ? ` • ${prod.weightSize}` : ''}
                         </Text>
                       </View>
-                      <Text style={styles.priceText}>
-                        ₹{prod.discountedPrice || prod.price}
-                      </Text>
+                      <View style={styles.priceCol}>
+                        <View style={styles.priceRow}>
+                          <Text style={styles.priceText}>
+                            ₹{prod.discountedPrice &&
+                            Number(prod.discountedPrice) > 0 &&
+                            Number(prod.price) > Number(prod.discountedPrice)
+                              ? prod.discountedPrice
+                              : prod.price}
+                          </Text>
+                          {prod.discountedPrice &&
+                          Number(prod.discountedPrice) > 0 &&
+                          Number(prod.price) > Number(prod.discountedPrice) ? (
+                            <Text style={styles.originalPriceText}>₹{prod.price}</Text>
+                          ) : null}
+                        </View>
+                        <DiscountBadge
+                          price={prod.price}
+                          discountedPrice={prod.discountedPrice}
+                          style={styles.searchDiscountBadge}
+                        />
+                      </View>
                     </Pressable>
                   ))}
                 </View>
@@ -708,6 +736,17 @@ const styles = StyleSheet.create({
   },
   priceCol: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 2,
+    flexShrink: 0,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  searchDiscountBadge: {
+    alignSelf: 'flex-end',
   },
   priceText: {
     fontFamily: FontFamily.extraBold,

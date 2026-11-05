@@ -20,6 +20,7 @@ import { usePlatform } from '../../src/context/PlatformContext';
 import { isWithinOperatingHours, formatToAMPM } from '../../src/utils/restaurantHours';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
+import DiscountBadge from '../../src/components/DiscountBadge';
 import { useIsOnline } from '../../src/services/network';
 import OfflineState from '../../src/components/OfflineState';
 import {
@@ -138,7 +139,11 @@ export default function RestaurantDetailScreen() {
   };
 
   const getEffectivePrice = (item: MenuItemType) => {
-    if (item.discountedPrice && Number(item.discountedPrice) > 0) {
+    if (
+      item.discountedPrice &&
+      Number(item.discountedPrice) > 0 &&
+      Number(item.discountedPrice) < Number(item.price)
+    ) {
       return Number(item.discountedPrice);
     }
     return Number(item.price);
@@ -555,12 +560,19 @@ export default function RestaurantDetailScreen() {
 
                           {/* Price */}
                           <View style={styles.priceRow}>
-                            <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
-                            {item.discountedPrice &&
+                            <View style={styles.priceValues}>
+                              <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
+                              {item.discountedPrice &&
                               Number(item.discountedPrice) > 0 &&
                               item.price > item.discountedPrice ? (
-                              <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
-                            ) : null}
+                                <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
+                              ) : null}
+                            </View>
+                            <DiscountBadge
+                              price={item.price}
+                              discountedPrice={item.discountedPrice}
+                              style={styles.dishDiscountBadge}
+                            />
                           </View>
                         </View>
 
@@ -712,7 +724,24 @@ export default function RestaurantDetailScreen() {
                 </View>
 
                 <View style={styles.modalFooter}>
-                  <Text style={styles.modalPrice}>₹{getEffectivePrice(selectedItem)}</Text>
+                  <View style={styles.modalPriceContainer}>
+                    <Text style={styles.modalPriceLabel}>TOTAL PRICE</Text>
+                    <View style={styles.modalPriceRow}>
+                      <View style={styles.modalPriceValues}>
+                        <Text style={styles.modalPrice}>₹{getEffectivePrice(selectedItem)}</Text>
+                        {selectedItem.discountedPrice &&
+                        Number(selectedItem.discountedPrice) > 0 &&
+                        selectedItem.price > selectedItem.discountedPrice ? (
+                          <Text style={styles.modalOriginalPrice}>₹{selectedItem.price}</Text>
+                        ) : null}
+                      </View>
+                      <DiscountBadge
+                        price={selectedItem.price}
+                        discountedPrice={selectedItem.discountedPrice}
+                        style={styles.modalDiscountBadge}
+                      />
+                    </View>
+                  </View>
                   {getCartQuantity(selectedItem._id) > 0 ? (
                     <View style={styles.stepperBox}>
                       <Pressable
@@ -1229,9 +1258,20 @@ const styles = StyleSheet.create({
   },
   priceRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     gap: 6,
     marginTop: Spacing.xs,
+  },
+  priceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
+  dishDiscountBadge: {
+    marginLeft: 'auto',
+    alignSelf: 'flex-end',
   },
   dishPrice: {
     fontFamily: FontFamily.extraBold,
@@ -1393,10 +1433,45 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: Colors.borderLight,
   },
+  modalPriceContainer: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  modalPriceLabel: {
+    fontFamily: FontFamily.bold,
+    fontSize: 9,
+    fontWeight: Typography.fontWeight.bold,
+    color: Colors.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  modalPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  modalPriceValues: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+  },
   modalPrice: {
     fontFamily: FontFamily.extraBold,
     fontSize: Typography.fontSize.xl,
     color: Colors.textPrimary,
+  },
+  modalOriginalPrice: {
+    fontFamily: FontFamily.medium,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.textMuted,
+    textDecorationLine: 'line-through',
+  },
+  modalDiscountBadge: {
+    marginLeft: 'auto',
+    alignSelf: 'flex-end',
   },
   modalAddBtn: {
     backgroundColor: Colors.surface,
