@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
-import { useSocket } from "@/context/SocketContext";
 import Link from "next/link";
 import { 
   MdRefresh, 
@@ -19,7 +18,8 @@ import {
   MdSecurity,
   MdWarning,
   MdBlock,
-  MdOpenInNew
+  MdOpenInNew,
+  MdCheckCircle
 } from "react-icons/md";
 
 interface Stats {
@@ -27,6 +27,7 @@ interface Stats {
   totalRestaurants: number;
   totalDeliveries: number;
   totalOrders: number;
+  successfulOrders: number;
   onlinePaymentsCount: number;
   codOrdersCount: number;
   failedPaymentsCount: number;
@@ -37,13 +38,12 @@ interface Stats {
 }
 
 export default function AdminDashboard() {
-  const { socket } = useSocket();
-  const [liveUserCount, setLiveUserCount] = useState<number | null>(null);
   const [stats, setStats] = useState<Stats>({ 
     totalUsers: 0, 
     totalRestaurants: 0, 
     totalDeliveries: 0, 
     totalOrders: 0,
+    successfulOrders: 0,
     onlinePaymentsCount: 0,
     codOrdersCount: 0,
     failedPaymentsCount: 0,
@@ -57,11 +57,10 @@ export default function AdminDashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, ordersRes, flaggedRes, liveUsersRes] = await Promise.all([
+      const [statsRes, ordersRes, flaggedRes] = await Promise.all([
         apiClient.get("/admin/dashboard-stats"),
         apiClient.get("/orders"),
-        apiClient.get("/admin/cancellations/restaurants", { params: { threshold: 5 } }).catch(() => ({ data: { success: false, restaurants: [] } })),
-        apiClient.get("/admin/live-users-count").catch(() => ({ data: { success: false, count: 0 } }))
+        apiClient.get("/admin/cancellations/restaurants", { params: { threshold: 5 } }).catch(() => ({ data: { success: false, restaurants: [] } }))
       ]);
 
       if (statsRes.data.success) {
@@ -78,10 +77,6 @@ export default function AdminDashboard() {
 
       if (flaggedRes.data?.success) {
         setFlaggedRestaurants(flaggedRes.data.restaurants || []);
-      }
-
-      if (liveUsersRes.data?.success) {
-        setLiveUserCount(liveUsersRes.data.count);
       }
     } catch (error) {
       console.error("Failed to fetch admin dashboard data:", error);
@@ -115,16 +110,7 @@ export default function AdminDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (!socket) return;
-    const handleLiveUserCount = (data: { count: number }) => {
-      setLiveUserCount(data.count);
-    };
-    socket.on("live_user_count", handleLiveUserCount);
-    return () => {
-      socket.off("live_user_count", handleLiveUserCount);
-    };
-  }, [socket]);
+  const percent = stats.totalOrders > 0 ? Math.round((stats.successfulOrders / stats.totalOrders) * 100) : 0;
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -285,21 +271,23 @@ export default function AdminDashboard() {
           </h3>
         </div>
 
-        {/* Logged-in Users Online (Live) */}
+        {/* Successful Orders */}
         <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm hover:shadow-md transition-all">
           <div className="flex justify-between items-start mb-4">
-            <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <MdGroups className="text-[20px]" />
+            <div className="w-10 h-10 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-600">
+              <MdCheckCircle className="text-[20px]" />
             </div>
-            <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded text-[11px] font-bold">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              Live
+            <div className="flex items-center text-emerald-700 bg-emerald-50 px-2 py-1 rounded text-[11px] font-bold">
+              Delivered
             </div>
           </div>
-          <p className="text-[13px] text-slate-500 font-medium mb-1">Logged-in Users Online</p>
+          <p className="text-[13px] text-slate-500 font-medium mb-1">Successful Orders</p>
           <h3 className="text-[28px] font-bold text-slate-900 leading-tight">
-            {liveUserCount === null ? "..." : liveUserCount}
+            {loading ? "..." : stats.successfulOrders}
           </h3>
+          <p className="text-xs text-slate-400 mt-1">
+            {percent}% of total orders
+          </p>
         </div>
 
         {/* Total Registered Users */}
