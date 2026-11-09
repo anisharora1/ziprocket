@@ -38,6 +38,11 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
                     $group: {
                         _id: null,
                         totalOrders: { $sum: 1 },
+                        successfulOrders: {
+                            $sum: {
+                                $cond: [{ $eq: ["$orderStatus", "delivered"] }, 1, 0]
+                            }
+                        },
                         onlinePaymentsCount: {
                             $sum: {
                                 $cond: [
@@ -109,6 +114,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
 
         const orderStats = orderAggregate[0] || {
             totalOrders: 0,
+            successfulOrders: 0,
             onlinePaymentsCount: 0,
             codOrdersCount: 0,
             failedPaymentsCount: 0,
@@ -159,6 +165,7 @@ export const getDashboardStats = async (req: Request, res: Response): Promise<vo
                 totalRestaurants,
                 totalDeliveries,
                 totalOrders: orderStats.totalOrders,
+                successfulOrders: orderStats.successfulOrders || 0,
                 onlinePaymentsCount: orderStats.onlinePaymentsCount,
                 codOrdersCount: orderStats.codOrdersCount,
                 failedPaymentsCount: orderStats.failedPaymentsCount,
@@ -896,13 +903,3 @@ export const updateRestaurantAvailability = async (req: Request, res: Response):
     }
 };
 
-// Admin action: Get count of currently connected live users
-export const getLiveUserCount = async (req: Request, res: Response): Promise<void> => {
-    try {
-        const redis = redisService.getClient();
-        const count = redis ? await redis.scard("online_users") : 0;
-        res.status(200).json({ success: true, count });
-    } catch (error: any) {
-        res.status(500).json({ success: false, message: error.message });
-    }
-};

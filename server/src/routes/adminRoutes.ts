@@ -1,7 +1,6 @@
 import express from "express";
 import {
     getDashboardStats,
-    getLiveUserCount,
     getHighCancellationUsers,
     getHighCancellationRestaurants,
     toggleUserBlockStatus,
@@ -45,7 +44,6 @@ router.get("/moderators", getGroceryModerators);
 
 // Dashboard
 router.get("/dashboard-stats", getDashboardStats);
-router.get("/live-users-count", getLiveUserCount);
 
 // Deliveries
 router.get("/deliveries", getAllDeliveryProfiles);
