@@ -341,14 +341,18 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
           autoCorrect={false}
         />
         {query.length > 0 && !isListening ? (
-          <Pressable onPress={clearSearch} style={styles.actionBtn}>
+          <Pressable
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={clearSearch}
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.85 }]}
+          >
             <MaterialIcons name="close" size={18} color={Colors.textMuted} />
           </Pressable>
         ) : (
           <Pressable
-            hitSlop={10}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={handleMicPress}
-            style={styles.micActionBtn}
+            style={({ pressed }) => [styles.micActionBtn, pressed && { opacity: 0.85 }]}
             accessibilityRole="button"
             accessibilityLabel={
               isListening ? 'Listening, tap to stop' : 'Search with voice'
@@ -408,7 +412,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
                   {results.restaurants.map((rest) => (
                     <Pressable
                       key={rest._id}
-                      style={styles.resultItemRow}
+                      style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
                       onPress={() => handleSelectRestaurant(rest._id)}
                     >
                       <View style={styles.resultItemLeft}>
@@ -441,7 +445,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
                     return (
                       <Pressable
                         key={item._id}
-                        style={styles.resultItemRow}
+                        style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
                         onPress={() => handleSelectMenuItem(item)}
                       >
                         <View style={styles.resultItemLeft}>
@@ -505,7 +509,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
                   {results.groceryProducts.map((prod) => (
                     <Pressable
                       key={prod._id}
-                      style={styles.resultItemRow}
+                      style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
                       onPress={() => handleSelectGrocery(prod)}
                     >
                       <View style={styles.groceryThumbWrapper}>

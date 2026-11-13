@@ -52,8 +52,7 @@ export default function TopRated({ items }: TopRatedProps = {}) {
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Featured & Top Rated</Text>
-        <Text style={styles.seeAllText}>SPONSORED CHOICES</Text>
+        <Text style={styles.sectionTitle}>Top Picks</Text>
       </View>
 
       <ScrollView
@@ -73,7 +72,7 @@ export default function TopRated({ items }: TopRatedProps = {}) {
           return (
             <Pressable
               key={item._id}
-              style={styles.card}
+              style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
               onPress={() => router.push(`/restaurants/${item._id}` as any)}
             >
               <View style={styles.imageBox}>

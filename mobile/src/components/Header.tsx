@@ -18,7 +18,8 @@ export default function Header() {
       <View style={styles.header}>
         {/* Deliver To location selector: Tapping ONLY opens picker modal, NEVER calls GPS */}
         <Pressable
-          style={styles.locationButton}
+          style={({ pressed }) => [styles.locationButton, pressed && { opacity: 0.85 }]}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           onPress={() => setIsLocationModalOpen(true)}
           accessibilityRole="button"
           accessibilityLabel="Deliver to location picker"
@@ -68,6 +69,7 @@ const styles = StyleSheet.create({
     gap: Spacing.xs + 2,
     flex: 1,
     marginRight: Spacing.md,
+    minHeight: 44,
   },
   pinCircle: {
     width: 32,

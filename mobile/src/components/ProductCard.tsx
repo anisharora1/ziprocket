@@ -105,7 +105,8 @@ export default function ProductCard({
           {qty > 0 ? (
             <View style={styles.qtyControlBox}>
               <Pressable
-                style={styles.qtyBtn}
+                style={({ pressed }) => [styles.qtyBtn, pressed && { opacity: 0.85 }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 onPress={handleDecrease}
                 disabled={!isGroceryOpen}
               >
@@ -113,7 +114,8 @@ export default function ProductCard({
               </Pressable>
               <Text style={styles.qtyText}>{qty}</Text>
               <Pressable
-                style={styles.qtyBtn}
+                style={({ pressed }) => [styles.qtyBtn, pressed && { opacity: 0.85 }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 onPress={handleIncrease}
                 disabled={!isGroceryOpen}
               >
@@ -123,7 +125,12 @@ export default function ProductCard({
           ) : (
             <Pressable
               disabled={!isAvailable}
-              style={[styles.addBtn, !isAvailable && styles.disabledAddBtn]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={({ pressed }) => [
+                styles.addBtn,
+                !isAvailable && styles.disabledAddBtn,
+                pressed && isAvailable && { opacity: 0.85 },
+              ]}
               onPress={handleAdd}
             >
               <Text

@@ -61,9 +61,10 @@ export default function RestaurantList({ restaurants }: RestaurantListProps) {
           return (
             <Pressable
               key={restaurant._id}
-              style={[
+              style={({ pressed }) => [
                 styles.card,
                 !isCurrentlyOpen && styles.closedCard,
+                pressed && { opacity: 0.85 },
               ]}
               onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
             >

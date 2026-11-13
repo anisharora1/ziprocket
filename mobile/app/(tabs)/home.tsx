@@ -118,6 +118,11 @@ export default function HomeScreen() {
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <Header />
 
+      {/* Sticky Search Bar under location row */}
+      <View style={styles.stickySearchWrapper}>
+        <SearchBar inputRef={searchInputRef} />
+      </View>
+
       <ScrollView
         ref={scrollRef}
         showsVerticalScrollIndicator={false}
@@ -134,7 +139,6 @@ export default function HomeScreen() {
         }
       >
         <View style={styles.body}>
-          <SearchBar inputRef={searchInputRef} />
           <HeroCarousel />
           <Categories />
           <TopRated items={topRatedRestaurants} />
@@ -160,6 +164,14 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  stickySearchWrapper: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xs,
+    zIndex: 100,
+    elevation: 4,
   },
   scrollContent: {
     paddingBottom: 0,

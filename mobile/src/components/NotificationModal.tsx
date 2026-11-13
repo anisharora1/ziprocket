@@ -8,7 +8,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
+import { Colors, BorderRadius, FontFamily, Shadows } from '../constants/theme';
 
 export type NotifType = 'success' | 'error' | 'warning' | 'zone';
 
@@ -62,38 +62,64 @@ export default function NotificationModal({ card, onClose }: NotificationModalPr
     >
       <View style={styles.overlay}>
         <View style={styles.dialog}>
-          {/* Header Block */}
-          <View style={[styles.header, { backgroundColor: cfg.bg }]}>
-            <Pressable
-              onPress={onClose}
-              style={styles.closeIconBtn}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-              <MaterialIcons name="close" size={20} color={Colors.white} />
-            </Pressable>
+          {card.title === 'Pura Address Zaroori Hai' ? (
+            <>
+              {/* White Sheet: Small orange warning icon, dark typography */}
+              <Pressable
+                onPress={onClose}
+                style={({ pressed }) => [styles.whiteCloseBtn, pressed && { opacity: 0.85 }]}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <MaterialIcons name="close" size={20} color={Colors.textSecondary} />
+              </Pressable>
 
-            <View style={styles.iconCircleOuter}>
-              <View style={styles.iconCircleInner}>
-                <MaterialIcons name={cfg.icon} size={36} color={Colors.white} />
+              <View style={styles.whiteSheetBody}>
+                <View style={styles.orangeIconBadge}>
+                  <MaterialIcons name="warning" size={24} color={Colors.warning} />
+                </View>
+                <Text style={styles.whiteSheetTitle}>{card.title}</Text>
+                <Text style={styles.whiteSheetMessage}>{card.message}</Text>
               </View>
-            </View>
+            </>
+          ) : (
+            <>
+              {/* Colored Header Block for other notifications */}
+              <View style={[styles.header, { backgroundColor: cfg.bg }]}>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [styles.closeIconBtn, pressed && { opacity: 0.85 }]}
+                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                  <MaterialIcons name="close" size={20} color={Colors.white} />
+                </Pressable>
 
-            <Text style={styles.title}>{card.title}</Text>
-          </View>
+                <View style={styles.iconCircleOuter}>
+                  <View style={styles.iconCircleInner}>
+                    <MaterialIcons name={cfg.icon} size={36} color={Colors.white} />
+                  </View>
+                </View>
 
-          {/* Body Block */}
-          <View style={styles.body}>
-            <Text style={styles.message}>{card.message}</Text>
-            {card.redirectTo ? (
-              <Text style={styles.redirectHint}>Redirecting automatically...</Text>
-            ) : null}
-          </View>
+                <Text style={styles.title}>{card.title}</Text>
+              </View>
 
-          {/* Action Buttons */}
+              <View style={styles.body}>
+                <Text style={styles.message}>{card.message}</Text>
+                {card.redirectTo ? (
+                  <Text style={styles.redirectHint}>Redirecting automatically...</Text>
+                ) : null}
+              </View>
+            </>
+          )}
+
+          {/* Same two buttons with pressed state & >=44px touch targets */}
           <View style={styles.footer}>
             {card.onAction && card.actionLabel ? (
               <Pressable
-                style={[styles.primaryActionBtn, { backgroundColor: cfg.btnBg }]}
+                style={({ pressed }) => [
+                  styles.primaryActionBtn,
+                  { backgroundColor: cfg.btnBg },
+                  pressed && { opacity: 0.85 },
+                ]}
                 onPress={() => {
                   onClose();
                   card.onAction?.();
@@ -104,7 +130,10 @@ export default function NotificationModal({ card, onClose }: NotificationModalPr
               </Pressable>
             ) : null}
 
-            <Pressable style={styles.dismissBtn} onPress={onClose}>
+            <Pressable
+              style={({ pressed }) => [styles.dismissBtn, pressed && { opacity: 0.85 }]}
+              onPress={onClose}
+            >
               <MaterialIcons name="close" size={16} color={Colors.slate600} />
               <Text style={styles.dismissText}>Band Karein</Text>
             </Pressable>
@@ -131,6 +160,51 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.xxl,
     overflow: 'hidden',
     ...Shadows.md,
+    position: 'relative',
+  },
+  whiteCloseBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 14,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.slate100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  whiteSheetBody: {
+    paddingTop: 32,
+    paddingBottom: 8,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+  },
+  orangeIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.warningLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  whiteSheetTitle: {
+    fontFamily: FontFamily.bold,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  whiteSheetMessage: {
+    fontFamily: FontFamily.medium,
+    fontSize: 14,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 21,
   },
   header: {
     paddingTop: 32,
@@ -202,6 +276,7 @@ const styles = StyleSheet.create({
   },
   primaryActionBtn: {
     paddingVertical: 14,
+    minHeight: 48,
     borderRadius: BorderRadius.xl,
     flexDirection: 'row',
     alignItems: 'center',
@@ -217,6 +292,7 @@ const styles = StyleSheet.create({
   },
   dismissBtn: {
     paddingVertical: 12,
+    minHeight: 44,
     borderRadius: BorderRadius.xl,
     borderWidth: 1.5,
     borderColor: Colors.slate200,

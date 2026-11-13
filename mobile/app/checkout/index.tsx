@@ -552,6 +552,61 @@ export default function CheckoutScreen() {
         ? Math.max(0, activeMinOrderValue - itemTotal)
         : 0);
 
+  // Unified order disabled state
+  const isOrderDisabled = Boolean(
+    placingOrder ||
+    loadingBill ||
+    !hasValidLocation ||
+    billDetails?.isDeliverable !== true ||
+    !!checkoutError ||
+    isCheckoutDisabled ||
+    isBelowMinimum
+  );
+
+  // Single one-line reason shown above disabled confirm button
+  const disabledReason = useMemo(() => {
+    if (placingOrder) return null;
+    if (isCheckoutDisabled) {
+      return platformMsg ? 'Platform closed' : (checkoutDisabledMessage || 'Store currently closed');
+    }
+    if (!hasValidLocation) {
+      return 'Missing delivery address';
+    }
+    if (billDetails?.isDeliverable === false || checkoutReason === 'OUT_OF_SERVICE_AREA') {
+      return 'Outside delivery area';
+    }
+    if (isBelowMinimum) {
+      if (isMixedOrder) {
+        return foodShortfall > 0
+          ? `Below minimum: add ₹${foodShortfall.toFixed(0)} from restaurant`
+          : `Below minimum: add ₹${grocerShortfall.toFixed(0)} more groceries`;
+      }
+      return `Below minimum: add ₹${amountNeededForMinOrder.toFixed(0)} more`;
+    }
+    if (checkoutError) {
+      return getReasonTitle(checkoutReason) || checkoutError;
+    }
+    if (loadingBill) {
+      return 'Calculating bill details...';
+    }
+    return null;
+  }, [
+    placingOrder,
+    isCheckoutDisabled,
+    platformMsg,
+    checkoutDisabledMessage,
+    hasValidLocation,
+    billDetails?.isDeliverable,
+    checkoutReason,
+    isBelowMinimum,
+    isMixedOrder,
+    foodShortfall,
+    grocerShortfall,
+    amountNeededForMinOrder,
+    checkoutError,
+    loadingBill,
+  ]);
+
   // Auto-redirect effect for notifCard
   useEffect(() => {
     if (!notifCard?.redirectTo || !notifCard?.redirectDelay) return;
@@ -952,8 +1007,8 @@ export default function CheckoutScreen() {
           <View style={styles.headerLeft}>
             <Pressable
               onPress={() => router.back()}
-              style={styles.backButton}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.85 }]}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
               <MaterialIcons name="arrow-back" size={22} color={Colors.slate800} />
             </Pressable>
@@ -986,8 +1041,8 @@ export default function CheckoutScreen() {
         <View style={styles.headerLeft}>
           <Pressable
             onPress={() => router.back()}
-            style={styles.backButton}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            style={({ pressed }) => [styles.backButton, pressed && { opacity: 0.85 }]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
             <MaterialIcons name="arrow-back" size={22} color={Colors.slate800} />
           </Pressable>
@@ -1492,29 +1547,30 @@ export default function CheckoutScreen() {
                 ) : null
               )}
 
-              {/* Breakdown Rows */}
+              {/* Breakdown Rows (amount 0 rows hidden) */}
               <View style={styles.breakdownRows}>
-                <View style={styles.billRow}>
-                  <Text style={styles.billLabel}>Item Total</Text>
-                  <Text style={styles.billVal}>
-                    ₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}
-                  </Text>
-                </View>
+                {Number(billDetails?.itemTotal ?? itemTotal) > 0 ? (
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Item Total</Text>
+                    <Text style={styles.billVal}>
+                      ₹{(Number(billDetails?.itemTotal ?? itemTotal) || 0).toFixed(2)}
+                    </Text>
+                  </View>
+                ) : null}
 
-                <View style={styles.billRow}>
-                  <Text style={styles.billLabel}>Delivery Charge</Text>
-                  <Text style={styles.billVal}>
-                    {serverDeliveryFee !== null ? (
-                      serverDeliveryFee === 0 ? (
-                        <Text style={styles.freeGreen}>FREE</Text>
-                      ) : (
-                        `₹${serverDeliveryFee.toFixed(2)}`
-                      )
-                    ) : (
-                      <Text style={styles.billCalculatingVal}>Calculating...</Text>
-                    )}
-                  </Text>
-                </View>
+                {serverDeliveryFee !== null ? (
+                  serverDeliveryFee > 0 ? (
+                    <View style={styles.billRow}>
+                      <Text style={styles.billLabel}>Delivery Charge</Text>
+                      <Text style={styles.billVal}>{`₹${serverDeliveryFee.toFixed(2)}`}</Text>
+                    </View>
+                  ) : null
+                ) : (
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Delivery Charge</Text>
+                    <Text style={styles.billCalculatingVal}>Calculating...</Text>
+                  </View>
+                )}
 
                 {billDetails && Number(billDetails.smallOrderFee) > 0 ? (
                   <View style={styles.billRow}>
@@ -1565,25 +1621,28 @@ export default function CheckoutScreen() {
 
                 {billDetails && Number(billDetails.surgeCharge) > 0 ? (
                   <View style={styles.billRow}>
-                    <Text style={[styles.billLabel, { color: '#C2410C' }]}>
+                    <Text style={[styles.billLabel, { color: Colors.warning }]}>
                       Surge Surcharge (Maang / Mausam)
                     </Text>
-                    <Text style={[styles.billVal, { color: '#C2410C' }]}>
+                    <Text style={[styles.billVal, { color: Colors.warning }]}>
                       ₹{(Number(billDetails.surgeCharge) || 0).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
 
-                <View style={styles.billRow}>
-                  <Text style={styles.billLabel}>Govt Tax (GST)</Text>
-                  <Text style={styles.billVal}>
-                    {serverGST !== null ? (
-                      `₹${serverGST.toFixed(2)}`
-                    ) : (
-                      <Text style={styles.billCalculatingVal}>Calculating...</Text>
-                    )}
-                  </Text>
-                </View>
+                {serverGST !== null ? (
+                  serverGST > 0 ? (
+                    <View style={styles.billRow}>
+                      <Text style={styles.billLabel}>Govt Tax (GST)</Text>
+                      <Text style={styles.billVal}>{`₹${serverGST.toFixed(2)}`}</Text>
+                    </View>
+                  ) : null
+                ) : (
+                  <View style={styles.billRow}>
+                    <Text style={styles.billLabel}>Govt Tax (GST)</Text>
+                    <Text style={styles.billCalculatingVal}>Calculating...</Text>
+                  </View>
+                )}
 
                 {billDetails &&
                   billDetails.discountAmount !== undefined &&
@@ -1625,57 +1684,37 @@ export default function CheckoutScreen() {
 
       {/* 8. Fixed Bottom Action Bar */}
       <View style={[styles.bottomBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
+        {disabledReason ? (
+          <View style={styles.disabledReasonContainer}>
+            <MaterialIcons name="info" size={14} color={Colors.warning} />
+            <Text style={styles.disabledReasonText} numberOfLines={1}>
+              {disabledReason}
+            </Text>
+          </View>
+        ) : null}
+
         <Pressable
-          style={[
+          style={({ pressed }) => [
             styles.submitOrderBtn,
-            (placingOrder ||
-              loadingBill ||
-              !hasValidLocation ||
-              billDetails?.isDeliverable !== true ||
-              !!checkoutError ||
-              isCheckoutDisabled ||
-              isBelowMinimum) &&
-            styles.submitOrderBtnDisabled,
+            isOrderDisabled && styles.submitOrderBtnDisabled,
+            pressed && !isOrderDisabled && { opacity: 0.85 },
           ]}
           onPress={handlePlaceOrder}
-          disabled={
-            placingOrder ||
-            loadingBill ||
-            !hasValidLocation ||
-            billDetails?.isDeliverable !== true ||
-            !!checkoutError ||
-            isCheckoutDisabled ||
-            isBelowMinimum
-          }
+          disabled={isOrderDisabled}
         >
           {placingOrder ? (
             <ActivityIndicator size="small" color={Colors.white} />
           ) : (
-            <Text style={styles.submitOrderText}>
-              {isCheckoutDisabled
-                ? 'Order abhi band hai'
-                : !hasValidLocation
-                  ? 'Select your delivery location'
-                  : loadingBill
-                    ? 'Calculating...'
-                    : checkoutError
-                      ? getReasonTitle(checkoutReason)
-                      : isBelowMinimum
-                        ? isMixedOrder
-                          ? (foodShortfall > 0
-                            ? `Add Rs ${foodShortfall.toFixed(0)} more from restaurant`
-                            : `Add Rs ${grocerShortfall.toFixed(0)} more groceries`)
-                          : `Order ke liye ₹${amountNeededForMinOrder.toFixed(0)} aur jodein`
-                        : 'Order Confirm Karein'}
+            <Text
+              style={[
+                styles.submitOrderText,
+                isOrderDisabled && styles.submitOrderTextDisabled,
+              ]}
+            >
+              Order Confirm Karein
             </Text>
           )}
-          {!placingOrder &&
-            !loadingBill &&
-            hasValidLocation &&
-            billDetails?.isDeliverable === true &&
-            !checkoutError &&
-            !isCheckoutDisabled &&
-            !isBelowMinimum ? (
+          {!isOrderDisabled && !placingOrder ? (
             <MaterialIcons name="arrow-forward" size={18} color={Colors.white} />
           ) : null}
         </Pressable>
@@ -1967,9 +2006,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   backButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.slate50,
@@ -2757,7 +2796,7 @@ const styles = StyleSheet.create({
   billLabel: {
     fontFamily: FontFamily.medium,
     fontSize: 13,
-    color: Colors.slate600,
+    color: Colors.slate800,
   },
   billVal: {
     fontFamily: FontFamily.bold,
@@ -2828,10 +2867,28 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.sm,
     ...Shadows.md,
   },
+  disabledReasonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm,
+    backgroundColor: Colors.warningLight,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.xs + 2,
+    alignSelf: 'stretch',
+  },
+  disabledReasonText: {
+    fontFamily: FontFamily.bold,
+    fontSize: 12,
+    color: Colors.slate800,
+  },
   submitOrderBtn: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.xl,
     paddingVertical: 14,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2839,13 +2896,18 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   submitOrderBtnDisabled: {
-    backgroundColor: Colors.slate300,
+    backgroundColor: Colors.slate200,
+    elevation: 0,
+    shadowOpacity: 0,
   },
   submitOrderText: {
     fontFamily: FontFamily.extraBold,
     fontSize: 15,
     fontWeight: '800',
     color: Colors.white,
+  },
+  submitOrderTextDisabled: {
+    color: Colors.slate700,
   },
   termsNotice: {
     fontFamily: FontFamily.medium,
