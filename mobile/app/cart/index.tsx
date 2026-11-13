@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -90,7 +91,7 @@ export default function CartScreen() {
           }
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('[Cart] Failed to check restaurant status:', err);
         }
       }
@@ -147,7 +148,9 @@ export default function CartScreen() {
             setMultiVendorFee(Number(zoneRes.data.zones[0].multiVendorFee));
           }
         } catch (e) {
-          console.warn('[Cart] Failed to fetch multi-vendor fee:', e);
+          if (__DEV__) {
+            console.warn('[Cart] Failed to fetch multi-vendor fee:', e);
+          }
         }
       }
     };
@@ -222,7 +225,7 @@ export default function CartScreen() {
         setRecommendations(res.data.recommendations || []);
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('[Cart] Failed to load recommendations:', err);
       }
     } finally {
@@ -535,6 +538,9 @@ export default function CartScreen() {
                 ) : (
                   <FlatList
                     data={recommendations}
+                    initialNumToRender={8}
+                    windowSize={7}
+                    removeClippedSubviews={Platform.OS === 'android'}
                     keyExtractor={(rec) => rec._id}
                     horizontal
                     showsHorizontalScrollIndicator={false}

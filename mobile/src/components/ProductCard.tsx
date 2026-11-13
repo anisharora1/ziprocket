@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import OptimizedImage from './OptimizedImage';
 import DiscountBadge from './DiscountBadge';
 import { usePlatform } from '../context/PlatformContext';
+import { useCartActions, useCartItemQuantity } from '../context/CartContext';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
 export interface Product {
@@ -22,19 +23,25 @@ export interface Product {
   offerBadge?: string;
 }
 
-interface ProductCardProps {
+export interface ProductCardProps {
   prod: Product;
-  qty: number;
-  addToCart: any;
-  updateQuantity: any;
+  qty?: number;
+  addToCart?: any;
+  updateQuantity?: any;
 }
 
-export default function ProductCard({
+function ProductCard({
   prod,
-  qty,
-  addToCart,
-  updateQuantity,
+  qty: propQty,
+  addToCart: propAddToCart,
+  updateQuantity: propUpdateQuantity,
 }: ProductCardProps) {
+  const actions = useCartActions();
+  const hookQty = useCartItemQuantity(`groc-${prod._id}`);
+  const qty = propQty !== undefined ? propQty : hookQty;
+  const addToCart = propAddToCart || actions.addToCart;
+  const updateQuantity = propUpdateQuantity || actions.updateQuantity;
+
   const hasValidDiscount =
     prod.discountedPrice !== undefined &&
     prod.discountedPrice !== null &&
@@ -47,21 +54,21 @@ export default function ProductCard({
   const isAvailable = prod.isAvailable !== false && prod.stockQuantity > 0 && isGroceryOpen;
   const imgUri = prod.images?.[0] || '';
 
-  const handleDecrease = () => {
+  const handleDecrease = useCallback(() => {
     if (!isGroceryOpen) return;
     updateQuantity(`groc-${prod._id}`, qty - 1);
-  };
+  }, [isGroceryOpen, updateQuantity, prod._id, qty]);
 
-  const handleIncrease = () => {
+  const handleIncrease = useCallback(() => {
     if (!isGroceryOpen) return;
     if (qty >= prod.stockQuantity) {
       Alert.alert('Stock Limit', `Sorry! Only ${prod.stockQuantity} units available.`);
       return;
     }
     updateQuantity(`groc-${prod._id}`, qty + 1);
-  };
+  }, [isGroceryOpen, qty, prod.stockQuantity, updateQuantity, prod._id]);
 
-  const handleAdd = () => {
+  const handleAdd = useCallback(() => {
     if (!isAvailable) return;
     addToCart({
       item: {
@@ -75,7 +82,7 @@ export default function ProductCard({
       vendorName: 'ZipGrocery Stores',
       orderType: 'grocery',
     });
-  };
+  }, [isAvailable, addToCart, prod._id, prod.name, currentPrice, imgUri]);
 
   return (
     <View style={styles.card}>
@@ -174,6 +181,38 @@ export default function ProductCard({
     </View>
   );
 }
+
+const MemoizedProductCard = React.memo(ProductCard, (prevProps, nextProps) => {
+  const prevPrice =
+    prevProps.prod.discountedPrice !== undefined &&
+    prevProps.prod.discountedPrice !== null &&
+    Number(prevProps.prod.discountedPrice) > 0 &&
+    Number(prevProps.prod.discountedPrice) < Number(prevProps.prod.price)
+      ? Number(prevProps.prod.discountedPrice)
+      : Number(prevProps.prod.price);
+
+  const nextPrice =
+    nextProps.prod.discountedPrice !== undefined &&
+    nextProps.prod.discountedPrice !== null &&
+    Number(nextProps.prod.discountedPrice) > 0 &&
+    Number(nextProps.prod.discountedPrice) < Number(nextProps.prod.price)
+      ? Number(nextProps.prod.discountedPrice)
+      : Number(nextProps.prod.price);
+
+  const prevAvail =
+    prevProps.prod.isAvailable !== false && prevProps.prod.stockQuantity > 0;
+  const nextAvail =
+    nextProps.prod.isAvailable !== false && nextProps.prod.stockQuantity > 0;
+
+  return (
+    prevProps.prod._id === nextProps.prod._id &&
+    prevPrice === nextPrice &&
+    prevProps.qty === nextProps.qty &&
+    prevAvail === nextAvail
+  );
+});
+
+export default MemoizedProductCard;
 
 const styles = StyleSheet.create({
   card: {

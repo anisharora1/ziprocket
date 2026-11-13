@@ -306,7 +306,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         }
       }
     } catch (err) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.error('Failed to load saved addresses:', err);
       }
     }
@@ -332,7 +332,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
         if (isNetworkError(err)) {
           Alert.alert('Offline', "You're offline. Connect to the internet to save addresses.");
         } else {
-          console.error('Failed to save and select address:', err);
+          if (__DEV__) {
+            console.error('Failed to save and select address:', err);
+          }
         }
         return false;
       } finally {
@@ -398,7 +400,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           dispatch({ type: 'SET_BATCH', payload: { address: 'Address unavailable' } });
         }
       } catch (geoErr) {
-        if (!isNetworkError(geoErr)) {
+        if (__DEV__ && !isNetworkError(geoErr)) {
           console.error('Reverse geocode failed:', geoErr);
         }
         dispatch({ type: 'SET_BATCH', payload: { address: 'Address unavailable' } });
@@ -434,7 +436,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           });
         }
       } catch (zErr: any) {
-        if (!isNetworkError(zErr)) {
+        if (__DEV__ && !isNetworkError(zErr)) {
           console.error('Zone feasibility check failed:', zErr);
         }
         dispatch({
@@ -466,7 +468,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
 
       await dismissPrompt();
     } catch (err: any) {
-      console.error('Geocoding failed:', err);
+      if (__DEV__) {
+        console.error('Geocoding failed:', err);
+      }
       dispatch({
         type: 'SET_BATCH',
         payload: {
@@ -624,7 +628,9 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
           }
         }
       } catch (e) {
-        console.error('Failed to parse stored location');
+        if (__DEV__) {
+          console.error('Failed to parse stored location');
+        }
       }
 
       // Check if token exists to fetch saved address book ONLY IF no valid cached location
@@ -643,7 +649,7 @@ export const LocationProvider = ({ children }: { children: React.ReactNode }) =>
             }
           }
         } catch (err) {
-          if (!isNetworkError(err)) {
+          if (__DEV__ && !isNetworkError(err)) {
             console.error('Failed to load saved addresses:', err);
           }
         }
