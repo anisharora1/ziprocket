@@ -1,15 +1,29 @@
-import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import React, { useState, useRef, useCallback } from 'react';
+import {
+  View,
+  Text,
+  Pressable,
+  FlatList,
+  StyleSheet,
+  Platform,
+  ViewToken,
+  StyleProp,
+  ViewStyle,
+  RefreshControlProps,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import RestaurantCardCarousel from './RestaurantCardCarousel';
 import { Restaurant } from '../types';
-import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
+import {
+  Colors,
+  Spacing,
+  BorderRadius,
+  Typography,
+  FontFamily,
+  Shadows,
+} from '../constants/theme';
 import { formatToAMPM, isWithinOperatingHours } from '../utils/restaurantHours';
-
-interface RestaurantListProps {
-  restaurants: Restaurant[];
-}
 
 function getFallbackImage(restaurant: Restaurant): string {
   if (restaurant.image) {
@@ -30,122 +44,209 @@ function getFallbackImage(restaurant: Restaurant): string {
   );
 }
 
-export default function RestaurantList({ restaurants }: RestaurantListProps) {
+export interface RestaurantCardProps {
+  restaurant: Restaurant;
+  index: number;
+  isVisible: boolean;
+}
+
+export const RestaurantCard = React.memo(function RestaurantCard({
+  restaurant,
+  index,
+  isVisible,
+}: RestaurantCardProps) {
   const router = useRouter();
 
-  if (!restaurants || restaurants.length === 0) {
-    return null;
-  }
+  const isCurrentlyOpen =
+    restaurant.isCurrentlyOpen !== undefined
+      ? restaurant.isCurrentlyOpen
+      : restaurant.isActive !== false &&
+        restaurant.availabilityStatus !== 'closed' &&
+        isWithinOperatingHours(
+          restaurant.operatingHours?.open,
+          restaurant.operatingHours?.close
+        );
+
+  const fallbackImg = getFallbackImage(restaurant);
+  const openTimeFormatted = restaurant.operatingHours?.open
+    ? formatToAMPM(restaurant.operatingHours.open)
+    : '';
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.sectionTitle}>Restaurants</Text>
+    <Pressable
+      style={({ pressed }) => [
+        styles.card,
+        !isCurrentlyOpen && styles.closedCard,
+        pressed && { opacity: 0.85 },
+      ]}
+      onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
+    >
+      {/* Image banner with dishes carousel */}
+      <View style={styles.imageBox}>
+        <RestaurantCardCarousel
+          items={restaurant.popularItems || []}
+          fallbackImage={fallbackImg}
+          restaurantName={restaurant.name}
+          cardIndex={index}
+          isVisible={isVisible}
+          onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
+        />
 
-      <View style={styles.list}>
-        {restaurants.map((restaurant, index) => {
-          const isCurrentlyOpen =
-            restaurant.isCurrentlyOpen !== undefined
-              ? restaurant.isCurrentlyOpen
-              : (restaurant.isActive !== false &&
-                restaurant.availabilityStatus !== 'closed' &&
-                isWithinOperatingHours(
-                  restaurant.operatingHours?.open,
-                  restaurant.operatingHours?.close
-                ));
-
-          const fallbackImg = getFallbackImage(restaurant);
-          const openTimeFormatted = restaurant.operatingHours?.open
-            ? formatToAMPM(restaurant.operatingHours.open)
-            : '';
-
-          return (
-            <Pressable
-              key={restaurant._id}
-              style={({ pressed }) => [
-                styles.card,
-                !isCurrentlyOpen && styles.closedCard,
-                pressed && { opacity: 0.85 },
-              ]}
-              onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
-            >
-              {/* Image banner with dishes carousel */}
-              <View style={styles.imageBox}>
-                <RestaurantCardCarousel
-                  items={restaurant.popularItems || []}
-                  fallbackImage={fallbackImg}
-                  restaurantName={restaurant.name}
-                  cardIndex={index}
-                  onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
-                />
-
-                {/* Delivery Time Badge */}
-                <View style={styles.deliveryTimeBadge} pointerEvents="none">
-                  <Text style={styles.deliveryTimeText}>25-35 mins</Text>
-                </View>
-              </View>
-
-              {/* Card info */}
-              <View style={styles.cardBody}>
-                <View style={styles.titleRow}>
-                  <Text style={styles.restaurantName} numberOfLines={1}>
-                    {restaurant.name}
-                  </Text>
-                  <View style={styles.ratingBadge}>
-                    <Text style={styles.ratingText}>
-                      {(Number(restaurant.rating) || 0) > 0
-                        ? Number(restaurant.rating).toFixed(1)
-                        : 'New'}
-                    </Text>
-                    <MaterialIcons name="star" size={12} color={Colors.primary} />
-                  </View>
-                </View>
-
-                <Text style={styles.addressText} numberOfLines={1}>
-                  {restaurant.location?.address || 'Address not provided'}
-                </Text>
-
-                <View style={styles.divider} />
-
-                <View style={styles.ordersRow}>
-                  <MaterialIcons name="store" size={14} color={Colors.textMuted} />
-                  <Text style={styles.ordersText}>
-                    {restaurant.totalOrders || 0} orders completed
-                  </Text>
-                </View>
-              </View>
-
-              {/* Closed overlay covering whole card (image + info area) */}
-              {!isCurrentlyOpen && (
-                <View style={styles.closedOverlay} pointerEvents="none">
-                  <View style={styles.closedPill}>
-                    <Text style={styles.closedPillText}>
-                      Closed{openTimeFormatted ? ` · Opens at ${openTimeFormatted}` : ''}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </Pressable>
-          );
-        })}
+        {/* Delivery Time Badge */}
+        <View style={styles.deliveryTimeBadge} pointerEvents="none">
+          <Text style={styles.deliveryTimeText}>25-35 mins</Text>
+        </View>
       </View>
-    </View>
+
+      {/* Card info */}
+      <View style={styles.cardBody}>
+        <View style={styles.titleRow}>
+          <Text style={styles.restaurantName} numberOfLines={1}>
+            {restaurant.name}
+          </Text>
+          <View style={styles.ratingBadge}>
+            <Text style={styles.ratingText}>
+              {(Number(restaurant.rating) || 0) > 0
+                ? Number(restaurant.rating).toFixed(1)
+                : 'New'}
+            </Text>
+            <MaterialIcons name="star" size={12} color={Colors.primary} />
+          </View>
+        </View>
+
+        <Text style={styles.addressText} numberOfLines={1}>
+          {restaurant.location?.address || 'Address not provided'}
+        </Text>
+
+        <View style={styles.divider} />
+
+        <View style={styles.ordersRow}>
+          <MaterialIcons name="store" size={14} color={Colors.textMuted} />
+          <Text style={styles.ordersText}>
+            {restaurant.totalOrders || 0} orders completed
+          </Text>
+        </View>
+      </View>
+
+      {/* Closed overlay covering whole card (image + info area) */}
+      {!isCurrentlyOpen && (
+        <View style={styles.closedOverlay} pointerEvents="none">
+          <View style={styles.closedPill}>
+            <Text style={styles.closedPillText}>
+              Closed{openTimeFormatted ? ` · Opens at ${openTimeFormatted}` : ''}
+            </Text>
+          </View>
+        </View>
+      )}
+    </Pressable>
+  );
+});
+
+export interface RestaurantListProps {
+  restaurants: Restaurant[];
+  ListHeaderComponent?: React.ReactElement | null;
+  ListFooterComponent?: React.ReactElement | null;
+  onEndReached?: () => void;
+  onEndReachedThreshold?: number;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
+  flatListRef?: React.RefObject<FlatList<Restaurant> | null>;
+  contentContainerStyle?: StyleProp<ViewStyle>;
+}
+
+export default function RestaurantList({
+  restaurants,
+  ListHeaderComponent,
+  ListFooterComponent,
+  onEndReached,
+  onEndReachedThreshold = 0.5,
+  refreshControl,
+  flatListRef,
+  contentContainerStyle,
+}: RestaurantListProps) {
+  const [visibleIds, setVisibleIds] = useState<Set<string>>(new Set());
+
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
+      const ids = new Set<string>();
+      for (const token of viewableItems) {
+        if (token.item && (token.item as Restaurant)._id) {
+          ids.add((token.item as Restaurant)._id);
+        }
+      }
+      setVisibleIds(ids);
+    }
+  ).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: Restaurant; index: number }) => (
+      <View style={styles.cardWrapper}>
+        <RestaurantCard
+          restaurant={item}
+          index={index}
+          isVisible={visibleIds.has(item._id)}
+        />
+      </View>
+    ),
+    [visibleIds]
+  );
+
+  const keyExtractor = useCallback((item: Restaurant) => item._id, []);
+
+  return (
+    <FlatList
+      ref={flatListRef}
+      data={restaurants}
+      keyExtractor={keyExtractor}
+      renderItem={renderItem}
+      ListHeaderComponent={
+        <>
+          {ListHeaderComponent}
+          {restaurants.length > 0 && (
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Restaurants</Text>
+            </View>
+          )}
+        </>
+      }
+      ListFooterComponent={ListFooterComponent}
+      onEndReached={onEndReached}
+      onEndReachedThreshold={onEndReachedThreshold}
+      refreshControl={refreshControl}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={[styles.contentContainer, contentContainerStyle]}
+      initialNumToRender={8}
+      windowSize={7}
+      removeClippedSubviews={Platform.OS === 'android'}
+    />
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    marginVertical: Spacing.sm,
+  contentContainer: {
+    paddingBottom: 0,
+  },
+  sectionHeader: {
+    paddingHorizontal: Spacing.md,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.md,
   },
   sectionTitle: {
     fontFamily: FontFamily.bold,
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    marginBottom: Spacing.md,
     letterSpacing: 1,
   },
-  list: {
-    gap: Spacing.md,
+  cardWrapper: {
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
   },
   card: {
     backgroundColor: Colors.surface,
@@ -263,4 +364,3 @@ const styles = StyleSheet.create({
     color: Colors.textMuted,
   },
 });
-

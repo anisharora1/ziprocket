@@ -10,6 +10,7 @@ import {
   NativeScrollEvent,
   AppState,
   AppStateStatus,
+  Platform,
 } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import OptimizedImage from './OptimizedImage';
@@ -28,6 +29,7 @@ export interface RestaurantCardCarouselProps {
   restaurantName: string;
   cardIndex?: number;
   onPress?: () => void;
+  isVisible?: boolean;
 }
 
 function getItemImageUrl(item: PopularItem, fallback: string): string {
@@ -52,6 +54,7 @@ export default function RestaurantCardCarousel({
   restaurantName,
   cardIndex = 0,
   onPress,
+  isVisible = false,
 }: RestaurantCardCarouselProps) {
   const displayItems = useMemo(() => (items || []).slice(0, 10), [items]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -90,7 +93,7 @@ export default function RestaurantCardCarousel({
 
   // Auto-slide effect: runs only when focused, app is active, not paused, and has > 1 item
   useEffect(() => {
-    if (!isFocused || !appActive || isPaused || displayItems.length <= 1 || cardWidth <= 0) {
+    if (!isVisible || !isFocused || !appActive || isPaused || displayItems.length <= 1 || cardWidth <= 0) {
       if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
       if (staggerTimer.current) clearTimeout(staggerTimer.current);
       return;
@@ -119,7 +122,7 @@ export default function RestaurantCardCarousel({
       if (staggerTimer.current) clearTimeout(staggerTimer.current);
       if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
     };
-  }, [isFocused, appActive, isPaused, displayItems.length, cardWidth, cardIndex]);
+  }, [isVisible, isFocused, appActive, isPaused, displayItems.length, cardWidth, cardIndex]);
 
   // Cleanup all timers on unmount
   useEffect(() => {
@@ -250,9 +253,9 @@ export default function RestaurantCardCarousel({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          removeClippedSubviews
-          windowSize={3}
-          initialNumToRender={2}
+          removeClippedSubviews={Platform.OS === 'android'}
+          windowSize={7}
+          initialNumToRender={8}
           maxToRenderPerBatch={2}
           getItemLayout={(_, index) => ({
             length: cardWidth,

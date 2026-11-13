@@ -236,7 +236,7 @@ export default function CheckoutScreen() {
           }
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('[Checkout] Failed checking restaurant status:', err);
         }
       }
@@ -392,7 +392,7 @@ export default function CheckoutScreen() {
         setBillDetails(null);
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Failed to calculate bill details:', err);
       }
       if (isNetworkError(err) || !getIsOnline()) {
@@ -444,7 +444,7 @@ export default function CheckoutScreen() {
         setUnapplicableCoupons(res.data.unapplicable || []);
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Failed fetching available coupons:', err);
       }
     }
@@ -489,7 +489,7 @@ export default function CheckoutScreen() {
         setIsCouponDrawerOpen(false);
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Coupon apply error:', err);
       }
       setCouponError(
@@ -693,7 +693,9 @@ export default function CheckoutScreen() {
           }
         }
       } catch (geoErr) {
-        console.warn('GPS reverse geocode error:', geoErr);
+        if (__DEV__) {
+          console.warn('GPS reverse geocode error:', geoErr);
+        }
       }
     } catch (err: any) {
       setEditError(err.message || 'GPS location nahi mil saka. Kripya location permission check karein.');
@@ -769,7 +771,7 @@ export default function CheckoutScreen() {
           setIsAddressModalOpen(false);
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('Save address error:', err);
         }
         setEditError(
@@ -971,7 +973,7 @@ export default function CheckoutScreen() {
         throw new Error(orderRes.data?.message || 'Order place nahi ho paya.');
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Place order error:', err);
       }
       const serverReason = err.response?.data?.reason;

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -55,12 +55,16 @@ export default function TopRated({ items }: TopRatedProps = {}) {
         <Text style={styles.sectionTitle}>Top Picks</Text>
       </View>
 
-      <ScrollView
+      <FlatList
+        data={displayRestaurants}
+        keyExtractor={(item) => item._id}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.scrollList}
-      >
-        {displayRestaurants.map((item) => {
+        initialNumToRender={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        renderItem={({ item }) => {
           const bannerImg =
             item.popularItems?.[0]?.images?.[0] ||
             (typeof item.image === 'string'
@@ -101,8 +105,8 @@ export default function TopRated({ items }: TopRatedProps = {}) {
               </View>
             </Pressable>
           );
-        })}
-      </ScrollView>
+        }}
+      />
     </View>
   );
 }

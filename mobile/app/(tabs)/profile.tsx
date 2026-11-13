@@ -99,7 +99,7 @@ export default function ProfileScreen() {
       router.replace('/(auth)/login');
       Alert.alert('Account Deleted', 'Your account has been deleted.');
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Delete account error:', err);
       }
       if (isNetworkError(err)) {

@@ -1,15 +1,15 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
-  ScrollView,
   RefreshControl,
   StyleSheet,
   ActivityIndicator,
   TextInput,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Header from '../../src/components/Header';
 import SearchBar from '../../src/components/SearchBar';
 import HeroCarousel from '../../src/components/HeroCarousel';
@@ -31,7 +31,7 @@ import {
 } from '../../src/utils/orderRestaurants';
 
 export default function HomeScreen() {
-  const scrollRef = useRef<ScrollView>(null);
+  const flatListRef = useRef<FlatList<Restaurant>>(null);
   const searchInputRef = useRef<TextInput>(null);
   const { focusSearch } = useLocalSearchParams<{ focusSearch?: string }>();
   const prevFocusSearchRef = useRef<string | undefined>(undefined);
@@ -43,7 +43,7 @@ export default function HomeScreen() {
   useEffect(() => {
     if (focusSearch && focusSearch !== prevFocusSearchRef.current) {
       prevFocusSearchRef.current = focusSearch;
-      scrollRef.current?.scrollTo({ y: 0, animated: true });
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
       const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 250);
@@ -76,24 +76,40 @@ export default function HomeScreen() {
 
   const isOnline = useIsOnline();
 
-  // Up to 50 restaurants filtered by deliveryZone if available
+  // Paginated restaurants query (pages of 10) filtered by deliveryZone if available
   const {
-    data: restaurants = [],
+    data,
     isLoading,
     isError: isRestaurantsError,
     fetchStatus: restaurantsFetchStatus,
     refetch: refetchRestaurants,
     isRefetching: isRestaurantsRefetching,
-  } = useQuery<Restaurant[]>({
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery<Restaurant[]>({
     queryKey: ['home-restaurants', zoneId || 'all'],
-    queryFn: async () => {
+    queryFn: async ({ pageParam = 1 }) => {
+      const page = pageParam as number;
       const url = zoneId
-        ? `/restaurants?status=approved&isActive=true&limit=50&deliveryZone=${zoneId}`
-        : '/restaurants?status=approved&isActive=true&limit=50';
+        ? `/restaurants?status=approved&isActive=true&page=${page}&limit=10&deliveryZone=${zoneId}`
+        : `/restaurants?status=approved&isActive=true&page=${page}&limit=10`;
       const res = await apiClient.get(url);
-      return res.data?.restaurants || res.data?.data?.restaurants || [];
+      const list = res.data?.restaurants || res.data?.data?.restaurants || [];
+      return list as Restaurant[];
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage || lastPage.length < 10) {
+        return undefined;
+      }
+      return allPages.length + 1;
     },
   });
+
+  const restaurants = useMemo(() => {
+    return data?.pages ? data.pages.flatMap((page) => page) : [];
+  }, [data]);
 
   // TopRated section: featured + top 3 rated (rating > 0, highest first)
   const topRatedRestaurants = useMemo(() => {
@@ -112,7 +128,59 @@ export default function HomeScreen() {
     refetchPromotions();
   }, [refetchRestaurants, refetchPromotions]);
 
+  const handleEndReached = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   const isRefreshing = isRestaurantsRefetching || isPromotionsRefetching;
+
+  const listHeader = useMemo(
+    () => (
+      <View style={styles.headerBody}>
+        <HeroCarousel />
+        <Categories />
+        <TopRated items={topRatedRestaurants} />
+        {restaurants.length === 0 &&
+        (isRestaurantsError ||
+          restaurantsFetchStatus === 'paused' ||
+          !isOnline) ? (
+          <OfflineState compact onRetry={handleRefresh} />
+        ) : isLoading && restaurants.length === 0 ? (
+          <View style={styles.centerLoading}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+          </View>
+        ) : null}
+      </View>
+    ),
+    [
+      topRatedRestaurants,
+      restaurants.length,
+      isRestaurantsError,
+      restaurantsFetchStatus,
+      isOnline,
+      isLoading,
+      handleRefresh,
+    ]
+  );
+
+  const listFooter = useMemo(
+    () => (
+      <View style={styles.footerBody}>
+        {isFetchingNextPage && (
+          <View style={styles.footerLoading}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        )}
+        <View style={styles.footerGroceries}>
+          <PopularGroceries />
+        </View>
+        {!isLoading && <BrandFooter />}
+      </View>
+    ),
+    [isFetchingNextPage, isLoading]
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -123,12 +191,13 @@ export default function HomeScreen() {
         <SearchBar inputRef={searchInputRef} />
       </View>
 
-      <ScrollView
-        ref={scrollRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        automaticallyAdjustKeyboardInsets={true}
+      <RestaurantList
+        restaurants={homeRestaurants}
+        flatListRef={flatListRef}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={listFooter}
+        onEndReached={handleEndReached}
+        onEndReachedThreshold={0.5}
         refreshControl={
           <RefreshControl
             refreshing={isRefreshing}
@@ -137,25 +206,7 @@ export default function HomeScreen() {
             tintColor={Colors.primary}
           />
         }
-      >
-        <View style={styles.body}>
-          <HeroCarousel />
-          <Categories />
-          <TopRated items={topRatedRestaurants} />
-          {restaurants.length === 0 && (isRestaurantsError || restaurantsFetchStatus === 'paused' || !isOnline) ? (
-            <OfflineState compact onRetry={handleRefresh} />
-          ) : isLoading && restaurants.length === 0 ? (
-            <View style={styles.centerLoading}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-            </View>
-          ) : (
-            <RestaurantList restaurants={homeRestaurants} />
-          )}
-          <PopularGroceries />
-        </View>
-
-        {!isLoading && <BrandFooter />}
-      </ScrollView>
+      />
     </SafeAreaView>
   );
 }
@@ -173,13 +224,20 @@ const styles = StyleSheet.create({
     zIndex: 100,
     elevation: 4,
   },
-  scrollContent: {
-    paddingBottom: 0,
-  },
-  body: {
+  headerBody: {
     paddingHorizontal: Spacing.md,
-    paddingBottom: Spacing.md,
     gap: Spacing.sm,
+  },
+  footerBody: {
+    gap: Spacing.sm,
+  },
+  footerGroceries: {
+    paddingHorizontal: Spacing.md,
+  },
+  footerLoading: {
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centerLoading: {
     paddingVertical: Spacing.xl,
