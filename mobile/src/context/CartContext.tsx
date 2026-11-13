@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useRef,
   useCallback,
+  useSyncExternalStore,
 } from 'react';
 import { Modal, View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -52,6 +53,16 @@ export interface CartContextType {
   pendingPayload: AddToCartPayload | null;
   confirmReplaceCart: () => void;
   cancelReplaceCart: () => void;
+  getItemQuantity: (itemId: string) => number;
+}
+
+export interface CartActionsType {
+  addToCart: (payload: AddToCartPayload) => void;
+  removeFromCart: (itemId: string) => void;
+  updateQuantity: (itemId: string, quantity: number) => void;
+  clearCart: () => void;
+  confirmReplaceCart: () => void;
+  cancelReplaceCart: () => void;
 }
 
 const STORAGE_KEY = 'ziprocket_cart';
@@ -60,6 +71,36 @@ const STORAGE_KEY = 'ziprocket_cart';
 let hasWarnedSyncFailure = false;
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+const CartActionsContext = createContext<CartActionsType | undefined>(undefined);
+
+// External store for selective item subscriptions without full re-renders
+type CartListener = () => void;
+const cartStoreListeners = new Set<CartListener>();
+
+let cartStoreSnapshot: CartState = {
+  items: [],
+  groceryItems: [],
+  vendorId: null,
+  vendorName: null,
+  orderType: null,
+  isMixed: false,
+};
+
+function subscribeToCartStore(listener: CartListener) {
+  cartStoreListeners.add(listener);
+  return () => {
+    cartStoreListeners.delete(listener);
+  };
+}
+
+function updateCartStoreSnapshot(newCart: CartState) {
+  cartStoreSnapshot = newCart;
+  cartStoreListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {}
+  });
+}
 
 function computeIsMixed(orderType: string | null, items: CartItem[], groceryItems: CartItem[]): boolean {
   return Boolean(orderType === 'food' && items.length > 0 && groceryItems.length > 0);
@@ -100,6 +141,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const prevTokenRef = useRef<string | null>(null);
   const { token } = useAuth();
 
+  useEffect(() => {
+    updateCartStoreSnapshot(cart);
+  }, [cart]);
+
   // Helper to persist to AsyncStorage immediately (source of truth)
   const saveToLocalStorage = useCallback(async (cartState: CartState) => {
     try {
@@ -122,14 +167,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
             const loadedItems: CartItem[] = Array.isArray(parsed.items) ? parsed.items : [];
             const loadedGroceryItems: CartItem[] = Array.isArray(parsed.groceryItems) ? parsed.groceryItems : [];
             const loadedOrderType = parsed.orderType || null;
-            setCart({
+            const initialState: CartState = {
               items: loadedItems,
               groceryItems: loadedGroceryItems,
               vendorId: parsed.vendorId || null,
               vendorName: parsed.vendorName || null,
               orderType: loadedOrderType,
               isMixed: computeIsMixed(loadedOrderType, loadedItems, loadedGroceryItems),
-            });
+            };
+            setCart(initialState);
+            updateCartStoreSnapshot(initialState);
           }
         }
       } catch (e) {
@@ -164,6 +211,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         isMixed: false,
       };
       setCart(emptyState);
+      updateCartStoreSnapshot(emptyState);
       AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
       return;
     }
@@ -351,31 +399,30 @@ export function CartProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(timeout);
   }, [cart, token, saveToLocalStorage]);
 
-  const addToCart = (payload: AddToCartPayload) => {
+  const addToCart = useCallback((payload: AddToCartPayload) => {
     if (!getIsOnline()) {
       Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
       return;
     }
     cartVersionRef.current += 1;
 
-    // 1. If cart is completely empty, simply add the item
-    if (cart.items.length === 0 && (cart.groceryItems?.length || 0) === 0) {
-      setCart({
-        items: [{ ...payload.item, quantity: 1 }],
-        groceryItems: [],
-        vendorId: payload.vendorId,
-        vendorName: payload.vendorName,
-        orderType: payload.orderType,
-        isMixed: false,
-      });
-      return;
-    }
+    setCart((prev) => {
+      // 1. If cart is completely empty, simply add the item
+      if (prev.items.length === 0 && (prev.groceryItems?.length || 0) === 0) {
+        return {
+          items: [{ ...payload.item, quantity: 1 }],
+          groceryItems: [],
+          vendorId: payload.vendorId,
+          vendorName: payload.vendorName,
+          orderType: payload.orderType,
+          isMixed: false,
+        };
+      }
 
-    // 2. If current cart is a grocery-only cart
-    if (cart.orderType === 'grocery') {
-      if (payload.orderType === 'grocery') {
-        // Adding more grocery items - keep working exactly as today
-        setCart((prev) => {
+      // 2. If current cart is a grocery-only cart
+      if (prev.orderType === 'grocery') {
+        if (payload.orderType === 'grocery') {
+          // Adding more grocery items - keep working exactly as today
           const existingIndex = prev.items.findIndex((i) => i.id === payload.item.id);
           let newItems: CartItem[];
           if (existingIndex >= 0) {
@@ -388,14 +435,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
             newItems = [...prev.items, { ...payload.item, quantity: 1 }];
           }
           return { ...prev, items: newItems, groceryItems: [], isMixed: false };
-        });
-        return;
-      }
+        }
 
-      if (payload.orderType === 'food') {
-        // Restaurant item when the cart holds only groceries:
-        // -> becomes the restaurant part, groceries move to groceryItems
-        setCart((prev) => {
+        if (payload.orderType === 'food') {
+          // Restaurant item when the cart holds only groceries:
+          // -> becomes the restaurant part, groceries move to groceryItems
           const newFoodItems: CartItem[] = [{ ...payload.item, quantity: 1 }];
           const newGroceryItems: CartItem[] = [...prev.items];
           return {
@@ -406,24 +450,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
             orderType: 'food',
             isMixed: true,
           };
-        });
-        return;
-      }
-    }
-
-    // 3. If current cart has a restaurant (orderType === 'food')
-    if (cart.orderType === 'food') {
-      if (payload.orderType === 'food') {
-        // Restaurant item: check if same restaurant or different
-        if (cart.vendorId !== payload.vendorId) {
-          // Different restaurant -> keep existing "replace cart?" alert (only restaurants conflict)
-          setPendingPayload(payload);
-          setShowReplaceAlert(true);
-          return;
         }
+      }
 
-        // Same restaurant -> add to items / update quantity
-        setCart((prev) => {
+      // 3. If current cart has a restaurant (orderType === 'food')
+      if (prev.orderType === 'food') {
+        if (payload.orderType === 'food') {
+          // Restaurant item: check if same restaurant or different
+          if (prev.vendorId !== payload.vendorId) {
+            // Different restaurant -> keep existing "replace cart?" alert (only restaurants conflict)
+            setPendingPayload(payload);
+            setShowReplaceAlert(true);
+            return prev;
+          }
+
+          // Same restaurant -> add to items / update quantity
           const existingIndex = prev.items.findIndex((i) => i.id === payload.item.id);
           let newItems: CartItem[];
           if (existingIndex >= 0) {
@@ -440,13 +481,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
             items: newItems,
             isMixed: computeIsMixed('food', newItems, prev.groceryItems || []),
           };
-        });
-        return;
-      }
+        }
 
-      if (payload.orderType === 'grocery') {
-        // Grocery item when the cart has a restaurant -> add to groceryItems (no alert)
-        setCart((prev) => {
+        if (payload.orderType === 'grocery') {
+          // Grocery item when the cart has a restaurant -> add to groceryItems (no alert)
           const existingIndex = (prev.groceryItems || []).findIndex((i) => i.id === payload.item.id);
           let newGroceryItems: CartItem[];
           if (existingIndex >= 0) {
@@ -463,40 +501,43 @@ export function CartProvider({ children }: { children: ReactNode }) {
             groceryItems: newGroceryItems,
             isMixed: computeIsMixed('food', prev.items, newGroceryItems),
           };
-        });
-        return;
+        }
       }
-    }
-  };
 
-  const confirmReplaceCart = () => {
+      return prev;
+    });
+  }, []);
+
+  const confirmReplaceCart = useCallback(() => {
     cartVersionRef.current += 1;
-    if (pendingPayload) {
-      setCart((prev) => {
-        // Replacing the restaurant: previous restaurant items are replaced,
-        // grocery items are preserved as groceryItems.
-        const newFoodItems = [{ ...pendingPayload.item, quantity: 1 }];
-        const existingGroceries = prev.groceryItems || [];
-        return {
-          items: newFoodItems,
-          groceryItems: existingGroceries,
-          vendorId: pendingPayload.vendorId,
-          vendorName: pendingPayload.vendorName,
-          orderType: 'food',
-          isMixed: computeIsMixed('food', newFoodItems, existingGroceries),
-        };
-      });
-      setPendingPayload(null);
-      setShowReplaceAlert(false);
-    }
-  };
+    setPendingPayload((pending) => {
+      if (pending) {
+        setCart((prev) => {
+          // Replacing the restaurant: previous restaurant items are replaced,
+          // grocery items are preserved as groceryItems.
+          const newFoodItems = [{ ...pending.item, quantity: 1 }];
+          const existingGroceries = prev.groceryItems || [];
+          return {
+            items: newFoodItems,
+            groceryItems: existingGroceries,
+            vendorId: pending.vendorId,
+            vendorName: pending.vendorName,
+            orderType: 'food',
+            isMixed: computeIsMixed('food', newFoodItems, existingGroceries),
+          };
+        });
+      }
+      return null;
+    });
+    setShowReplaceAlert(false);
+  }, []);
 
-  const cancelReplaceCart = () => {
+  const cancelReplaceCart = useCallback(() => {
     setPendingPayload(null);
     setShowReplaceAlert(false);
-  };
+  }, []);
 
-  const removeFromCart = (itemId: string) => {
+  const removeFromCart = useCallback((itemId: string) => {
     if (!getIsOnline()) {
       Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
       return;
@@ -559,9 +600,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems),
       };
     });
-  };
+  }, []);
 
-  const updateQuantity = (itemId: string, quantity: number) => {
+  const updateQuantity = useCallback((itemId: string, quantity: number) => {
     if (!getIsOnline()) {
       Alert.alert('Offline', "You're offline. Connect to the internet to update your cart.");
       return;
@@ -593,9 +634,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         isMixed: computeIsMixed(prev.orderType, newItems, newGroceryItems),
       };
     });
-  };
+  }, [removeFromCart]);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     cartVersionRef.current += 1;
     setCart({
       items: [],
@@ -605,9 +646,38 @@ export function CartProvider({ children }: { children: ReactNode }) {
       orderType: null,
       isMixed: false,
     });
-  };
+  }, []);
 
-  const contextValue = useMemo(
+  const getItemQuantity = useCallback(
+    (itemId: string) => {
+      const item = [...cart.items, ...(cart.groceryItems || [])].find(
+        (i) => i.id === itemId || i.id === `groc-${itemId}` || i.id === `food-${itemId}`
+      );
+      return item ? item.quantity : 0;
+    },
+    [cart]
+  );
+
+  const actionsValue = useMemo<CartActionsType>(
+    () => ({
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      confirmReplaceCart,
+      cancelReplaceCart,
+    }),
+    [
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      confirmReplaceCart,
+      cancelReplaceCart,
+    ]
+  );
+
+  const contextValue = useMemo<CartContextType>(
     () => ({
       cart,
       addToCart,
@@ -618,52 +688,66 @@ export function CartProvider({ children }: { children: ReactNode }) {
       pendingPayload,
       confirmReplaceCart,
       cancelReplaceCart,
+      getItemQuantity,
     }),
-    [cart, showReplaceAlert, pendingPayload]
+    [
+      cart,
+      addToCart,
+      removeFromCart,
+      updateQuantity,
+      clearCart,
+      showReplaceAlert,
+      pendingPayload,
+      confirmReplaceCart,
+      cancelReplaceCart,
+      getItemQuantity,
+    ]
   );
 
   return (
-    <CartContext.Provider value={contextValue}>
-      {children}
+    <CartActionsContext.Provider value={actionsValue}>
+      <CartContext.Provider value={contextValue}>
+        {children}
 
-      {/* Global Replace Cart Modal Alert */}
-      <Modal
-        visible={showReplaceAlert && !!pendingPayload}
-        transparent
-        animationType="fade"
-        onRequestClose={cancelReplaceCart}
-      >
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <View style={styles.iconCircle}>
-              <MaterialIcons name="remove-shopping-cart" size={32} color={Colors.error} />
-            </View>
-            <Text style={styles.modalTitle}>Replace cart item?</Text>
-            <Text style={styles.modalBody}>
-              Your cart contains items from{' '}
-              <Text style={styles.boldText}>{cart.vendorName || 'another store'}</Text>. Do you
-              want to discard them and add items from{' '}
-              <Text style={styles.boldText}>{pendingPayload?.vendorName || 'this store'}</Text>?
-            </Text>
+        {/* Global Replace Cart Modal Alert */}
+        <Modal
+          visible={showReplaceAlert && !!pendingPayload}
+          transparent
+          animationType="fade"
+          onRequestClose={cancelReplaceCart}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <View style={styles.iconCircle}>
+                <MaterialIcons name="remove-shopping-cart" size={32} color={Colors.error} />
+              </View>
+              <Text style={styles.modalTitle}>Replace cart item?</Text>
+              <Text style={styles.modalBody}>
+                Your cart contains items from{' '}
+                <Text style={styles.boldText}>{cart.vendorName || 'another store'}</Text>. Do you
+                want to discard them and add items from{' '}
+                <Text style={styles.boldText}>{pendingPayload?.vendorName || 'this store'}</Text>?
+              </Text>
 
-            <View style={styles.modalButtons}>
-              <Pressable
-                style={[styles.modalButton, styles.keepButton]}
-                onPress={cancelReplaceCart}
-              >
-                <Text style={styles.keepButtonText}>No, keep it</Text>
-              </Pressable>
-              <Pressable
-                style={[styles.modalButton, styles.replaceButton]}
-                onPress={confirmReplaceCart}
-              >
-                <Text style={styles.replaceButtonText}>Yes, replace</Text>
-              </Pressable>
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={[styles.modalButton, styles.keepButton]}
+                  onPress={cancelReplaceCart}
+                >
+                  <Text style={styles.keepButtonText}>No, keep it</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalButton, styles.replaceButton]}
+                  onPress={confirmReplaceCart}
+                >
+                  <Text style={styles.replaceButtonText}>Yes, replace</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
-    </CartContext.Provider>
+        </Modal>
+      </CartContext.Provider>
+    </CartActionsContext.Provider>
   );
 }
 
@@ -673,6 +757,33 @@ export function useCart() {
     throw new Error('useCart must be used within a CartProvider');
   }
   return context;
+}
+
+export function useCartActions(): CartActionsType {
+  const context = useContext(CartActionsContext);
+  if (!context) {
+    throw new Error('useCartActions must be used within a CartProvider');
+  }
+  return context;
+}
+
+export function useCartSelector<T>(selector: (state: CartState) => T): T {
+  const getSnapshot = useCallback(() => selector(cartStoreSnapshot), [selector]);
+  return useSyncExternalStore(subscribeToCartStore, getSnapshot, getSnapshot);
+}
+
+export function useCartItemQuantity(itemId: string): number {
+  return useCartSelector(
+    useCallback(
+      (state: CartState) => {
+        const item = [...state.items, ...(state.groceryItems || [])].find(
+          (i) => i.id === itemId || i.id === `groc-${itemId}` || i.id === `food-${itemId}`
+        );
+        return item ? item.quantity : 0;
+      },
+      [itemId]
+    )
+  );
 }
 
 const styles = StyleSheet.create({

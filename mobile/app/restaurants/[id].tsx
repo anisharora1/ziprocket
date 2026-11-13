@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,8 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
 import { apiClient } from '../../src/services/api';
-import { useCart } from '../../src/context/CartContext';
+import { useCart, useCartActions } from '../../src/context/CartContext';
+import { RestaurantDishRow } from '../../src/components/RestaurantDishRow';
 import { usePlatform } from '../../src/context/PlatformContext';
 import { isWithinOperatingHours, formatToAMPM } from '../../src/utils/restaurantHours';
 import OptimizedImage from '../../src/components/OptimizedImage';
@@ -51,7 +52,8 @@ export default function RestaurantDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cart, addToCart, updateQuantity } = useCart();
+  const { cart } = useCart();
+  const { addToCart, updateQuantity } = useCartActions();
   const { settings, isPlatformCurrentlyOpen, getPlatformStatusMessage } = usePlatform();
 
   const [activeCategory, setActiveCategory] = useState<string>('All');
@@ -138,7 +140,7 @@ export default function RestaurantDetailScreen() {
     return found ? found.quantity : 0;
   };
 
-  const getEffectivePrice = (item: MenuItemType) => {
+  const getEffectivePrice = useCallback((item: MenuItemType) => {
     if (
       item.discountedPrice &&
       Number(item.discountedPrice) > 0 &&
@@ -147,23 +149,37 @@ export default function RestaurantDetailScreen() {
       return Number(item.discountedPrice);
     }
     return Number(item.price);
-  };
+  }, []);
 
-  const handleAddItem = (item: MenuItemType) => {
-    if (!restaurant) return;
-    addToCart({
-      item: {
-        id: `food-${item._id}`,
-        name: item.name,
-        price: getEffectivePrice(item),
-        quantity: 1,
-        img: item.images && item.images[0] ? item.images[0] : '',
-      },
-      vendorId: restaurant._id || id || '',
-      vendorName: restaurant.name,
-      orderType: 'food',
-    });
-  };
+  const handleSelectItem = useCallback((item: MenuItemType) => {
+    setSelectedItem(item);
+  }, []);
+
+  const handleAddItem = useCallback(
+    (item: MenuItemType) => {
+      if (!restaurant) return;
+      addToCart({
+        item: {
+          id: `food-${item._id}`,
+          name: item.name,
+          price: getEffectivePrice(item),
+          quantity: 1,
+          img: item.images && item.images[0] ? item.images[0] : '',
+        },
+        vendorId: restaurant._id || id || '',
+        vendorName: restaurant.name,
+        orderType: 'food',
+      });
+    },
+    [restaurant, addToCart, id, getEffectivePrice]
+  );
+
+  const handleUpdateQuantity = useCallback(
+    (itemId: string, quantity: number) => {
+      updateQuantity(itemId, quantity);
+    },
+    [updateQuantity]
+  );
 
   const handleShare = async () => {
     try {
@@ -506,148 +522,17 @@ export default function RestaurantDetailScreen() {
                     const isLastItem = index === items.length - 1;
 
                     return (
-                      <Pressable
+                      <RestaurantDishRow
                         key={item._id}
-                        style={[
-                          styles.dishCard,
-                          isLastItem && styles.dishCardLast,
-                          !item.isAvailable && { opacity: 0.65 },
-                        ]}
-                        onPress={() => setSelectedItem(item)}
-                      >
-                        <View style={styles.dishInfoCol}>
-                          {/* Veg indicator & Category */}
-                          <View style={styles.vegIndicatorRow}>
-                            <View
-                              style={[
-                                styles.vegIndicatorBox,
-                                { borderColor: item.isVeg ? '#16A34A' : '#DC2626' },
-                              ]}
-                            >
-                              <View
-                                style={[
-                                  styles.vegIndicatorCircle,
-                                  { backgroundColor: item.isVeg ? '#16A34A' : '#DC2626' },
-                                ]}
-                              />
-                            </View>
-                            {item.isFeatured ? (
-                              <View style={styles.bestsellerChip}>
-                                <Text style={styles.bestsellerChipText}>🔥 BESTSELLER</Text>
-                              </View>
-                            ) : null}
-                          </View>
-
-                          <Text style={styles.dishName} numberOfLines={2}>
-                            {item.name}
-                          </Text>
-
-                          {item.description ? (
-                            <Text style={styles.dishDesc} numberOfLines={2}>
-                              {item.description}
-                            </Text>
-                          ) : null}
-
-                          {/* Meta Tags: prep time & spice */}
-                          <View style={styles.dishMetaRow}>
-                            <Text style={styles.dishMetaTag}>⏱️ ~{item.prepTimeMinutes || 15}m</Text>
-                            {item.spiceLevel && item.spiceLevel !== 'none' ? (
-                              <Text style={styles.dishMetaTag}>
-                                🌶️ {item.spiceLevel.toUpperCase()}
-                              </Text>
-                            ) : null}
-                          </View>
-
-                          {/* Price */}
-                          <View style={styles.priceRow}>
-                            <View style={styles.priceValues}>
-                              <Text style={styles.dishPrice}>₹{effectivePrice}</Text>
-                              {item.discountedPrice &&
-                              Number(item.discountedPrice) > 0 &&
-                              item.price > item.discountedPrice ? (
-                                <Text style={styles.dishOriginalPrice}>₹{item.price}</Text>
-                              ) : null}
-                            </View>
-                            <DiscountBadge
-                              price={item.price}
-                              discountedPrice={item.discountedPrice}
-                              style={styles.dishDiscountBadge}
-                            />
-                          </View>
-                        </View>
-
-                        {/* Right side: Image & Add button overlay */}
-                        <View style={styles.dishImageCol}>
-                          {item.images && item.images[0] ? (
-                            <OptimizedImage
-                              src={item.images[0]}
-                              alt={item.name}
-                              preset="card"
-                              style={styles.dishImage}
-                              contentFit="cover"
-                            />
-                          ) : (
-                            <View style={styles.dishImagePlaceholder}>
-                              <MaterialIcons name="image" size={36} color={Colors.textMuted} />
-                            </View>
-                          )}
-
-                          <View style={styles.dishAddBtnContainer}>
-                            {qty > 0 ? (
-                              <View style={styles.stepperBox}>
-                                <Pressable
-                                  style={styles.stepperBtn}
-                                  onPress={(e) => {
-                                    e.stopPropagation?.();
-                                    updateQuantity(`food-${item._id}`, qty - 1);
-                                  }}
-                                >
-                                  <MaterialIcons name="remove" size={15} color={Colors.primary} />
-                                </Pressable>
-                                <Text style={styles.stepperQtyText}>{qty}</Text>
-                                <Pressable
-                                  style={styles.stepperBtn}
-                                  onPress={(e) => {
-                                    e.stopPropagation?.();
-                                    updateQuantity(`food-${item._id}`, qty + 1);
-                                  }}
-                                >
-                                  <MaterialIcons name="add" size={15} color={Colors.primary} />
-                                </Pressable>
-                              </View>
-                            ) : (
-                              <Pressable
-                                style={[
-                                  styles.addBtn,
-                                  isItemDisabled && styles.addBtnDisabled,
-                                ]}
-                                disabled={isItemDisabled}
-                                onPress={(e) => {
-                                  e.stopPropagation?.();
-                                  handleAddItem(item);
-                                }}
-                              >
-                                <Text
-                                  style={[
-                                    styles.addBtnText,
-                                    isItemDisabled && styles.addBtnTextDisabled,
-                                  ]}
-                                >
-                                  {!item.isAvailable ? 'OOS' : 'ADD'}
-                                </Text>
-                                {!isItemDisabled ? (
-                                  <MaterialIcons
-                                    name="add"
-                                    size={14}
-                                    color={Colors.primary}
-                                    style={styles.addBtnPlusIcon}
-                                  />
-                                ) : null}
-                              </Pressable>
-                            )}
-                          </View>
-                        </View>
-                      </Pressable>
+                        item={item}
+                        qty={qty}
+                        effectivePrice={effectivePrice}
+                        isItemDisabled={isItemDisabled}
+                        isLastItem={isLastItem}
+                        onSelect={handleSelectItem}
+                        onAddItem={handleAddItem}
+                        onUpdateQuantity={handleUpdateQuantity}
+                      />
                     );
                   })}
                 </View>

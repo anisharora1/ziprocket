@@ -4,12 +4,13 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../services/api';
 import ProductCard, { Product } from './ProductCard';
-import { useCart } from '../context/CartContext';
+import { useCart, useCartActions } from '../context/CartContext';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 
 export default function PopularGroceries() {
   const router = useRouter();
-  const { cart, addToCart, updateQuantity } = useCart();
+  const { cart } = useCart();
+  const { addToCart, updateQuantity } = useCartActions();
 
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['popular-groceries-home'],

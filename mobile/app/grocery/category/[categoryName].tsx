@@ -13,7 +13,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
 import { apiClient } from '../../../src/services/api';
-import { useCart } from '../../../src/context/CartContext';
+import { useCart, useCartActions } from '../../../src/context/CartContext';
 import OptimizedImage from '../../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../../src/components/ProductCard';
 import FloatingCartButton from '../../../src/components/FloatingCartButton';
@@ -37,7 +37,8 @@ export default function CategoryProductsScreen() {
   const { categoryName } = useLocalSearchParams<{ categoryName: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { cart, addToCart, updateQuantity } = useCart();
+  const { cart } = useCart();
+  const { addToCart, updateQuantity } = useCartActions();
 
   const raw = typeof categoryName === 'string' ? categoryName : '';
   const decodedCategory = useMemo(() => {
