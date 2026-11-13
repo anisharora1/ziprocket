@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Alert,
   Keyboard,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -417,6 +418,9 @@ export default function OrdersScreen() {
 
       <FlatList
         data={pastGroups}
+        initialNumToRender={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
         keyExtractor={(item) => item.id}
         refreshControl={
           <RefreshControl

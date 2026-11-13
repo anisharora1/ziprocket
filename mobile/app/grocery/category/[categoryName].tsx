@@ -7,6 +7,7 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -194,6 +195,9 @@ export default function CategoryProductsScreen() {
           ) : (
             <FlatList
               data={products}
+              initialNumToRender={8}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
               keyExtractor={(item) => item._id}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}

@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -537,6 +538,9 @@ export default function CartScreen() {
                 ) : (
                   <FlatList
                     data={recommendations}
+                    initialNumToRender={8}
+                    windowSize={7}
+                    removeClippedSubviews={Platform.OS === 'android'}
                     keyExtractor={(rec) => rec._id}
                     horizontal
                     showsHorizontalScrollIndicator={false}

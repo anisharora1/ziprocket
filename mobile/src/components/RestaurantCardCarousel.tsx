@@ -10,6 +10,7 @@ import {
   NativeScrollEvent,
   AppState,
   AppStateStatus,
+  Platform,
 } from 'react-native';
 import { useIsFocused } from 'expo-router';
 import OptimizedImage from './OptimizedImage';
@@ -252,9 +253,9 @@ export default function RestaurantCardCarousel({
           horizontal
           pagingEnabled
           showsHorizontalScrollIndicator={false}
-          removeClippedSubviews
-          windowSize={3}
-          initialNumToRender={2}
+          removeClippedSubviews={Platform.OS === 'android'}
+          windowSize={7}
+          initialNumToRender={8}
           maxToRenderPerBatch={2}
           getItemLayout={(_, index) => ({
             length: cardWidth,

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
   TextInput,
   Pressable,
-  ScrollView,
+  FlatList,
+  Platform,
   StyleSheet,
   ActivityIndicator,
   Keyboard,
@@ -296,24 +297,206 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
     }
   };
 
-  const handleSelectRestaurant = (id: string) => {
+  const handleSelectRestaurant = useCallback((id: string) => {
     setIsOpen(false);
     Keyboard.dismiss();
     router.push(`/restaurants/${id}` as any);
-  };
+  }, [router]);
 
-  const handleSelectMenuItem = (item: any) => {
+  const handleSelectMenuItem = useCallback((item: any) => {
     setIsOpen(false);
     Keyboard.dismiss();
     const rId = item.restaurant?._id || item.restaurant;
     router.push(`/restaurants/${rId}` as any);
-  };
+  }, [router]);
 
-  const handleSelectGrocery = (prod: any) => {
+  const handleSelectGrocery = useCallback((prod: any) => {
     setIsOpen(false);
     Keyboard.dismiss();
     router.push(`/grocery?q=${encodeURIComponent(prod.name)}` as any);
-  };
+  }, [router]);
+
+  type SearchRow =
+    | { type: 'header'; key: string; title: string; icon: any }
+    | { type: 'restaurant'; key: string; item: any }
+    | { type: 'dish'; key: string; item: any }
+    | { type: 'grocery'; key: string; item: any };
+
+  const searchData = useMemo<SearchRow[]>(() => {
+    const rows: SearchRow[] = [];
+    if (results.restaurants.length > 0) {
+      rows.push({ type: 'header', key: 'hdr-rest', title: 'RESTAURANTS', icon: 'storefront' });
+      results.restaurants.forEach((rest) => {
+        rows.push({ type: 'restaurant', key: `rest-${rest._id}`, item: rest });
+      });
+    }
+    if (results.menuItems.length > 0) {
+      rows.push({ type: 'header', key: 'hdr-dishes', title: 'DISHES & FOOD', icon: 'restaurant' });
+      results.menuItems.forEach((item) => {
+        rows.push({ type: 'dish', key: `dish-${item._id}`, item });
+      });
+    }
+    if (results.groceryProducts.length > 0) {
+      rows.push({ type: 'header', key: 'hdr-groceries', title: 'GROCERIES', icon: 'shopping-basket' });
+      results.groceryProducts.forEach((prod) => {
+        rows.push({ type: 'grocery', key: `groc-${prod._id}`, item: prod });
+      });
+    }
+    return rows;
+  }, [results]);
+
+  const renderSearchRow = useCallback(
+    ({ item }: { item: SearchRow }) => {
+      if (item.type === 'header') {
+        return (
+          <View style={styles.sectionHeaderRow}>
+            <MaterialIcons name={item.icon} size={15} color={Colors.primary} />
+            <Text style={styles.sectionHeaderTitle}>{item.title}</Text>
+          </View>
+        );
+      }
+      if (item.type === 'restaurant') {
+        const rest = item.item;
+        return (
+          <Pressable
+            key={rest._id}
+            style={styles.resultItemRow}
+            onPress={() => handleSelectRestaurant(rest._id)}
+          >
+            <View style={styles.resultItemLeft}>
+              <Text style={styles.itemMainTitle} numberOfLines={1}>
+                {rest.name}
+              </Text>
+              <Text style={styles.itemSubtitle} numberOfLines={1}>
+                {rest.cuisines || 'Multi-cuisine'}
+              </Text>
+            </View>
+            <View style={styles.ratingBadge}>
+              <Text style={styles.ratingText}>{rest.rating || 'New'}</Text>
+              <MaterialIcons name="star" size={10} color="#137333" />
+            </View>
+          </Pressable>
+        );
+      }
+      if (item.type === 'dish') {
+        const dish = item.item;
+        const restName = dish.restaurant?.name || 'Local Kitchen';
+        return (
+          <Pressable
+            key={dish._id}
+            style={styles.resultItemRow}
+            onPress={() => handleSelectMenuItem(dish)}
+          >
+            <View style={styles.resultItemLeft}>
+              <View style={styles.dishTitleRow}>
+                <View
+                  style={[
+                    styles.vegIndicator,
+                    { borderColor: dish.isVeg ? '#16a34a' : '#dc2626' },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.vegDot,
+                      { backgroundColor: dish.isVeg ? '#16a34a' : '#dc2626' },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.itemMainTitle} numberOfLines={1}>
+                  {dish.name}
+                </Text>
+                {dish.isFeatured ? <Text style={styles.fireEmoji}>🔥</Text> : null}
+              </View>
+              <Text style={styles.itemSubtitle} numberOfLines={1}>
+                from {restName}
+              </Text>
+            </View>
+            <View style={styles.priceCol}>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceText}>
+                  ₹{dish.discountedPrice &&
+                  Number(dish.discountedPrice) > 0 &&
+                  Number(dish.price) > Number(dish.discountedPrice)
+                    ? dish.discountedPrice
+                    : dish.price}
+                </Text>
+                {dish.discountedPrice &&
+                Number(dish.discountedPrice) > 0 &&
+                Number(dish.price) > Number(dish.discountedPrice) ? (
+                  <Text style={styles.originalPriceText}>₹{dish.price}</Text>
+                ) : null}
+              </View>
+              <DiscountBadge
+                price={dish.price}
+                discountedPrice={dish.discountedPrice}
+                style={styles.searchDiscountBadge}
+              />
+            </View>
+          </Pressable>
+        );
+      }
+      if (item.type === 'grocery') {
+        const prod = item.item;
+        return (
+          <Pressable
+            key={prod._id}
+            style={styles.resultItemRow}
+            onPress={() => handleSelectGrocery(prod)}
+          >
+            <View style={styles.groceryThumbWrapper}>
+              {prod.images && prod.images[0] ? (
+                <OptimizedImage
+                  src={prod.images[0]}
+                  alt={prod.name}
+                  style={styles.groceryThumb}
+                  preset="thumbnail"
+                  contentFit="contain"
+                />
+              ) : (
+                <MaterialIcons
+                  name="shopping-bag"
+                  size={16}
+                  color={Colors.textMuted}
+                />
+              )}
+            </View>
+            <View style={styles.resultItemLeft}>
+              <Text style={styles.itemMainTitle} numberOfLines={1}>
+                {prod.name}
+              </Text>
+              <Text style={styles.itemSubtitle} numberOfLines={1}>
+                {prod.brand || 'Local Brand'}
+                {prod.weightSize ? ` • ${prod.weightSize}` : ''}
+              </Text>
+            </View>
+            <View style={styles.priceCol}>
+              <View style={styles.priceRow}>
+                <Text style={styles.priceText}>
+                  ₹{prod.discountedPrice &&
+                  Number(prod.discountedPrice) > 0 &&
+                  Number(prod.price) > Number(prod.discountedPrice)
+                    ? prod.discountedPrice
+                    : prod.price}
+                </Text>
+                {prod.discountedPrice &&
+                Number(prod.discountedPrice) > 0 &&
+                Number(prod.price) > Number(prod.discountedPrice) ? (
+                  <Text style={styles.originalPriceText}>₹{prod.price}</Text>
+                ) : null}
+              </View>
+              <DiscountBadge
+                price={prod.price}
+                discountedPrice={prod.discountedPrice}
+                style={styles.searchDiscountBadge}
+              />
+            </View>
+          </Pressable>
+        );
+      }
+      return null;
+    },
+    [handleSelectRestaurant, handleSelectMenuItem, handleSelectGrocery]
+  );
 
   const hasResults =
     results.restaurants.length > 0 ||
@@ -398,174 +581,18 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
               </Text>
             </View>
           ) : (
-            <ScrollView
+            <FlatList
+              data={searchData}
+              keyExtractor={(item) => item.key}
+              renderItem={renderSearchRow}
               nestedScrollEnabled={true}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
               style={styles.resultsScroll}
-            >
-              {/* 1. RESTAURANTS SECTION */}
-              {results.restaurants.length > 0 && (
-                <View style={styles.sectionBlock}>
-                  <View style={styles.sectionHeaderRow}>
-                    <MaterialIcons name="storefront" size={15} color={Colors.primary} />
-                    <Text style={styles.sectionHeaderTitle}>RESTAURANTS</Text>
-                  </View>
-                  {results.restaurants.map((rest) => (
-                    <Pressable
-                      key={rest._id}
-                      style={styles.resultItemRow}
-                      onPress={() => handleSelectRestaurant(rest._id)}
-                    >
-                      <View style={styles.resultItemLeft}>
-                        <Text style={styles.itemMainTitle} numberOfLines={1}>
-                          {rest.name}
-                        </Text>
-                        <Text style={styles.itemSubtitle} numberOfLines={1}>
-                          {rest.cuisines || 'Multi-cuisine'}
-                        </Text>
-                      </View>
-                      <View style={styles.ratingBadge}>
-                        <Text style={styles.ratingText}>{rest.rating || 'New'}</Text>
-                        <MaterialIcons name="star" size={10} color="#137333" />
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-
-              {/* 2. DISHES & FOOD SECTION */}
-              {results.menuItems.length > 0 && (
-                <View style={styles.sectionBlock}>
-                  <View style={styles.sectionHeaderRow}>
-                    <MaterialIcons name="restaurant" size={15} color={Colors.primary} />
-                    <Text style={styles.sectionHeaderTitle}>DISHES & FOOD</Text>
-                  </View>
-                  {results.menuItems.map((item) => {
-                    const rId = item.restaurant?._id || item.restaurant;
-                    const restName = item.restaurant?.name || 'Local Kitchen';
-                    return (
-                      <Pressable
-                        key={item._id}
-                        style={styles.resultItemRow}
-                        onPress={() => handleSelectMenuItem(item)}
-                      >
-                        <View style={styles.resultItemLeft}>
-                          <View style={styles.dishTitleRow}>
-                            <View
-                              style={[
-                                styles.vegIndicator,
-                                { borderColor: item.isVeg ? '#16a34a' : '#dc2626' },
-                              ]}
-                            >
-                              <View
-                                style={[
-                                  styles.vegDot,
-                                  { backgroundColor: item.isVeg ? '#16a34a' : '#dc2626' },
-                                ]}
-                              />
-                            </View>
-                            <Text style={styles.itemMainTitle} numberOfLines={1}>
-                              {item.name}
-                            </Text>
-                            {item.isFeatured ? <Text style={styles.fireEmoji}>🔥</Text> : null}
-                          </View>
-                          <Text style={styles.itemSubtitle} numberOfLines={1}>
-                            from {restName}
-                          </Text>
-                        </View>
-                        <View style={styles.priceCol}>
-                          <View style={styles.priceRow}>
-                            <Text style={styles.priceText}>
-                              ₹{item.discountedPrice &&
-                              Number(item.discountedPrice) > 0 &&
-                              Number(item.price) > Number(item.discountedPrice)
-                                ? item.discountedPrice
-                                : item.price}
-                            </Text>
-                            {item.discountedPrice &&
-                            Number(item.discountedPrice) > 0 &&
-                            Number(item.price) > Number(item.discountedPrice) ? (
-                              <Text style={styles.originalPriceText}>₹{item.price}</Text>
-                            ) : null}
-                          </View>
-                          <DiscountBadge
-                            price={item.price}
-                            discountedPrice={item.discountedPrice}
-                            style={styles.searchDiscountBadge}
-                          />
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* 3. GROCERIES SECTION */}
-              {results.groceryProducts.length > 0 && (
-                <View style={styles.sectionBlock}>
-                  <View style={styles.sectionHeaderRow}>
-                    <MaterialIcons name="shopping-basket" size={15} color={Colors.primary} />
-                    <Text style={styles.sectionHeaderTitle}>GROCERIES</Text>
-                  </View>
-                  {results.groceryProducts.map((prod) => (
-                    <Pressable
-                      key={prod._id}
-                      style={styles.resultItemRow}
-                      onPress={() => handleSelectGrocery(prod)}
-                    >
-                      <View style={styles.groceryThumbWrapper}>
-                        {prod.images && prod.images[0] ? (
-                          <OptimizedImage
-                            src={prod.images[0]}
-                            alt={prod.name}
-                            style={styles.groceryThumb}
-                            preset="thumbnail"
-                            contentFit="contain"
-                          />
-                        ) : (
-                          <MaterialIcons
-                            name="shopping-bag"
-                            size={16}
-                            color={Colors.textMuted}
-                          />
-                        )}
-                      </View>
-                      <View style={styles.resultItemLeft}>
-                        <Text style={styles.itemMainTitle} numberOfLines={1}>
-                          {prod.name}
-                        </Text>
-                        <Text style={styles.itemSubtitle} numberOfLines={1}>
-                          {prod.brand || 'Local Brand'}
-                          {prod.weightSize ? ` • ${prod.weightSize}` : ''}
-                        </Text>
-                      </View>
-                      <View style={styles.priceCol}>
-                        <View style={styles.priceRow}>
-                          <Text style={styles.priceText}>
-                            ₹{prod.discountedPrice &&
-                            Number(prod.discountedPrice) > 0 &&
-                            Number(prod.price) > Number(prod.discountedPrice)
-                              ? prod.discountedPrice
-                              : prod.price}
-                          </Text>
-                          {prod.discountedPrice &&
-                          Number(prod.discountedPrice) > 0 &&
-                          Number(prod.price) > Number(prod.discountedPrice) ? (
-                            <Text style={styles.originalPriceText}>₹{prod.price}</Text>
-                          ) : null}
-                        </View>
-                        <DiscountBadge
-                          price={prod.price}
-                          discountedPrice={prod.discountedPrice}
-                          style={styles.searchDiscountBadge}
-                        />
-                      </View>
-                    </Pressable>
-                  ))}
-                </View>
-              )}
-            </ScrollView>
+              initialNumToRender={8}
+              windowSize={7}
+              removeClippedSubviews={Platform.OS === 'android'}
+            />
           )}
         </View>
       ) : null}

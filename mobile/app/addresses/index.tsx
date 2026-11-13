@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, FlatList, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -11,7 +11,7 @@ import {
   Shadows,
   FontFamily,
 } from '../../src/constants/theme';
-import { useLocation, SavedAddress } from '../../src/context/LocationContext';
+import { useLocation } from '../../src/context/LocationContext';
 import LocationSelectorModal from '../../src/components/LocationSelectorModal';
 
 export default function AddressesScreen() {
@@ -31,70 +31,31 @@ export default function AddressesScreen() {
         </Pressable>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Current Active Location */}
-        <Pressable style={styles.currentCard} onPress={() => setIsModalOpen(true)}>
-          <View style={styles.cardHeader}>
-            <MaterialIcons name="my-location" size={18} color={Colors.primary} />
-            <Text style={styles.cardLabel}>Active Delivery Location</Text>
-          </View>
-          <Text style={styles.addressText}>{address || 'Select a delivery location'}</Text>
-          <Text style={styles.tapChangeText}>Tap to change</Text>
-        </Pressable>
+      <FlatList
+        data={savedAddresses}
+        keyExtractor={(addr) => addr._id}
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        ListHeaderComponent={
+          <>
+            <Pressable style={styles.currentCard} onPress={() => setIsModalOpen(true)}>
+              <View style={styles.cardHeader}>
+                <MaterialIcons name="my-location" size={18} color={Colors.primary} />
+                <Text style={styles.cardLabel}>Active Delivery Location</Text>
+              </View>
+              <Text style={styles.addressText}>{address || 'Select a delivery location'}</Text>
+              <Text style={styles.tapChangeText}>Tap to change</Text>
+            </Pressable>
 
-        {/* Saved Addresses List */}
-        {savedAddresses.length > 0 ? (
-          <View style={styles.addressListContainer}>
-            <Text style={styles.sectionHeader}>YOUR ADDRESS BOOK</Text>
-            {savedAddresses.map((addr) => {
-              const isSelected = selectedAddressId === addr._id;
-              let iconName: 'home' | 'work' | 'business' = 'home';
-              if (addr.label === 'Work') iconName = 'work';
-              if (addr.label === 'Other') iconName = 'business';
-
-              return (
-                <Pressable
-                  key={addr._id}
-                  style={[styles.addrCard, isSelected && styles.addrCardSelected]}
-                  onPress={() => setSelectedAddress(addr)}
-                >
-                  <View style={styles.addrCardLeft}>
-                    <View
-                      style={[
-                        styles.iconCircleSmall,
-                        isSelected && styles.iconCircleSmallSelected,
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={iconName}
-                        size={18}
-                        color={isSelected ? Colors.primary : Colors.textSecondary}
-                      />
-                    </View>
-                    <View style={styles.addrTextCol}>
-                      <View style={styles.labelRow}>
-                        <Text style={styles.addrLabel}>{addr.label}</Text>
-                        {addr.isDefault ? (
-                          <View style={styles.defaultBadge}>
-                            <Text style={styles.defaultBadgeText}>Default</Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text style={styles.addrFullText} numberOfLines={2}>
-                        {addr.fullAddress}
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}
-                  >
-                    {isSelected ? <View style={styles.radioInner} /> : null}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : (
+            {savedAddresses.length > 0 && (
+              <Text style={styles.sectionHeader}>YOUR ADDRESS BOOK</Text>
+            )}
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <View style={styles.iconCircle}>
               <MaterialIcons name="home-work" size={40} color={Colors.primary} />
@@ -111,8 +72,55 @@ export default function AddressesScreen() {
               <Text style={styles.addAddressButtonText}>Add New Address</Text>
             </Pressable>
           </View>
-        )}
-      </ScrollView>
+        }
+        renderItem={({ item: addr }) => {
+          const isSelected = selectedAddressId === addr._id;
+          let iconName: 'home' | 'work' | 'business' = 'home';
+          if (addr.label === 'Work') iconName = 'work';
+          if (addr.label === 'Other') iconName = 'business';
+
+          return (
+            <Pressable
+              key={addr._id}
+              style={[styles.addrCard, isSelected && styles.addrCardSelected]}
+              onPress={() => setSelectedAddress(addr)}
+            >
+              <View style={styles.addrCardLeft}>
+                <View
+                  style={[
+                    styles.iconCircleSmall,
+                    isSelected && styles.iconCircleSmallSelected,
+                  ]}
+                >
+                  <MaterialIcons
+                    name={iconName}
+                    size={18}
+                    color={isSelected ? Colors.primary : Colors.textSecondary}
+                  />
+                </View>
+                <View style={styles.addrTextCol}>
+                  <View style={styles.labelRow}>
+                    <Text style={styles.addrLabel}>{addr.label}</Text>
+                    {addr.isDefault ? (
+                      <View style={styles.defaultBadge}>
+                        <Text style={styles.defaultBadgeText}>Default</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                  <Text style={styles.addrFullText} numberOfLines={2}>
+                    {addr.fullAddress}
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}
+              >
+                {isSelected ? <View style={styles.radioInner} /> : null}
+              </View>
+            </Pressable>
+          );
+        }}
+      />
 
       <LocationSelectorModal visible={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </SafeAreaView>
