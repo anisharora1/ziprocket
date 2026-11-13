@@ -310,7 +310,7 @@ export default function OrdersScreen() {
         invalidateOrders();
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Failed to cancel order:', err);
       }
       Alert.alert(
@@ -338,7 +338,7 @@ export default function OrdersScreen() {
         invalidateOrders();
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.warn('Failed to rate order:', err);
       }
       Alert.alert(

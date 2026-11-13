@@ -150,7 +150,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(cartState));
     } catch (e) {
-      if (!hasWarnedSyncFailure) {
+      if (__DEV__ && !hasWarnedSyncFailure) {
         console.warn('[Cart] Failed saving to AsyncStorage:', e);
       }
     }
@@ -180,7 +180,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           }
         }
       } catch (e) {
-        if (!hasWarnedSyncFailure) {
+        if (__DEV__ && !hasWarnedSyncFailure) {
           console.warn('[Cart] Local cart read exception:', e);
         }
       } finally {
@@ -309,7 +309,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
             });
           }
         } catch (err: any) {
-          if (!hasWarnedSyncFailure && !isNetworkError(err)) {
+          if (__DEV__ && !hasWarnedSyncFailure && !isNetworkError(err)) {
             hasWarnedSyncFailure = true;
             console.warn('[Cart] Sync on login failed (operating in offline fallback):', err?.message);
           }
@@ -389,7 +389,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           orderType: cart.orderType,
         });
       } catch (err: any) {
-        if (cartVersionRef.current === currentVersion && !hasWarnedSyncFailure && !isNetworkError(err)) {
+        if (__DEV__ && cartVersionRef.current === currentVersion && !hasWarnedSyncFailure && !isNetworkError(err)) {
           hasWarnedSyncFailure = true;
           console.warn('[Cart] Background sync failed (retaining local state):', err?.message);
         }

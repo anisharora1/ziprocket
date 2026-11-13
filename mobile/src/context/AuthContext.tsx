@@ -59,7 +59,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.deleteItemAsync('token');
       await SecureStore.deleteItemAsync('user');
     } catch (e) {
-      console.warn('[AuthContext] Error clearing SecureStore:', e);
+      if (__DEV__) {
+        console.warn('[AuthContext] Error clearing SecureStore:', e);
+      }
     }
     try {
       await auth().signOut();
@@ -69,7 +71,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await clearPersistedCache();
     } catch (e) {
-      console.warn('[AuthContext] Error clearing persisted cache:', e);
+      if (__DEV__) {
+        console.warn('[AuthContext] Error clearing persisted cache:', e);
+      }
     }
     setToken(null);
     setUser(null);
@@ -81,7 +85,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await SecureStore.setItemAsync('token', newToken);
       await SecureStore.setItemAsync('user', JSON.stringify(newUser));
     } catch (e) {
-      console.warn('[AuthContext] Error persisting token to SecureStore:', e);
+      if (__DEV__) {
+        console.warn('[AuthContext] Error persisting token to SecureStore:', e);
+      }
     }
     setToken(newToken);
     setUser(newUser);
@@ -134,7 +140,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             });
         }
       } catch (err) {
-        console.warn('[AuthContext] Bootstrap error:', err);
+        if (__DEV__) {
+          console.warn('[AuthContext] Bootstrap error:', err);
+        }
       } finally {
         setIsLoading(false);
       }

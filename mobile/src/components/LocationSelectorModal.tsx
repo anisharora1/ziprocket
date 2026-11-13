@@ -86,7 +86,7 @@ export default function LocationSelectorModal({
           setSuggestions(res.data.suggestions || []);
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('Autocomplete search failed:', err);
         }
       } finally {
@@ -156,7 +156,7 @@ export default function LocationSelectorModal({
           fullAddress = details.fullAddress || 'Address unavailable';
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.warn('Reverse geocode failed:', err);
         }
       }
@@ -171,7 +171,7 @@ export default function LocationSelectorModal({
       );
       onClose();
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.error('GPS detection failed:', err);
       }
       const msg = isNetworkError(err)
@@ -208,7 +208,7 @@ export default function LocationSelectorModal({
         onClose();
       }
     } catch (err: any) {
-      if (!isNetworkError(err)) {
+      if (__DEV__ && !isNetworkError(err)) {
         console.error('Failed to select place suggestion:', err);
       }
       setAddressError(
@@ -291,7 +291,7 @@ export default function LocationSelectorModal({
           onClose();
         }
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (__DEV__ && !isNetworkError(err)) {
           console.error('Failed to save address:', err);
         }
         setAddressError(

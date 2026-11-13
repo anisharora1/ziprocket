@@ -167,7 +167,9 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
       try {
         ExpoSpeechRecognitionModule.stop();
       } catch (e) {
-        console.warn('Error stopping speech recognition:', e);
+        if (__DEV__) {
+          console.warn('Error stopping speech recognition:', e);
+        }
       }
       setIsListening(false);
       return;
@@ -202,7 +204,9 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
         continuous: false,
       });
     } catch (err) {
-      console.warn('Speech recognition start error:', err);
+      if (__DEV__) {
+        console.warn('Speech recognition start error:', err);
+      }
       Alert.alert('Voice Search', 'Is phone par voice search available nahi hai');
     }
   };
@@ -236,7 +240,9 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
         if (isNetworkError(err) || !getIsOnline()) {
           setIsOfflineError(true);
         } else {
-          console.warn('[SearchBar] Global search query failed:', err);
+          if (__DEV__) {
+            console.warn('[SearchBar] Global search query failed:', err);
+          }
         }
       } finally {
         setLoading(false);

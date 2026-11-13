@@ -28,7 +28,9 @@ apiClient.interceptors.request.use(
         config.headers.Authorization = `Bearer ${token}`;
       }
     } catch (e) {
-      console.warn('[API Client] Failed to read token from SecureStore:', e);
+      if (__DEV__) {
+        console.warn('[API Client] Failed to read token from SecureStore:', e);
+      }
     }
     return config;
   },
@@ -112,7 +114,9 @@ apiClient.interceptors.response.use(
       try {
         onUnauthorizedCallback();
       } catch (e) {
-        console.warn('[API Client] onUnauthorized handler error:', e);
+        if (__DEV__) {
+          console.warn('[API Client] onUnauthorized handler error:', e);
+        }
       } finally {
         setTimeout(() => {
           isHandlingUnauthorized = false;
