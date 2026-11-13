@@ -74,7 +74,11 @@ export const RestaurantCard = React.memo(function RestaurantCard({
 
   return (
     <Pressable
-      style={[styles.card, !isCurrentlyOpen && styles.closedCard]}
+      style={({ pressed }) => [
+        styles.card,
+        !isCurrentlyOpen && styles.closedCard,
+        pressed && { opacity: 0.85 },
+      ]}
       onPress={() => router.push(`/restaurants/${restaurant._id}` as any)}
     >
       {/* Image banner with dishes carousel */}

@@ -139,7 +139,6 @@ export default function HomeScreen() {
   const listHeader = useMemo(
     () => (
       <View style={styles.headerBody}>
-        <SearchBar inputRef={searchInputRef} />
         <HeroCarousel />
         <Categories />
         <TopRated items={topRatedRestaurants} />
@@ -186,6 +185,12 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <Header />
+
+      {/* Sticky Search Bar under location row */}
+      <View style={styles.stickySearchWrapper}>
+        <SearchBar inputRef={searchInputRef} />
+      </View>
+
       <RestaurantList
         restaurants={homeRestaurants}
         flatListRef={flatListRef}
@@ -210,6 +215,14 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  stickySearchWrapper: {
+    backgroundColor: Colors.background,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+    paddingBottom: Spacing.xs,
+    zIndex: 100,
+    elevation: 4,
   },
   headerBody: {
     paddingHorizontal: Spacing.md,

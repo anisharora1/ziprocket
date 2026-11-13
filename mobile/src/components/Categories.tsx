@@ -21,7 +21,7 @@ export default function Categories() {
   return (
     <View style={styles.container}>
       <Pressable
-        style={styles.card}
+        style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
         onPress={() => router.push('/grocery' as any)}
       >
         {/* Left Side: Tier 3/4 Value Hook & Messaging */}
@@ -33,7 +33,7 @@ export default function Categories() {
 
           <Text style={styles.title}>Roz Ka Rashan, Sabse Sasta!</Text>
 
-          <Text style={styles.subtitle} numberOfLines={2}>
+          <Text style={styles.subtitle} numberOfLines={1}>
             Aata, Dal, Tel, Masale aur Kirana seedhe ghar par
           </Text>
 
@@ -68,15 +68,15 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xxl,
-    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.xl,
+    paddingVertical: Spacing.sm,
     paddingHorizontal: Spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
     borderColor: Colors.borderLight,
-    ...Shadows.md,
+    ...Shadows.sm,
     overflow: 'hidden',
   },
   leftContent: {
@@ -103,28 +103,28 @@ const styles = StyleSheet.create({
   },
   title: {
     fontFamily: FontFamily.extraBold,
-    fontSize: Typography.fontSize.base + 1,
+    fontSize: Typography.fontSize.sm + 1,
     color: Colors.textPrimary,
-    lineHeight: 22,
-    letterSpacing: -0.3,
+    lineHeight: 18,
+    letterSpacing: -0.2,
   },
   subtitle: {
     fontFamily: FontFamily.medium,
-    fontSize: Typography.fontSize.xs,
+    fontSize: 11,
     color: Colors.textSecondary,
-    lineHeight: 16,
-    marginTop: 3,
-    marginBottom: Spacing.sm,
+    lineHeight: 14,
+    marginTop: 2,
+    marginBottom: 4,
   },
   ctaButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
+    paddingHorizontal: Spacing.sm + 2,
+    paddingVertical: 4,
     borderRadius: BorderRadius.full,
     alignSelf: 'flex-start',
-    gap: 4,
+    gap: 3,
     ...Shadows.sm,
   },
   ctaText: {
@@ -134,22 +134,22 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   rightContent: {
-    width: 124,
-    height: 114,
+    width: 86,
+    height: 68,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
   },
   imageBackdrop: {
     position: 'absolute',
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
     backgroundColor: Colors.primaryLight,
   },
   image: {
-    width: 116,
-    height: 110,
+    width: 78,
+    height: 64,
   },
   offerBadge: {
     position: 'absolute',

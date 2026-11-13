@@ -90,8 +90,8 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
-            toValue: 1,
             duration: 600,
+            toValue: 1,
             useNativeDriver: true,
           }),
         ])
@@ -297,24 +297,33 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
     }
   };
 
-  const handleSelectRestaurant = useCallback((id: string) => {
-    setIsOpen(false);
-    Keyboard.dismiss();
-    router.push(`/restaurants/${id}` as any);
-  }, [router]);
+  const handleSelectRestaurant = useCallback(
+    (id: string) => {
+      setIsOpen(false);
+      Keyboard.dismiss();
+      router.push(`/restaurants/${id}` as any);
+    },
+    [router]
+  );
 
-  const handleSelectMenuItem = useCallback((item: any) => {
-    setIsOpen(false);
-    Keyboard.dismiss();
-    const rId = item.restaurant?._id || item.restaurant;
-    router.push(`/restaurants/${rId}` as any);
-  }, [router]);
+  const handleSelectMenuItem = useCallback(
+    (item: any) => {
+      setIsOpen(false);
+      Keyboard.dismiss();
+      const rId = item.restaurant?._id || item.restaurant;
+      router.push(`/restaurants/${rId}` as any);
+    },
+    [router]
+  );
 
-  const handleSelectGrocery = useCallback((prod: any) => {
-    setIsOpen(false);
-    Keyboard.dismiss();
-    router.push(`/grocery?q=${encodeURIComponent(prod.name)}` as any);
-  }, [router]);
+  const handleSelectGrocery = useCallback(
+    (prod: any) => {
+      setIsOpen(false);
+      Keyboard.dismiss();
+      router.push(`/grocery?q=${encodeURIComponent(prod.name)}` as any);
+    },
+    [router]
+  );
 
   type SearchRow =
     | { type: 'header'; key: string; title: string; icon: any }
@@ -360,7 +369,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
         return (
           <Pressable
             key={rest._id}
-            style={styles.resultItemRow}
+            style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
             onPress={() => handleSelectRestaurant(rest._id)}
           >
             <View style={styles.resultItemLeft}>
@@ -384,7 +393,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
         return (
           <Pressable
             key={dish._id}
-            style={styles.resultItemRow}
+            style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
             onPress={() => handleSelectMenuItem(dish)}
           >
             <View style={styles.resultItemLeft}>
@@ -440,7 +449,7 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
         return (
           <Pressable
             key={prod._id}
-            style={styles.resultItemRow}
+            style={({ pressed }) => [styles.resultItemRow, pressed && { opacity: 0.85 }]}
             onPress={() => handleSelectGrocery(prod)}
           >
             <View style={styles.groceryThumbWrapper}>
@@ -530,14 +539,18 @@ export default function SearchBar({ inputRef, onFocus, onBlur }: SearchBarProps)
           autoCorrect={false}
         />
         {query.length > 0 && !isListening ? (
-          <Pressable onPress={clearSearch} style={styles.actionBtn}>
+          <Pressable
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={clearSearch}
+            style={({ pressed }) => [styles.actionBtn, pressed && { opacity: 0.85 }]}
+          >
             <MaterialIcons name="close" size={18} color={Colors.textMuted} />
           </Pressable>
         ) : (
           <Pressable
-            hitSlop={10}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             onPress={handleMicPress}
-            style={styles.micActionBtn}
+            style={({ pressed }) => [styles.micActionBtn, pressed && { opacity: 0.85 }]}
             accessibilityRole="button"
             accessibilityLabel={
               isListening ? 'Listening, tap to stop' : 'Search with voice'
@@ -628,10 +641,12 @@ const styles = StyleSheet.create({
     padding: Spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
+    minWidth: 44,
+    minHeight: 44,
   },
   micActionBtn: {
-    width: 32,
-    height: 32,
+    minWidth: 44,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
