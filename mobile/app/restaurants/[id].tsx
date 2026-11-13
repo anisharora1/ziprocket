@@ -1,8 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   ScrollView,
+  SectionList,
+  Platform,
   Pressable,
   ActivityIndicator,
   TextInput,
@@ -128,17 +130,13 @@ export default function RestaurantDetailScreen() {
     }, {} as Record<string, MenuItemType[]>);
   }, [filteredMenuItems]);
 
-  const displayedCategories = useMemo(() => {
-    if (activeCategory !== 'All') {
-      return categories.filter((c) => c === activeCategory && (groupedItems[c] || []).length > 0);
-    }
-    return categories.filter((c) => (groupedItems[c] || []).length > 0);
-  }, [categories, activeCategory, groupedItems]);
-
-  const getCartQuantity = (itemId: string) => {
-    const found = cart.items.find((i) => i.id === `food-${itemId}` || i.id === itemId);
-    return found ? found.quantity : 0;
-  };
+  const getCartQuantity = useCallback(
+    (itemId: string) => {
+      const found = cart.items.find((i) => i.id === `food-${itemId}` || i.id === itemId);
+      return found ? found.quantity : 0;
+    },
+    [cart.items]
+  );
 
   const getEffectivePrice = useCallback((item: MenuItemType) => {
     if (
@@ -208,6 +206,113 @@ export default function RestaurantDetailScreen() {
     ? formatToAMPM(restaurant.operatingHours.open)
     : '';
 
+  const sectionListRef = useRef<SectionList<MenuItemType, { title: string; data: MenuItemType[] }>>(null);
+
+  const sections = useMemo(() => {
+    return categories
+      .map((cat) => ({
+        title: cat,
+        data: groupedItems[cat] || [],
+      }))
+      .filter((sec) => sec.data.length > 0);
+  }, [categories, groupedItems]);
+
+  const handleCategoryPress = useCallback(
+    (cat: string) => {
+      setActiveCategory(cat);
+      if (cat === 'All') {
+        sectionListRef.current?.scrollToLocation({
+          sectionIndex: 0,
+          itemIndex: 0,
+          animated: true,
+          viewOffset: 10,
+        });
+        return;
+      }
+      const sectionIndex = sections.findIndex((s) => s.title === cat);
+      if (sectionIndex >= 0) {
+        sectionListRef.current?.scrollToLocation({
+          sectionIndex,
+          itemIndex: 0,
+          animated: true,
+          viewOffset: 10,
+        });
+      }
+    },
+    [sections]
+  );
+
+  const handleScrollToIndexFailed = useCallback(
+    (info: { index: number; highestMeasuredFrameIndex: number; averageItemLength: number }) => {
+      (sectionListRef.current as any)?.scrollToLocation?.({
+        sectionIndex: 0,
+        itemIndex: 0,
+        animated: true,
+      });
+    },
+    []
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section: { title, data } }: { section: { title: string; data: MenuItemType[] } }) => (
+      <View style={styles.categoryHeader}>
+        <Text style={styles.categoryTitle}>{title}</Text>
+        <View style={styles.categoryBadge}>
+          <Text style={styles.categoryBadgeText}>
+            {data.length} {data.length === 1 ? 'item' : 'items'}
+          </Text>
+        </View>
+      </View>
+    ),
+    []
+  );
+
+  const renderItem = useCallback(
+    ({
+      item,
+      index,
+      section,
+    }: {
+      item: MenuItemType;
+      index: number;
+      section: { data: MenuItemType[] };
+    }) => {
+      const qty = getCartQuantity(item._id);
+      const effectivePrice = getEffectivePrice(item);
+      const isItemDisabled =
+        !item.isAvailable ||
+        isOrderingDisabled ||
+        restaurant.isActive === false ||
+        restaurant.availabilityStatus !== 'open';
+      const isLastItem = index === section.data.length - 1;
+
+      return (
+        <View style={styles.dishRowWrapper}>
+          <RestaurantDishRow
+            item={item}
+            qty={qty}
+            effectivePrice={effectivePrice}
+            isItemDisabled={isItemDisabled}
+            isLastItem={isLastItem}
+            onSelect={handleSelectItem}
+            onAddItem={handleAddItem}
+            onUpdateQuantity={handleUpdateQuantity}
+          />
+        </View>
+      );
+    },
+    [
+      getCartQuantity,
+      getEffectivePrice,
+      isOrderingDisabled,
+      restaurant?.isActive,
+      restaurant?.availabilityStatus,
+      handleSelectItem,
+      handleAddItem,
+      handleUpdateQuantity,
+    ]
+  );
+
   const handleRetry = () => {
     refetchRest();
     refetchMenu();
@@ -270,32 +375,10 @@ export default function RestaurantDetailScreen() {
     );
   }
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Custom Top Navigation Bar */}
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
-        </Pressable>
-        <Text style={styles.topBarTitle} numberOfLines={1}>
-          {restaurant.name}
-        </Text>
-        <View style={styles.topBarActions}>
-          <Pressable onPress={handleShare} style={styles.topIconBtn}>
-            <MaterialIcons name="share" size={20} color={Colors.textSecondary} />
-          </Pressable>
-        </View>
-      </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.scrollContent,
-          { paddingBottom: insets.bottom + 80 },
-        ]}
-        showsVerticalScrollIndicator={false}
-        stickyHeaderIndices={[2]}
-      >
-        {/* Child 0: Restaurant Hero Card */}
+  const listHeader = (
+    <View>
+      {/* Child 0: Restaurant Hero Card */}
         <View key="hero-card" style={styles.heroCard}>
           <View style={styles.heroRow}>
             <View style={{ flex: 1 }}>
@@ -427,7 +510,7 @@ export default function RestaurantDetailScreen() {
             >
               <Pressable
                 style={[styles.categoryPill, activeCategory === 'All' && styles.categoryPillActive]}
-                onPress={() => setActiveCategory('All')}
+                onPress={() => handleCategoryPress('All')}
               >
                 <Text
                   style={[
@@ -444,7 +527,7 @@ export default function RestaurantDetailScreen() {
                   <Pressable
                     key={cat}
                     style={[styles.categoryPill, activeCategory === cat && styles.categoryPillActive]}
-                    onPress={() => setActiveCategory(cat)}
+                    onPress={() => handleCategoryPress(cat)}
                   >
                     <Text
                       style={[
@@ -460,87 +543,81 @@ export default function RestaurantDetailScreen() {
             </ScrollView>
           )}
         </View>
+    </View>
+  );
 
-        {/* Child 3 (or 2): Menu Items Content List */}
-        <View key="menu-container" style={styles.menuContainer}>
-          {!menuItems || menuItems.length === 0 ? (
-            !isOnline || menuFetchStatus === 'paused' || menuError ? (
-              <OfflineState compact onRetry={refetchMenu} />
-            ) : (
-              <View style={styles.emptyStateBox}>
-                <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
-                <Text style={styles.emptyTitle}>No Menu Items Available</Text>
-                <Text style={styles.emptySubtitle}>
-                  This restaurant has not listed any dishes on their menu yet.
-                </Text>
-              </View>
-            )
-          ) : filteredMenuItems.length === 0 ? (
-            <View style={styles.emptyStateBox}>
-              <MaterialIcons name="search" size={48} color={Colors.textMuted} />
-              <Text style={styles.emptyTitle}>No Matching Dishes Found</Text>
-              <Text style={styles.emptySubtitle}>
-                {vegOnly
-                  ? 'No pure vegetarian items match your filter.'
-                  : `No dishes match "${searchQuery}".`}
-              </Text>
-              <Pressable
-                style={styles.clearFilterBtn}
-                onPress={() => {
-                  setSearchQuery('');
-                  setVegOnly(false);
-                  setActiveCategory('All');
-                }}
-              >
-                <Text style={styles.clearFilterText}>CLEAR ALL FILTERS</Text>
-              </Pressable>
-            </View>
-          ) : (
-            displayedCategories.map((category) => {
-              const items = groupedItems[category] || [];
-              if (items.length === 0) return null;
-
-              return (
-                <View key={`cat-${category}`} style={styles.categorySection}>
-                  <View style={styles.categoryHeader}>
-                    <Text style={styles.categoryTitle}>{category}</Text>
-                    <View style={styles.categoryBadge}>
-                      <Text style={styles.categoryBadgeText}>
-                        {items.length} {items.length === 1 ? 'item' : 'items'}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {items.map((item, index) => {
-                    const qty = getCartQuantity(item._id);
-                    const effectivePrice = getEffectivePrice(item);
-                    const isItemDisabled =
-                      !item.isAvailable ||
-                      isOrderingDisabled ||
-                      restaurant.isActive === false ||
-                      restaurant.availabilityStatus !== 'open';
-                    const isLastItem = index === items.length - 1;
-
-                    return (
-                      <RestaurantDishRow
-                        key={item._id}
-                        item={item}
-                        qty={qty}
-                        effectivePrice={effectivePrice}
-                        isItemDisabled={isItemDisabled}
-                        isLastItem={isLastItem}
-                        onSelect={handleSelectItem}
-                        onAddItem={handleAddItem}
-                        onUpdateQuantity={handleUpdateQuantity}
-                      />
-                    );
-                  })}
-                </View>
-              );
-            })
-          )}
+  const listEmpty = (
+    <View style={styles.menuContainer}>
+      {!menuItems || menuItems.length === 0 ? (
+        !isOnline || menuFetchStatus === 'paused' || menuError ? (
+          <OfflineState compact onRetry={refetchMenu} />
+        ) : (
+          <View style={styles.emptyStateBox}>
+            <MaterialIcons name="restaurant-menu" size={48} color={Colors.textMuted} />
+            <Text style={styles.emptyTitle}>No Menu Items Available</Text>
+            <Text style={styles.emptySubtitle}>
+              This restaurant has not listed any dishes on their menu yet.
+            </Text>
+          </View>
+        )
+      ) : filteredMenuItems.length === 0 ? (
+        <View style={styles.emptyStateBox}>
+          <MaterialIcons name="search" size={48} color={Colors.textMuted} />
+          <Text style={styles.emptyTitle}>No Matching Dishes Found</Text>
+          <Text style={styles.emptySubtitle}>
+            {vegOnly
+              ? 'No pure vegetarian items match your filter.'
+              : `No dishes match "${searchQuery}".`}
+          </Text>
+          <Pressable
+            style={styles.clearFilterBtn}
+            onPress={() => {
+              setSearchQuery('');
+              setVegOnly(false);
+              setActiveCategory('All');
+            }}
+          >
+            <Text style={styles.clearFilterText}>CLEAR ALL FILTERS</Text>
+          </Pressable>
         </View>
-      </ScrollView>
+      ) : null}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
+      {/* Custom Top Navigation Bar */}
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+          <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
+        </Pressable>
+        <Text style={styles.topBarTitle} numberOfLines={1}>
+          {restaurant.name}
+        </Text>
+        <View style={styles.topBarActions}>
+          <Pressable onPress={handleShare} style={styles.topIconBtn}>
+            <MaterialIcons name="share" size={20} color={Colors.textSecondary} />
+          </Pressable>
+        </View>
+      </View>
+
+      <SectionList<MenuItemType, { title: string; data: MenuItemType[] }>
+        ref={sectionListRef}
+        sections={sections}
+        keyExtractor={(item) => item._id}
+        renderItem={renderItem}
+        renderSectionHeader={renderSectionHeader}
+        stickySectionHeadersEnabled={true}
+        ListHeaderComponent={listHeader}
+        ListFooterComponent={<View style={{ height: insets.bottom + 80 }} />}
+        ListEmptyComponent={listEmpty}
+        initialNumToRender={8}
+        windowSize={7}
+        removeClippedSubviews={Platform.OS === 'android'}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        onScrollToIndexFailed={handleScrollToIndexFailed}
+      />
 
       {/* Floating Bottom Cart Bar */}
       <FloatingCartButton />
@@ -1049,10 +1126,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
-    marginBottom: Spacing.xs,
+  },
+  dishRowWrapper: {
+    paddingHorizontal: Spacing.md,
   },
   categoryTitle: {
     fontFamily: FontFamily.extraBold,
