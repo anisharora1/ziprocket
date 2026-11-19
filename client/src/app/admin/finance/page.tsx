@@ -2,16 +2,16 @@
 
 import React, { useEffect, useState } from "react";
 import { apiClient } from "@/services/api";
-import { 
-  MdCalculate, 
-  MdPayments, 
-  MdTrendingUp, 
-  MdHourglassEmpty, 
-  MdPriceCheck, 
-  MdSearch, 
-  MdDownloadForOffline, 
-  MdAccountBalanceWallet, 
-  MdAccountBalance, 
+import {
+  MdCalculate,
+  MdPayments,
+  MdTrendingUp,
+  MdHourglassEmpty,
+  MdPriceCheck,
+  MdSearch,
+  MdDownloadForOffline,
+  MdAccountBalanceWallet,
+  MdAccountBalance,
   MdClose,
   MdCheckCircle,
   MdHistory
@@ -38,7 +38,7 @@ interface Payout {
   periodStartDate: string;
   periodEndDate: string;
   periodIdentifier: string;
-  
+
   totalOrders: number;
   totalRevenue: number;
   platformCommission: number;
@@ -48,7 +48,7 @@ interface Payout {
   onlinePayments: number;
   finalPayoutAmount: number;
   isEstimatedMargin?: boolean;
-  
+
   status: "pending" | "processing" | "paid" | "failed";
   paymentDetails?: {
     transactionId?: string;
@@ -86,7 +86,7 @@ function getSettlementPeriod(referenceDate: Date) {
   return { periodStart, periodEnd, identifier };
 }
 
-function generatePeriodOptions(count = 12) {
+function generatePeriodOptions(count = 20) {
   const options: { id: string; name: string; date: string; periodStart: Date; periodEnd: Date }[] = [];
   const now = new Date();
   for (let i = 0; i < count; i++) {
@@ -112,7 +112,7 @@ export default function FinanceAdminPage() {
   });
   const [groceryAnalytics, setGroceryAnalytics] = useState<GroceryAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Filters
   const [selectedPeriod, setSelectedPeriod] = useState(PERIOD_OPTIONS[0].id);
   const [activeTab, setActiveTab] = useState<"restaurant" | "delivery" | "grocery">("restaurant");
@@ -265,7 +265,7 @@ export default function FinanceAdminPage() {
 
   return (
     <div className="flex-1 p-6 md:p-8 bg-slate-50/30 flex flex-col min-w-0 overflow-y-auto">
-      
+
       {/* Page Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
         <div className="max-w-2xl">
@@ -286,7 +286,7 @@ export default function FinanceAdminPage() {
             ))}
           </select>
 
-          <button 
+          <button
             onClick={handleCalculateSettlements}
             className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-2xl text-[12px] font-bold transition-all active:scale-95 flex items-center gap-2 shadow-sm"
           >
@@ -341,9 +341,8 @@ export default function FinanceAdminPage() {
             <h3 className={`text-3xl font-black leading-none ${stats.codCashToCollect > 2000 ? "text-rose-600" : "text-slate-800"}`}>
               ₹{stats.codCashToCollect.toLocaleString()}
             </h3>
-            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-              stats.codCashToCollect > 2000 ? "bg-rose-100 text-rose-600 animate-bounce" : "bg-rose-50 text-rose-500"
-            }`}>
+            <span className={`w-9 h-9 rounded-xl flex items-center justify-center ${stats.codCashToCollect > 2000 ? "bg-rose-100 text-rose-600 animate-bounce" : "bg-rose-50 text-rose-500"
+              }`}>
               <MdPriceCheck className="text-[20px]" />
             </span>
           </div>
@@ -352,36 +351,33 @@ export default function FinanceAdminPage() {
 
       {/* Main Operations Card */}
       <div className="bg-white min-h-[450px] rounded-3xl border border-slate-100 shadow-sm flex flex-col overflow-hidden mb-8">
-        
+
         {/* Navigation Tabs Bar */}
         <div className="flex border-b border-slate-100 bg-slate-50/20">
           <button
             onClick={() => setActiveTab("restaurant")}
-            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${
-              activeTab === "restaurant" 
-                ? "border-[#FF5C00] text-[#FF5C00] bg-white" 
+            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${activeTab === "restaurant"
+                ? "border-[#FF5C00] text-[#FF5C00] bg-white"
                 : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
+              }`}
           >
             Restaurant Settlements
           </button>
           <button
             onClick={() => setActiveTab("delivery")}
-            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${
-              activeTab === "delivery" 
-                ? "border-[#FF5C00] text-[#FF5C00] bg-white" 
+            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${activeTab === "delivery"
+                ? "border-[#FF5C00] text-[#FF5C00] bg-white"
                 : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
+              }`}
           >
             Delivery Boy Payouts
           </button>
           <button
             onClick={() => setActiveTab("grocery")}
-            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${
-              activeTab === "grocery" 
-                ? "border-[#FF5C00] text-[#FF5C00] bg-white" 
+            className={`flex-1 py-4 text-center text-xs font-black uppercase tracking-wider transition-all border-b-2 ${activeTab === "grocery"
+                ? "border-[#FF5C00] text-[#FF5C00] bg-white"
                 : "border-transparent text-slate-500 hover:text-slate-700"
-            }`}
+              }`}
           >
             Grocery Revenue
           </button>
@@ -518,7 +514,7 @@ export default function FinanceAdminPage() {
                   const name = p.recipientType === "restaurant" ? p.restaurant?.name : p.deliveryBoy?.name;
                   const phone = p.recipientType === "restaurant" ? p.restaurant?.phone : p.deliveryBoy?.phone;
                   const hasAudit = p.auditLogs && p.auditLogs.length > 0;
-                  
+
                   return (
                     <tr key={p._id} className="hover:bg-slate-50/30 transition-colors">
                       {/* Name Details */}
@@ -567,24 +563,22 @@ export default function FinanceAdminPage() {
 
                       {/* Status & UTR */}
                       <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase ${
-                          p.status === "paid"
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black tracking-widest uppercase ${p.status === "paid"
                             ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             : p.status === "processing"
-                            ? "bg-blue-50 text-blue-700 border border-blue-200"
-                            : p.status === "failed"
-                            ? "bg-rose-50 text-rose-700 border border-rose-200"
-                            : "bg-amber-50 text-amber-700 border border-amber-200"
-                        }`}>
-                          <span className={`w-1.5 h-1.5 rounded-full ${
-                            p.status === "paid"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200"
+                              : p.status === "failed"
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                : "bg-amber-50 text-amber-700 border border-amber-200"
+                          }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${p.status === "paid"
                               ? "bg-emerald-500"
                               : p.status === "processing"
-                              ? "bg-blue-500"
-                              : p.status === "failed"
-                              ? "bg-rose-500"
-                              : "bg-amber-500"
-                          }`}></span>
+                                ? "bg-blue-500"
+                                : p.status === "failed"
+                                  ? "bg-rose-500"
+                                  : "bg-amber-500"
+                            }`}></span>
                           {p.status}
                         </span>
                         {p.paymentDetails?.transactionId && (
@@ -606,11 +600,10 @@ export default function FinanceAdminPage() {
                       <td className="py-4 px-6 text-right">
                         <button
                           onClick={() => openSettleModal(p)}
-                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1 ${
-                            p.status === "paid"
+                          className={`px-3.5 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wider transition-colors inline-flex items-center gap-1 ${p.status === "paid"
                               ? "bg-slate-100 hover:bg-slate-200 text-slate-700"
                               : "bg-[#FF5C00] hover:bg-[#e05200] text-white shadow-sm"
-                          }`}
+                            }`}
                         >
                           <MdAccountBalance className="text-[14px]" />
                           {p.status === "paid" ? "Edit / Correct UTR" : "Mark as Paid"}
@@ -634,7 +627,7 @@ export default function FinanceAdminPage() {
               <h3 className="font-black text-lg text-slate-900">
                 {selectedPayout.status === "paid" ? "Update / Correct Payment" : "Confirm Settlement Payment"}
               </h3>
-              <button 
+              <button
                 onClick={() => setSelectedPayout(null)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors"
               >
@@ -746,7 +739,7 @@ export default function FinanceAdminPage() {
                   Payout #{showAuditLogs._id.slice(-6).toUpperCase()} · {formatPeriod(showAuditLogs)}
                 </p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowAuditLogs(null)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100"
               >
