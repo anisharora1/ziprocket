@@ -23,6 +23,7 @@ import {
   MdChevronRight,
   MdRocketLaunch,
   MdNotificationsActive,
+  MdPalette,
 } from 'react-icons/md';
 
 const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -40,6 +41,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   shield_person: MdAdminPanelSettings,
   account_balance_wallet: MdAccountBalanceWallet,
   alt_route: MdAltRoute,
+  palette: MdPalette,
 };
 
 export default function AdminSidebar() {
@@ -57,6 +59,7 @@ export default function AdminSidebar() {
     { name: 'Platform Management', href: '/admin/platform', iconKey: 'settings_suggest' },
     { name: 'Applications', href: '/admin/applications', iconKey: 'approval' },
     { name: 'Delivery Zones', href: '/admin/zones', iconKey: 'map' },
+    { name: 'Theme Campaigns', href: '/admin/theme-campaigns', iconKey: 'palette' },
     { name: 'Restaurants', href: '/admin/restaurants', iconKey: 'storefront' },
     { name: 'Personnel', href: '/admin/delivery', iconKey: 'directions_bike' },
     { name: 'Delivery Operations', href: '/admin/delivery-ops', iconKey: 'alt_route' },
