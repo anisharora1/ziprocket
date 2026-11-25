@@ -32,6 +32,7 @@ import promotionsRoutes from "./routes/promotionsRoutes";
 import platformRoutes from "./routes/platformRoutes";
 import notificationRoutes from "./routes/notificationRoutes";
 import adminNotificationRoutes from "./routes/adminNotificationRoutes";
+import appConfigRoutes from "./routes/appConfigRoutes";
 import { responseStandardizer } from "./middlewares/responseStandardizer";
 
 const app = express();
@@ -115,6 +116,7 @@ app.use("/api/promotions", promotionsRoutes);
 app.use("/api/platform", platformRoutes);
 app.use("/api/applications", applicationRoutes);
 app.use("/api/notifications", notificationRoutes);
+app.use("/api/app-config", appConfigRoutes);
 
 app.get("/", (req, res) => {
   res.send("API Running 🚀");

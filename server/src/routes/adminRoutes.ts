@@ -25,6 +25,13 @@ import {
     deletePromotion,
     updateRestaurantAvailability
 } from "../controllers/adminController";
+import {
+    listThemeCampaigns,
+    createThemeCampaign,
+    updateThemeCampaign,
+    toggleThemeCampaign,
+    deleteThemeCampaign
+} from "../controllers/themeCampaignController";
 import { protect, authorize } from "../middlewares/authMiddleware";
 import { adminLimiter } from "../middlewares/rateLimitMiddleware";
 import { validateObjectId } from "../middlewares/authSecurityMiddleware";
@@ -78,5 +85,12 @@ router.get("/promotions", getAllPromotions);
 router.post("/promotions", createPromotion);
 router.patch("/promotions/:id/status", validateObjectId(["id"]), togglePromotionStatus);
 router.delete("/promotions/:id", validateObjectId(["id"]), deletePromotion);
+
+// Theme Campaigns Management
+router.get("/theme-campaigns", listThemeCampaigns);
+router.post("/theme-campaigns", createThemeCampaign);
+router.put("/theme-campaigns/:id", validateObjectId(["id"]), updateThemeCampaign);
+router.patch("/theme-campaigns/:id/toggle", validateObjectId(["id"]), toggleThemeCampaign);
+router.delete("/theme-campaigns/:id", validateObjectId(["id"]), deleteThemeCampaign);
 
 export default router;
