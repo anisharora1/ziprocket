@@ -52,10 +52,10 @@ function Categories() {
               styles.imageBackdrop,
               themeColors
                 ? {
-                    backgroundColor: Colors.white,
-                    borderWidth: 2,
-                    borderColor: themeColors.accent,
-                  }
+                  backgroundColor: Colors.white,
+                  borderWidth: 2,
+                  borderColor: themeColors.accent,
+                }
                 : null,
             ]}
           />
@@ -157,29 +157,31 @@ const styles = StyleSheet.create({
   },
   imageBackdrop: {
     position: 'absolute',
-    width: 58,
-    height: 58,
+    width: 68,
+    height: 68,
     borderRadius: 29,
     backgroundColor: Colors.primaryLight,
   },
   image: {
-    width: 78,
-    height: 64,
+    width: 95,
+    height: 80,
   },
   offerBadge: {
-    position: 'absolute',
-    bottom: 0,
+    position: 'relative',
+    bottom: 6,
     right: 2,
     backgroundColor: Colors.success,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: BorderRadius.full,
+    alignSelf: 'center',
     ...Shadows.sm,
   },
   offerBadgeText: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 9,
+    fontSize: 8,
     color: Colors.white,
     letterSpacing: 0.3,
+    textAlign: 'center'
   },
 });

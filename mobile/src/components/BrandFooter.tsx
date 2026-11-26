@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialIcons } from '@expo/vector-icons';
+import { MaterialIcons, Foundation } from '@expo/vector-icons';
 import { Colors, FontFamily } from '../constants/theme';
 
 export default function BrandFooter() {
@@ -9,15 +9,15 @@ export default function BrandFooter() {
   const { width } = useWindowDimensions();
 
   const isSmallScreen = width < 360;
-  const headingFontSize = isSmallScreen ? 34 : 40;
-  const headingLineHeight = Math.round(headingFontSize * 1.06);
+  const headingFontSize = isSmallScreen ? 48 : 58;
+  const headingLineHeight = Math.round(headingFontSize * 0.98);
 
   return (
     <View
       style={[
         styles.container,
         {
-          paddingBottom: Math.max(insets.bottom, 16) + 120,
+          paddingBottom: Math.max(insets.bottom, 12),
         },
       ]}
     >
@@ -33,16 +33,26 @@ export default function BrandFooter() {
         >
           Aapka apna
         </Text>
-        <Text
-          style={[
-            styles.mutedHeadingText,
-            { fontSize: headingFontSize, lineHeight: headingLineHeight },
-          ]}
-          adjustsFontSizeToFit
-          numberOfLines={1}
-        >
-          delivery app ❤️
-        </Text>
+        <View style={styles.deliveryRow}>
+          <Text
+            style={[
+              styles.mutedHeadingText,
+              styles.deliveryText,
+              { fontSize: headingFontSize, lineHeight: headingLineHeight },
+            ]}
+            adjustsFontSizeToFit
+            numberOfLines={1}
+          >
+            Delivery App
+          </Text>
+          <Foundation
+            name="heart"
+            size={Math.round(headingFontSize * 0.72)}
+            color="#e83b3bbd"
+            style={styles.heartIcon}
+          />
+        </View>
+
       </View>
       <View style={styles.brandRow}>
         <Text
@@ -80,22 +90,33 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     backgroundColor: 'transparent',
-    paddingHorizontal: 32,
-    paddingTop: 58,
+    paddingHorizontal: 20,
+    paddingTop: 38,
   },
   headingBlock: {
-    marginBottom: 25,
+    marginBottom: 35,
   },
   mutedHeadingText: {
     fontFamily: FontFamily.extraBold,
     fontWeight: '800',
-    color: Colors.footerMuted,
-    letterSpacing: -1,
+    color: '#8d8686ff',
+    letterSpacing: -2,
   },
   brandRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
+  },
+  deliveryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  deliveryText: {
+    flexShrink: 1,
+  },
+  heartIcon: {
+    marginTop: 4,
   },
   brandText: {
     fontFamily: FontFamily.extraBold,

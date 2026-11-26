@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
 import { useThemeColors } from '../context/ThemeCampaignProvider';
@@ -39,7 +38,7 @@ function Header() {
           >
             <MaterialIcons
               name={isLoading ? 'hourglass-empty' : 'location-on'}
-              size={20}
+              size={22}
               color={headerTextColor || Colors.primary}
             />
           </View>
@@ -50,7 +49,7 @@ function Header() {
                 headerTextColor ? { color: headerTextColor } : null,
               ]}
             >
-              Deliver to
+              Deliver To
             </Text>
             <Text
               style={[
@@ -64,7 +63,7 @@ function Header() {
           </View>
           <MaterialIcons
             name="keyboard-arrow-down"
-            size={20}
+            size={22}
             color={headerTextColor || Colors.textMuted}
           />
         </Pressable>
@@ -103,14 +102,13 @@ const styles = StyleSheet.create({
   locationButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.xs + 2,
+    gap: Spacing.sm,
     flex: 1,
-    marginRight: Spacing.md,
     minHeight: 44,
   },
   pinCircle: {
-    width: 32,
-    height: 32,
+    width: 38,
+    height: 38,
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.primaryAlpha10,
     alignItems: 'center',
@@ -121,16 +119,16 @@ const styles = StyleSheet.create({
   },
   deliverToLabel: {
     fontFamily: FontFamily.bold,
-    fontSize: Typography.fontSize.sm + 1,
+    fontSize: Typography.fontSize.base,
     fontWeight: Typography.fontWeight.bold,
     color: Colors.textPrimary,
-    lineHeight: 18,
+    lineHeight: 22,
   },
   addressText: {
     fontFamily: FontFamily.medium,
-    fontSize: Typography.fontSize.xs,
+    fontSize: Typography.fontSize.md,
     color: Colors.textSecondary,
-    lineHeight: 15,
+    lineHeight: 18,
   },
   avatarButton: {
     alignItems: 'center',
