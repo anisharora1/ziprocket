@@ -147,24 +147,32 @@ export default function HomeScreen() {
 
   const listHeader = useMemo(
     () => (
-      <View style={styles.headerBody}>
-        <HeroCarousel />
-        <Categories />
-        <ThemeProductStrips />
-        <TopRated items={topRatedRestaurants} />
-        {restaurants.length === 0 &&
-        (isRestaurantsError ||
-          restaurantsFetchStatus === 'paused' ||
-          !isOnline) ? (
-          <OfflineState compact onRetry={handleRefresh} />
-        ) : isLoading && restaurants.length === 0 ? (
-          <View style={styles.centerLoading}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-          </View>
+      <View>
+        {themeColors ? (
+          <View
+            pointerEvents="none"
+            style={[styles.stageExtension, { backgroundColor: themeColors.stageTo }]} />
         ) : null}
+        <View style={styles.headerBody}>
+          <HeroCarousel />
+          <Categories />
+          <ThemeProductStrips />
+          <TopRated items={topRatedRestaurants} />
+          {restaurants.length === 0 &&
+            (isRestaurantsError ||
+              restaurantsFetchStatus === 'paused' ||
+              !isOnline) ? (
+            <OfflineState compact onRetry={handleRefresh} />
+          ) : isLoading && restaurants.length === 0 ? (
+            <View style={styles.centerLoading}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+            </View>
+          ) : null}
+        </View>
       </View>
     ),
     [
+      themeColors,
       topRatedRestaurants,
       restaurants.length,
       isRestaurantsError,
@@ -271,11 +279,18 @@ const styles = StyleSheet.create({
   },
   themedStage: {
     position: 'relative',
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
     paddingBottom: Spacing.sm,
     overflow: 'hidden',
     zIndex: 100,
+  },
+  stageExtension: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 56,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
   themedSearchWrapper: {
     backgroundColor: 'transparent',
