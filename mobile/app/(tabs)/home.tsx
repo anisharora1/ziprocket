@@ -18,6 +18,7 @@ import SearchBar from '../../src/components/SearchBar';
 import HeroCarousel from '../../src/components/HeroCarousel';
 import Categories from '../../src/components/Categories';
 import ThemeProductStrips from '../../src/components/ThemeProductStrips';
+import ThemeOverlay from '../../src/components/ThemeOverlay';
 import TopRated from '../../src/components/TopRated';
 import RestaurantList from '../../src/components/RestaurantList';
 import PopularGroceries from '../../src/components/PopularGroceries';
@@ -27,7 +28,11 @@ import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
 import { searchFocusStore } from '../../src/services/searchFocusStore';
 import { useLocation } from '../../src/context/LocationContext';
-import { useThemeColors, useThemeImages } from '../../src/context/ThemeCampaignProvider';
+import {
+  useThemeColors,
+  useThemeImages,
+  useThemeOverlay,
+} from '../../src/context/ThemeCampaignProvider';
 import { isLightColor } from '../../src/utils/themeCampaign';
 import { useIsOnline } from '../../src/services/network';
 import OfflineState from '../../src/components/OfflineState';
@@ -45,6 +50,7 @@ export default function HomeScreen() {
   const { zoneId } = useLocation();
   const themeColors = useThemeColors();
   const themeImages = useThemeImages();
+  const themeOverlay = useThemeOverlay();
 
   // Seed that increments only on pull-to-refresh to trigger random reshuffle without re-render jumping
   const [shuffleSeed, setShuffleSeed] = useState(0);
@@ -228,9 +234,14 @@ export default function HomeScreen() {
               pointerEvents="none"
             />
           ) : null}
-          <Header />
-          <View style={[styles.stickySearchWrapper, styles.themedSearchWrapper]}>
-            <SearchBar inputRef={searchInputRef} />
+          {themeOverlay?.placement === 'header' ? (
+            <ThemeOverlay placement="header" />
+          ) : null}
+          <View style={styles.stageForeground}>
+            <Header />
+            <View style={[styles.stickySearchWrapper, styles.themedSearchWrapper]}>
+              <SearchBar inputRef={searchInputRef} />
+            </View>
           </View>
         </LinearGradient>
       ) : (
@@ -260,6 +271,9 @@ export default function HomeScreen() {
           />
         }
       />
+      {themeOverlay?.placement === 'fullscreen' ? (
+        <ThemeOverlay placement="fullscreen" />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -295,6 +309,9 @@ const styles = StyleSheet.create({
   themedSearchWrapper: {
     backgroundColor: 'transparent',
     elevation: 0,
+  },
+  stageForeground: {
+    zIndex: 3,
   },
   garlandOverlay: {
     position: 'absolute',

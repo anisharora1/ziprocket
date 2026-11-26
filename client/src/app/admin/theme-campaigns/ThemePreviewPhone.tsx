@@ -30,6 +30,10 @@ interface ThemePreviewPhoneProps {
   hero: ThemeHeroImage[];
   sections: ThemeHomeSection[];
   productLookup: Record<string, GroceryProductOption>;
+  overlay?: {
+    url: string;
+    placement: "header" | "fullscreen";
+  } | null;
 }
 
 const SAMPLE_CATEGORIES = ["Atta & Dal", "Snacks", "Sweets", "Drinks", "Pooja"];
@@ -40,6 +44,7 @@ export default function ThemePreviewPhone({
   hero,
   sections,
   productLookup,
+  overlay,
 }: ThemePreviewPhoneProps) {
   const safeHex = (val: string, fallback: string) =>
     HEX_COLOR_REGEX.test(val) ? val : fallback;
@@ -123,6 +128,16 @@ export default function ThemePreviewPhone({
                 alt="Campaign garland decoration"
                 className="w-full h-8 object-cover rounded-lg mb-2 opacity-95"
               />
+            )}
+
+            {overlay && overlay.url.trim() && (
+              <div className="mb-2 flex justify-end">
+                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-black/35 text-white border border-white/25">
+                  {overlay.placement === "fullscreen"
+                    ? "Animation: whole screen"
+                    : "Animation: header"}
+                </span>
+              </div>
             )}
 
             <div className="flex items-center justify-between mb-3">

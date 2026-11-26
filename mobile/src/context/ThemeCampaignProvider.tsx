@@ -10,6 +10,7 @@ import {
   ThemeCampaignImages,
   ThemeHomeColors,
   ThemeHomeSection,
+  ThemeOverlay,
   isWithinCampaignWindow,
   validateThemeCampaign,
 } from '../utils/themeCampaign';
@@ -24,6 +25,7 @@ const ThemeCampaignContext = createContext<ThemeCampaign | null>(null);
 const ThemeColorsContext = createContext<ThemeHomeColors | null>(null);
 const ThemeImagesContext = createContext<ThemeCampaignImages | null>(null);
 const ThemeSectionsContext = createContext<ThemeHomeSection[]>(EMPTY_SECTIONS);
+const ThemeOverlayContext = createContext<ThemeOverlay | null>(null);
 
 export function ThemeCampaignProvider({ children }: { children: React.ReactNode }) {
   const { zoneId } = useLocation();
@@ -135,13 +137,16 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
     () => activeCampaign?.home.sections ?? EMPTY_SECTIONS,
     [activeCampaign]
   );
+  const overlay = useMemo(() => activeCampaign?.overlay ?? null, [activeCampaign]);
 
   return (
     <ThemeCampaignContext.Provider value={activeCampaign}>
       <ThemeColorsContext.Provider value={colors}>
         <ThemeImagesContext.Provider value={images}>
           <ThemeSectionsContext.Provider value={sections}>
-            {children}
+            <ThemeOverlayContext.Provider value={overlay}>
+              {children}
+            </ThemeOverlayContext.Provider>
           </ThemeSectionsContext.Provider>
         </ThemeImagesContext.Provider>
       </ThemeColorsContext.Provider>
@@ -163,4 +168,8 @@ export function useThemeImages(): ThemeCampaignImages | null {
 
 export function useThemeSections(): ThemeHomeSection[] {
   return useContext(ThemeSectionsContext);
+}
+
+export function useThemeOverlay(): ThemeOverlay | null {
+  return useContext(ThemeOverlayContext);
 }

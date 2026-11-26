@@ -20,6 +20,15 @@ export interface ThemeHomeSection {
   productIds: string[];
 }
 
+export interface ThemeOverlay {
+  url: string;
+  format: "lottie";
+  placement: "header" | "fullscreen";
+  loop: boolean;
+  opacity: number;
+  surfaces: ("home")[];
+}
+
 export interface ThemeCampaignRecord {
   _id?: string;
   name: string;
@@ -40,6 +49,7 @@ export interface ThemeCampaignRecord {
       sections: ThemeHomeSection[];
     };
   };
+  overlay?: ThemeOverlay;
 }
 
 export interface DeliveryZoneOption {

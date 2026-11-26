@@ -40,6 +40,15 @@ export interface IThemeSurfaces {
     [key: string]: unknown;
 }
 
+export interface IThemeOverlay {
+    url: string;
+    format: "lottie";
+    placement: "header" | "fullscreen";
+    loop: boolean;
+    opacity: number;
+    surfaces: ("home")[];
+}
+
 export interface IThemeCampaign extends BaseDocument {
     name: string;
     slug: string;
@@ -49,6 +58,7 @@ export interface IThemeCampaign extends BaseDocument {
     priority: number;
     zoneIds: Types.ObjectId[];
     surfaces: IThemeSurfaces;
+    overlay?: IThemeOverlay;
 }
 
 const themeHomeColorsSchema = new Schema<IThemeHomeColors>(
@@ -113,6 +123,30 @@ const themeSurfacesSchema = new Schema<IThemeSurfaces>(
     { _id: false, strict: false }
 );
 
+const themeOverlaySchema = new Schema<IThemeOverlay>(
+    {
+        url: { type: String, required: true, trim: true },
+        format: {
+            type: String,
+            enum: ["lottie"],
+            required: true,
+            default: "lottie"
+        },
+        placement: {
+            type: String,
+            enum: ["header", "fullscreen"],
+            required: true
+        },
+        loop: { type: Boolean, default: true },
+        opacity: { type: Number, min: 0.1, max: 1, default: 1 },
+        surfaces: {
+            type: [{ type: String, enum: ["home"] }],
+            default: ["home"]
+        }
+    },
+    { _id: false }
+);
+
 const themeCampaignSchema = new Schema<IThemeCampaign>(
     {
         name: { type: String, required: true, trim: true },
@@ -136,7 +170,8 @@ const themeCampaignSchema = new Schema<IThemeCampaign>(
             type: [{ type: Schema.Types.ObjectId, ref: "DeliveryZone" }],
             default: []
         },
-        surfaces: { type: themeSurfacesSchema, required: true }
+        surfaces: { type: themeSurfacesSchema, required: true },
+        overlay: { type: themeOverlaySchema, required: false }
     },
     { timestamps: true }
 );

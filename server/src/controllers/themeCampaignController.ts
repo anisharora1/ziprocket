@@ -191,6 +191,11 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
             };
         });
 
+        const overlayIncluded =
+            campaign.overlay &&
+            Array.isArray(campaign.overlay.surfaces) &&
+            campaign.overlay.surfaces.includes(surface as "home");
+
         const payload = {
             campaign: {
                 id: String(campaign._id),
@@ -202,7 +207,19 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
                     colors: campaign.surfaces.home.colors,
                     images: campaign.surfaces.home.images,
                     sections: hydratedSections
-                }
+                },
+                ...(overlayIncluded
+                    ? {
+                          overlay: {
+                              url: campaign.overlay!.url,
+                              format: campaign.overlay!.format,
+                              placement: campaign.overlay!.placement,
+                              loop: campaign.overlay!.loop,
+                              opacity: campaign.overlay!.opacity,
+                              surfaces: campaign.overlay!.surfaces
+                          }
+                      }
+                    : {})
             }
         };
 
@@ -262,12 +279,13 @@ export const createThemeCampaign = async (req: Request, res: Response): Promise<
         }
 
         const data = validation.data;
-        const warnings = await findOverlapWarnings(
+        const overlapWarnings = await findOverlapWarnings(
             data.startsAt,
             data.endsAt,
             data.priority,
             data.isActive
         );
+        const warnings = [...overlapWarnings, ...validation.warnings];
 
         const campaign = new ThemeCampaign(data);
         await campaign.save();
@@ -335,17 +353,17 @@ export const updateThemeCampaign = async (req: Request, res: Response): Promise<
         }
 
         const data = validation.data;
-        const warnings = await findOverlapWarnings(
+        const overlapWarnings = await findOverlapWarnings(
             data.startsAt,
             data.endsAt,
             data.priority,
             data.isActive,
             String(existing._id)
         );
+        const warnings = [...overlapWarnings, ...validation.warnings];
 
-        const updated = await ThemeCampaign.findByIdAndUpdate(
-            req.params.id,
-            {
+        const updateOp: Record<string, any> = {
+            $set: {
                 name: data.name,
                 slug: data.slug,
                 isActive: data.isActive,
@@ -354,7 +372,17 @@ export const updateThemeCampaign = async (req: Request, res: Response): Promise<
                 priority: data.priority,
                 zoneIds: data.zoneIds,
                 surfaces: data.surfaces
-            },
+            }
+        };
+        if (data.overlay) {
+            updateOp.$set.overlay = data.overlay;
+        } else {
+            updateOp.$unset = { overlay: 1 };
+        }
+
+        const updated = await ThemeCampaign.findByIdAndUpdate(
+            req.params.id,
+            updateOp,
             { new: true, runValidators: true }
         );
 

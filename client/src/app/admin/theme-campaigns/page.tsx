@@ -100,6 +100,11 @@ export default function AdminThemeCampaignsPage() {
   const [garland, setGarland] = useState("");
   const [hero, setHero] = useState<ThemeHeroImage[]>([]);
   const [sections, setSections] = useState<ThemeHomeSection[]>([]);
+  const [overlayUrl, setOverlayUrl] = useState("");
+  const [overlayPlacement, setOverlayPlacement] = useState<"header" | "fullscreen">("header");
+  const [overlayLoop, setOverlayLoop] = useState(true);
+  const [overlayOpacity, setOverlayOpacity] = useState(1);
+  const [hadInitialOverlay, setHadInitialOverlay] = useState(false);
 
   // Product picker state
   const [productSearchByIdx, setProductSearchByIdx] = useState<Record<number, string>>({});
@@ -183,6 +188,11 @@ export default function AdminThemeCampaignsPage() {
     setGarland("");
     setHero([]);
     setSections([]);
+    setOverlayUrl("");
+    setOverlayPlacement("header");
+    setOverlayLoop(true);
+    setOverlayOpacity(1);
+    setHadInitialOverlay(false);
     setServerErrors([]);
     setProductSearchByIdx({});
     setProductResultsByIdx({});
@@ -220,6 +230,19 @@ export default function AdminThemeCampaignsPage() {
         productIds: (s.productIds || []).map(String),
       }))
     );
+    if (campaign.overlay?.url) {
+      setOverlayUrl(campaign.overlay.url);
+      setOverlayPlacement(campaign.overlay.placement || "header");
+      setOverlayLoop(campaign.overlay.loop ?? true);
+      setOverlayOpacity(campaign.overlay.opacity ?? 1);
+      setHadInitialOverlay(true);
+    } else {
+      setOverlayUrl("");
+      setOverlayPlacement("header");
+      setOverlayLoop(true);
+      setOverlayOpacity(1);
+      setHadInitialOverlay(false);
+    }
     setServerErrors([]);
     setSuccessNotice(null);
     setWarningsNotice([]);
@@ -402,7 +425,8 @@ export default function AdminThemeCampaignsPage() {
     setWarningsNotice([]);
     setSuccessNotice(null);
 
-    const payload = {
+    const trimmedOverlayUrl = overlayUrl.trim();
+    const payload: Record<string, unknown> = {
       name: name.trim(),
       slug: slug.trim().toLowerCase(),
       isActive,
@@ -428,6 +452,19 @@ export default function AdminThemeCampaignsPage() {
         },
       },
     };
+
+    if (trimmedOverlayUrl) {
+      payload.overlay = {
+        url: trimmedOverlayUrl,
+        format: "lottie",
+        placement: overlayPlacement,
+        loop: overlayLoop,
+        opacity: overlayOpacity,
+        surfaces: ["home"],
+      };
+    } else if (editingId && hadInitialOverlay) {
+      payload.overlay = null;
+    }
 
     try {
       setSaving(true);
@@ -1047,6 +1084,113 @@ export default function AdminThemeCampaignsPage() {
               ))}
             </div>
 
+            {/* Animation Overlay (optional) */}
+            <div className="space-y-4 pt-2 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                  Animation overlay (optional)
+                </h3>
+                {overlayUrl.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOverlayUrl("");
+                      setOverlayPlacement("header");
+                      setOverlayLoop(true);
+                      setOverlayOpacity(1);
+                    }}
+                    className="px-3 py-1 rounded-xl border border-rose-200 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                  >
+                    Remove overlay
+                  </button>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="tc-overlay-url" className="block text-xs font-bold text-slate-700 mb-1">
+                  Lottie File URL (.json or .lottie, https)
+                </label>
+                <input
+                  id="tc-overlay-url"
+                  type="url"
+                  value={overlayUrl}
+                  onChange={(e) => setOverlayUrl(e.target.value)}
+                  placeholder="https://assets.example.com/diwali-sparkles.lottie"
+                  className="w-full px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                />
+                <p className="text-[11px] font-semibold text-slate-400 mt-1">
+                  Keep the file under 300 KB
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
+                <div>
+                  <label
+                    htmlFor="tc-overlay-placement"
+                    className="block text-xs font-bold text-slate-700 mb-1"
+                  >
+                    Placement
+                  </label>
+                  <select
+                    id="tc-overlay-placement"
+                    value={overlayPlacement}
+                    onChange={(e) =>
+                      setOverlayPlacement(e.target.value as "header" | "fullscreen")
+                    }
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                  >
+                    <option value="header">Header area</option>
+                    <option value="fullscreen">Whole screen</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-4">
+                  <input
+                    id="tc-overlay-loop"
+                    type="checkbox"
+                    checked={overlayLoop}
+                    onChange={(e) => setOverlayLoop(e.target.checked)}
+                    className="h-4 w-4 accent-[#FF5C00]"
+                  />
+                  <label htmlFor="tc-overlay-loop" className="text-xs font-bold text-slate-700">
+                    Loop animation
+                  </label>
+                </div>
+
+                <div>
+                  <label
+                    htmlFor="tc-overlay-opacity"
+                    className="block text-xs font-bold text-slate-700 mb-1"
+                  >
+                    Opacity ({overlayOpacity.toFixed(2)})
+                  </label>
+                  <input
+                    id="tc-overlay-opacity"
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.05"
+                    value={overlayOpacity}
+                    onChange={(e) => setOverlayOpacity(Number(e.target.value))}
+                    className="w-full accent-[#FF5C00]"
+                  />
+                </div>
+              </div>
+
+              {errorsMatching(["overlay"]).map((err, i) => (
+                <p key={i} className="text-xs font-semibold text-rose-600">
+                  {err}
+                </p>
+              ))}
+              {warningsNotice
+                .filter((w) => w.toLowerCase().includes("overlay"))
+                .map((w, i) => (
+                  <p key={i} className="text-xs font-semibold text-amber-700">
+                    {w}
+                  </p>
+                ))}
+            </div>
+
             {/* Sections (max 3 product strips) */}
             <div className="space-y-4 pt-2 border-t border-slate-100">
               <div className="flex items-center justify-between">
@@ -1302,6 +1446,11 @@ export default function AdminThemeCampaignsPage() {
               hero={hero}
               sections={sections}
               productLookup={productLookup}
+              overlay={
+                overlayUrl.trim()
+                  ? { url: overlayUrl.trim(), placement: overlayPlacement }
+                  : null
+              }
             />
           </div>
         </div>

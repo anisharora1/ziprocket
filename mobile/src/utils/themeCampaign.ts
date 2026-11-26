@@ -36,6 +36,15 @@ export interface ThemeCampaignImages {
   hero: ThemeHeroItem[];
 }
 
+export interface ThemeOverlay {
+  url: string;
+  format: 'lottie';
+  placement: 'header' | 'fullscreen';
+  loop: boolean;
+  opacity: number;
+  surfaces: 'home'[];
+}
+
 export interface ThemeCampaign {
   id: string;
   slug: string;
@@ -47,6 +56,7 @@ export interface ThemeCampaign {
     images: ThemeCampaignImages;
     sections: ThemeHomeSection[];
   };
+  overlay?: ThemeOverlay;
 }
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
@@ -133,6 +143,57 @@ export function isWithinCampaignWindow(
   return nowMs >= start && nowMs <= end;
 }
 
+export function isLottieUrl(value: unknown): value is string {
+  if (!isHttpsUrl(value)) return false;
+  const trimmed = value.trim();
+  try {
+    const pathname = new URL(trimmed).pathname.toLowerCase();
+    return pathname.endsWith('.json') || pathname.endsWith('.lottie');
+  } catch {
+    const cleanPath = trimmed.split('?')[0].split('#')[0].toLowerCase();
+    return cleanPath.endsWith('.json') || cleanPath.endsWith('.lottie');
+  }
+}
+
+/**
+ * Validates an optional campaign overlay.
+ * Returns undefined if invalid so the rest of the campaign still applies.
+ */
+export function validateThemeOverlay(raw: unknown): ThemeOverlay | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const obj = raw as Record<string, unknown>;
+
+  if (!isLottieUrl(obj.url)) return undefined;
+  if (obj.format !== 'lottie') return undefined;
+  if (obj.placement !== 'header' && obj.placement !== 'fullscreen') return undefined;
+
+  const loop = obj.loop !== undefined ? Boolean(obj.loop) : true;
+
+  let opacity = 1;
+  if (obj.opacity !== undefined && obj.opacity !== null) {
+    const parsed = Number(obj.opacity);
+    if (!Number.isFinite(parsed)) return undefined;
+    opacity = Math.min(1, Math.max(0.1, parsed));
+  }
+
+  let surfaces: 'home'[] = ['home'];
+  if (obj.surfaces !== undefined) {
+    if (!Array.isArray(obj.surfaces) || !obj.surfaces.includes('home')) {
+      return undefined;
+    }
+    surfaces = ['home'];
+  }
+
+  return {
+    url: obj.url.trim(),
+    format: 'lottie',
+    placement: obj.placement,
+    loop,
+    opacity,
+    surfaces,
+  };
+}
+
 /**
  * Validates a ThemeCampaign payload on the device.
  * Returns the sanitized ThemeCampaign or null if any color, URL, date window, or WCAG contrast check fails.
@@ -192,6 +253,7 @@ export function validateThemeCampaign(
   }
 
   const sections = Array.isArray(candidate.home.sections) ? candidate.home.sections : [];
+  const overlay = validateThemeOverlay(candidate.overlay);
 
   return {
     id: candidate.id,
@@ -221,5 +283,6 @@ export function validateThemeCampaign(
       },
       sections,
     },
+    ...(overlay ? { overlay } : {}),
   };
 }

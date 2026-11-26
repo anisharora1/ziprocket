@@ -1,9 +1,11 @@
 import mongoose from "mongoose";
 import GroceryProduct from "../models/GroceryProduct";
-import { IThemeHomeColors, IThemeHomeSurface } from "../models/ThemeCampaign";
+import { IThemeHomeColors, IThemeHomeSurface, IThemeOverlay } from "../models/ThemeCampaign";
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 const WCAG_AA_MIN_CONTRAST = 4.5;
+const OVERLAY_MAX_BYTES = 300 * 1024;
+const OVERLAY_HEAD_TIMEOUT_MS = 3000;
 
 const REQUIRED_COLOR_KEYS: (keyof IThemeHomeColors)[] = [
     "stageFrom",
@@ -35,10 +37,11 @@ export interface ValidatedThemeCampaignPayload {
         home: IThemeHomeSurface;
         [key: string]: unknown;
     };
+    overlay?: IThemeOverlay;
 }
 
 export type ThemeValidationResult =
-    | { valid: true; data: ValidatedThemeCampaignPayload }
+    | { valid: true; data: ValidatedThemeCampaignPayload; warnings: string[] }
     | { valid: false; message: string; errors: string[] };
 
 function isHttpsUrl(value: unknown): value is string {
@@ -279,12 +282,115 @@ export async function validateThemeCampaignPayload(
         }
     }
 
+    // 5. Optional overlay validation (strips unknown fields)
+    let validatedOverlay: IThemeOverlay | undefined = undefined;
+    const overlayWarnings: string[] = [];
+
+    if (payload.overlay !== undefined && payload.overlay !== null) {
+        const rawOverlay = payload.overlay;
+        if (typeof rawOverlay !== "object" || Array.isArray(rawOverlay)) {
+            errors.push("overlay must be an object.");
+        } else {
+            const url = typeof rawOverlay.url === "string" ? rawOverlay.url.trim() : "";
+            if (!isHttpsUrl(url)) {
+                errors.push(`overlay.url must be an https URL (got "${rawOverlay.url}").`);
+            } else {
+                const pathname = new URL(url).pathname.toLowerCase();
+                if (!pathname.endsWith(".json") && !pathname.endsWith(".lottie")) {
+                    errors.push(
+                        `overlay.url must end with .json or .lottie (got "${rawOverlay.url}").`
+                    );
+                }
+            }
+
+            const format = rawOverlay.format !== undefined ? rawOverlay.format : "lottie";
+            if (format !== "lottie") {
+                errors.push(`overlay.format must be "lottie" (got "${rawOverlay.format}").`);
+            }
+
+            const placement = rawOverlay.placement;
+            if (placement !== "header" && placement !== "fullscreen") {
+                errors.push(
+                    `overlay.placement must be "header" or "fullscreen" (got "${rawOverlay.placement}").`
+                );
+            }
+
+            const loop = rawOverlay.loop !== undefined ? Boolean(rawOverlay.loop) : true;
+
+            let opacity = 1;
+            if (rawOverlay.opacity !== undefined && rawOverlay.opacity !== null) {
+                const parsedOpacity = Number(rawOverlay.opacity);
+                if (!Number.isFinite(parsedOpacity)) {
+                    errors.push("overlay.opacity must be a finite number.");
+                } else {
+                    opacity = Math.min(1, Math.max(0.1, parsedOpacity));
+                }
+            }
+
+            const rawSurfaces =
+                rawOverlay.surfaces !== undefined ? rawOverlay.surfaces : ["home"];
+            const overlaySurfaces: ("home")[] = [];
+            if (!Array.isArray(rawSurfaces) || rawSurfaces.length === 0) {
+                errors.push('overlay.surfaces must be a non-empty array (e.g. ["home"]).');
+            } else {
+                for (const s of rawSurfaces) {
+                    if (s !== "home") {
+                        errors.push(`overlay.surfaces contains unsupported surface "${s}".`);
+                    } else if (!overlaySurfaces.includes("home")) {
+                        overlaySurfaces.push("home");
+                    }
+                }
+            }
+
+            if (errors.length === 0) {
+                validatedOverlay = {
+                    url,
+                    format: "lottie",
+                    placement: placement as "header" | "fullscreen",
+                    loop,
+                    opacity,
+                    surfaces: overlaySurfaces
+                };
+            }
+        }
+    }
+
     if (errors.length > 0) {
         return {
             valid: false,
             message: errors[0],
             errors
         };
+    }
+
+    // Perform HEAD check for overlay size/reachability at save time (non-blocking warning)
+    if (validatedOverlay) {
+        try {
+            const headRes = await fetch(validatedOverlay.url, {
+                method: "HEAD",
+                signal: AbortSignal.timeout(OVERLAY_HEAD_TIMEOUT_MS)
+            });
+            if (!headRes.ok) {
+                overlayWarnings.push(
+                    `overlay URL returned HTTP ${headRes.status} on HEAD check; saved anyway.`
+                );
+            } else {
+                const contentLength = headRes.headers.get("content-length");
+                if (contentLength) {
+                    const bytes = Number(contentLength);
+                    if (Number.isFinite(bytes) && bytes > OVERLAY_MAX_BYTES) {
+                        const kb = Math.round(bytes / 1024);
+                        overlayWarnings.push(
+                            `overlay is ${kb} KB, keep it under 300 KB.`
+                        );
+                    }
+                }
+            }
+        } catch (err: any) {
+            overlayWarnings.push(
+                `overlay URL could not be reached (${err?.message || "timeout"}); saved anyway.`
+            );
+        }
     }
 
     const validatedHome: IThemeHomeSurface = {
@@ -298,6 +404,7 @@ export async function validateThemeCampaignPayload(
 
     return {
         valid: true,
+        warnings: overlayWarnings,
         data: {
             name,
             slug,
@@ -309,7 +416,8 @@ export async function validateThemeCampaignPayload(
             surfaces: {
                 ...(payload.surfaces || {}),
                 home: validatedHome
-            }
+            },
+            ...(validatedOverlay ? { overlay: validatedOverlay } : {})
         }
     };
 }
