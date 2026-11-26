@@ -20,6 +20,7 @@ import { LocationProvider, useLocation } from '../src/context/LocationContext';
 import { PlatformProvider } from '../src/context/PlatformContext';
 import { CartProvider } from '../src/context/CartContext';
 import { NotificationProvider } from '../src/context/NotificationContext';
+import { ThemeCampaignProvider } from '../src/context/ThemeCampaignProvider';
 import LocationPromptModal from '../src/components/LocationPromptModal';
 import LocationSelectorModal from '../src/components/LocationSelectorModal';
 import AnimatedSplash from '../src/components/AnimatedSplash';
@@ -123,26 +124,28 @@ export default function RootLayout() {
               <NotificationProvider>
                 <LocationModals />
                 <PlatformProvider>
-                  <CartProvider>
-                    <StatusBar style="dark" />
-                    <OfflineBanner />
-                    <Stack screenOptions={{ headerShown: false }}>
-                      <Stack.Screen name="index" options={{ headerShown: false }} />
-                      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-                      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                      <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
-                      <Stack.Screen name="grocery/index" options={{ headerShown: false }} />
-                      <Stack.Screen name="grocery/category/[categoryName]" options={{ headerShown: false }} />
-                      <Stack.Screen name="cart/index" options={{ headerShown: false }} />
-                      <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
-                      <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
-                    </Stack>
-                    <SplashGate
-                      fontsLoaded={fontsLoaded}
-                      showSplash={showSplash}
-                      onFinish={() => setShowSplash(false)}
-                    />
-                  </CartProvider>
+                  <ThemeCampaignProvider>
+                    <CartProvider>
+                      <StatusBar style="dark" />
+                      <OfflineBanner />
+                      <Stack screenOptions={{ headerShown: false }}>
+                        <Stack.Screen name="index" options={{ headerShown: false }} />
+                        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen name="restaurants/[id]" options={{ headerShown: false }} />
+                        <Stack.Screen name="grocery/index" options={{ headerShown: false }} />
+                        <Stack.Screen name="grocery/category/[categoryName]" options={{ headerShown: false }} />
+                        <Stack.Screen name="cart/index" options={{ headerShown: false }} />
+                        <Stack.Screen name="checkout/index" options={{ headerShown: false }} />
+                        <Stack.Screen name="addresses/index" options={{ headerShown: false }} />
+                      </Stack>
+                      <SplashGate
+                        fontsLoaded={fontsLoaded}
+                        showSplash={showSplash}
+                        onFinish={() => setShowSplash(false)}
+                      />
+                    </CartProvider>
+                  </ThemeCampaignProvider>
                 </PlatformProvider>
               </NotificationProvider>
             </LocationProvider>

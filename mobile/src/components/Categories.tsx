@@ -3,6 +3,7 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import OptimizedImage from './OptimizedImage';
+import { useThemeColors } from '../context/ThemeCampaignProvider';
 import {
   Colors,
   Spacing,
@@ -15,8 +16,9 @@ import {
 const GROCERY_IMAGE_URL =
   'https://res.cloudinary.com/dxrtse4ni/image/upload/v1791770671/Overflowing_Grocery_Basket_Essentials.webp';
 
-export default function Categories() {
+function Categories() {
   const router = useRouter();
+  const themeColors = useThemeColors();
 
   return (
     <View style={styles.container}>
@@ -45,7 +47,18 @@ export default function Categories() {
 
         {/* Right Side: High-Quality Grocery Basket Image */}
         <View style={styles.rightContent}>
-          <View style={styles.imageBackdrop} />
+          <View
+            style={[
+              styles.imageBackdrop,
+              themeColors
+                ? {
+                    backgroundColor: Colors.white,
+                    borderWidth: 2,
+                    borderColor: themeColors.accent,
+                  }
+                : null,
+            ]}
+          />
           <OptimizedImage
             src={GROCERY_IMAGE_URL}
             alt="Grocery Basket Essentials"
@@ -61,6 +74,8 @@ export default function Categories() {
     </View>
   );
 }
+
+export default React.memo(Categories);
 
 const styles = StyleSheet.create({
   container: {

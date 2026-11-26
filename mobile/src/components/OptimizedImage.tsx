@@ -13,6 +13,7 @@ export interface OptimizedImageProps {
   style?: StyleProp<ImageStyle>;
   contentFit?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
   priority?: boolean;
+  onError?: () => void;
 }
 
 export const getOptimizedCloudinaryUrl = (
@@ -127,6 +128,7 @@ export default function OptimizedImage({
   style,
   contentFit = 'cover',
   priority = false,
+  onError,
 }: OptimizedImageProps) {
   const [hasError, setHasError] = useState(false);
   const optimizedUri = getOptimizedSrc(src, preset);
@@ -147,7 +149,10 @@ export default function OptimizedImage({
       priority={priority ? 'high' : 'normal'}
       transition={200}
       style={style}
-      onError={() => setHasError(true)}
+      onError={() => {
+        setHasError(true);
+        onError?.();
+      }}
     />
   );
 }

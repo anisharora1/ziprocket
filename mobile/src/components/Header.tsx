@@ -3,19 +3,26 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocation } from '../context/LocationContext';
-import { useAuth } from '../context/AuthContext';
+import { useThemeColors } from '../context/ThemeCampaignProvider';
 import { Colors, Spacing, BorderRadius, Typography, FontFamily, Shadows } from '../constants/theme';
 import LocationSelectorModal from './LocationSelectorModal';
 
-export default function Header() {
-  const router = useRouter();
+function Header() {
   const { address, isLoading } = useLocation();
-  const { user, token } = useAuth();
+  const themeColors = useThemeColors();
   const [isLocationModalOpen, setIsLocationModalOpen] = useState(false);
+
+  const isThemed = Boolean(themeColors);
+  const headerTextColor = themeColors?.headerText;
 
   return (
     <>
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          isThemed && styles.themedHeader,
+        ]}
+      >
         {/* Deliver To location selector: Tapping ONLY opens picker modal, NEVER calls GPS */}
         <Pressable
           style={({ pressed }) => [styles.locationButton, pressed && { opacity: 0.85 }]}
@@ -24,20 +31,42 @@ export default function Header() {
           accessibilityRole="button"
           accessibilityLabel="Deliver to location picker"
         >
-          <View style={styles.pinCircle}>
+          <View
+            style={[
+              styles.pinCircle,
+              isThemed && { backgroundColor: 'rgba(255, 255, 255, 0.16)' },
+            ]}
+          >
             <MaterialIcons
               name={isLoading ? 'hourglass-empty' : 'location-on'}
               size={20}
-              color={Colors.primary}
+              color={headerTextColor || Colors.primary}
             />
           </View>
           <View style={styles.locationTextGroup}>
-            <Text style={styles.deliverToLabel}>Deliver to</Text>
-            <Text style={styles.addressText} numberOfLines={1}>
+            <Text
+              style={[
+                styles.deliverToLabel,
+                headerTextColor ? { color: headerTextColor } : null,
+              ]}
+            >
+              Deliver to
+            </Text>
+            <Text
+              style={[
+                styles.addressText,
+                headerTextColor ? { color: headerTextColor, opacity: 0.88 } : null,
+              ]}
+              numberOfLines={1}
+            >
               {isLoading ? 'Locating...' : address || 'Select location'}
             </Text>
           </View>
-          <MaterialIcons name="keyboard-arrow-down" size={20} color={Colors.textMuted} />
+          <MaterialIcons
+            name="keyboard-arrow-down"
+            size={20}
+            color={headerTextColor || Colors.textMuted}
+          />
         </Pressable>
 
       </View>
@@ -51,6 +80,8 @@ export default function Header() {
   );
 }
 
+export default React.memo(Header);
+
 const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
@@ -62,6 +93,12 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
     ...Shadows.sm,
+  },
+  themedHeader: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   locationButton: {
     flexDirection: 'row',

@@ -7,13 +7,17 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Header from '../../src/components/Header';
 import SearchBar from '../../src/components/SearchBar';
 import HeroCarousel from '../../src/components/HeroCarousel';
 import Categories from '../../src/components/Categories';
+import ThemeProductStrips from '../../src/components/ThemeProductStrips';
 import TopRated from '../../src/components/TopRated';
 import RestaurantList from '../../src/components/RestaurantList';
 import PopularGroceries from '../../src/components/PopularGroceries';
@@ -23,6 +27,8 @@ import { Restaurant } from '../../src/types';
 import { Colors, Spacing } from '../../src/constants/theme';
 import { searchFocusStore } from '../../src/services/searchFocusStore';
 import { useLocation } from '../../src/context/LocationContext';
+import { useThemeColors, useThemeImages } from '../../src/context/ThemeCampaignProvider';
+import { isLightColor } from '../../src/utils/themeCampaign';
 import { useIsOnline } from '../../src/services/network';
 import OfflineState from '../../src/components/OfflineState';
 import {
@@ -31,11 +37,14 @@ import {
 } from '../../src/utils/orderRestaurants';
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const flatListRef = useRef<FlatList<Restaurant>>(null);
   const searchInputRef = useRef<TextInput>(null);
   const { focusSearch } = useLocalSearchParams<{ focusSearch?: string }>();
   const prevFocusSearchRef = useRef<string | undefined>(undefined);
   const { zoneId } = useLocation();
+  const themeColors = useThemeColors();
+  const themeImages = useThemeImages();
 
   // Seed that increments only on pull-to-refresh to trigger random reshuffle without re-render jumping
   const [shuffleSeed, setShuffleSeed] = useState(0);
@@ -141,6 +150,7 @@ export default function HomeScreen() {
       <View style={styles.headerBody}>
         <HeroCarousel />
         <Categories />
+        <ThemeProductStrips />
         <TopRated items={topRatedRestaurants} />
         {restaurants.length === 0 &&
         (isRestaurantsError ||
@@ -182,14 +192,49 @@ export default function HomeScreen() {
     [isFetchingNextPage, isLoading]
   );
 
-  return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <Header />
+  const statusBarStyle = themeColors
+    ? isLightColor(themeColors.stageFrom)
+      ? 'dark'
+      : 'light'
+    : 'dark';
 
-      {/* Sticky Search Bar under location row */}
-      <View style={styles.stickySearchWrapper}>
-        <SearchBar inputRef={searchInputRef} />
-      </View>
+  return (
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        themeColors ? { backgroundColor: themeColors.pageBg } : null,
+      ]}
+      edges={themeColors ? ['left', 'right'] : ['top', 'left', 'right']}
+    >
+      <StatusBar style={statusBarStyle} />
+      {themeColors ? (
+        <LinearGradient
+          colors={[themeColors.stageFrom, themeColors.stageTo]}
+          style={[styles.themedStage, { paddingTop: insets.top }]}
+        >
+          {themeImages?.garland ? (
+            <Image
+              source={{ uri: themeImages.garland }}
+              style={styles.garlandOverlay}
+              contentFit="cover"
+              pointerEvents="none"
+            />
+          ) : null}
+          <Header />
+          <View style={[styles.stickySearchWrapper, styles.themedSearchWrapper]}>
+            <SearchBar inputRef={searchInputRef} />
+          </View>
+        </LinearGradient>
+      ) : (
+        <>
+          <Header />
+
+          {/* Sticky Search Bar under location row */}
+          <View style={styles.stickySearchWrapper}>
+            <SearchBar inputRef={searchInputRef} />
+          </View>
+        </>
+      )}
 
       <RestaurantList
         restaurants={homeRestaurants}
@@ -223,6 +268,27 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xs,
     zIndex: 100,
     elevation: 4,
+  },
+  themedStage: {
+    position: 'relative',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: Spacing.sm,
+    overflow: 'hidden',
+    zIndex: 100,
+  },
+  themedSearchWrapper: {
+    backgroundColor: 'transparent',
+    elevation: 0,
+  },
+  garlandOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    aspectRatio: 6,
+    zIndex: 1,
   },
   headerBody: {
     paddingHorizontal: Spacing.md,
