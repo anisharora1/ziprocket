@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import ThemeCampaign from "../models/ThemeCampaign";
+import ThemeCampaign, { IThemeHomeSection } from "../models/ThemeCampaign";
 import GroceryProduct from "../models/GroceryProduct";
 import * as themeCacheService from "../services/themeCacheService";
 import { validateThemeCampaignPayload } from "../validators/themeCampaignValidator";
@@ -63,7 +63,7 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
     res.setHeader("Cache-Control", "public, max-age=60");
 
     try {
-        if (surface !== "home") {
+        if (surface !== "home" && surface !== "grocery") {
             const etag = '"null"';
             res.setHeader("ETag", etag);
             if (req.headers["if-none-match"] === etag) {
@@ -99,12 +99,15 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
             isActive: true,
             startsAt: { $lte: now },
             endsAt: { $gte: now },
+            [`surfaces.${surface}.colors`]: { $exists: true },
             ...zoneFilter
         })
             .sort({ priority: -1, startsAt: -1 })
             .lean();
 
-        if (!campaign) {
+        const surfaceData = campaign ? (campaign.surfaces as any)?.[surface] : null;
+
+        if (!campaign || !surfaceData) {
             const payload = { campaign: null };
             const etag = '"null"';
             await themeCacheService.cacheMobileConfig(surface, validZoneId, { payload, etag });
@@ -118,7 +121,7 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
         }
 
         // Collect all referenced GroceryProduct IDs across sections
-        const sections = campaign.surfaces?.home?.sections || [];
+        const sections: IThemeHomeSection[] = surfaceData.sections || [];
         const allProductIds: mongoose.Types.ObjectId[] = [];
         for (const sec of sections) {
             if (Array.isArray(sec.productIds)) {
@@ -141,11 +144,11 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
             }
         }
 
-        const hydratedSections = sections.map((sec) => {
+        const hydratedSections = sections.map((sec: IThemeHomeSection) => {
             const products = (sec.productIds || [])
                 .map((pid) => productMap.get(String(pid)))
                 .filter((p): p is NonNullable<typeof p> => Boolean(p))
-                .map((p) => {
+                .map((p: any) => {
                     const price = Number(p.price);
                     const rawDp =
                         p.discountedPrice !== undefined && p.discountedPrice !== null
@@ -194,7 +197,7 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
         const overlayIncluded =
             campaign.overlay &&
             Array.isArray(campaign.overlay.surfaces) &&
-            campaign.overlay.surfaces.includes(surface as "home");
+            campaign.overlay.surfaces.includes(surface as "home" | "grocery");
 
         const payload = {
             campaign: {
@@ -203,9 +206,9 @@ export const getMobileAppConfig = async (req: Request, res: Response): Promise<v
                 startsAt: campaign.startsAt,
                 endsAt: campaign.endsAt,
                 updatedAt: campaign.updatedAt,
-                home: {
-                    colors: campaign.surfaces.home.colors,
-                    images: campaign.surfaces.home.images,
+                [surface]: {
+                    colors: surfaceData.colors,
+                    images: surfaceData.images,
                     sections: hydratedSections
                 },
                 ...(overlayIncluded
@@ -325,21 +328,35 @@ export const updateThemeCampaign = async (req: Request, res: Response): Promise<
         }
 
         const existingObj = existing.toObject();
+        const incomingSurfaces = req.body?.surfaces;
+        const mergedSurfaces = incomingSurfaces
+            ? {
+                  ...existingObj.surfaces,
+                  ...incomingSurfaces,
+                  home: incomingSurfaces.home
+                      ? {
+                            ...existingObj.surfaces?.home,
+                            ...incomingSurfaces.home
+                        }
+                      : existingObj.surfaces?.home,
+                  ...(incomingSurfaces.grocery !== undefined
+                      ? {
+                            grocery:
+                                incomingSurfaces.grocery === null
+                                    ? null
+                                    : {
+                                          ...(existingObj.surfaces?.grocery || {}),
+                                          ...incomingSurfaces.grocery
+                                      }
+                        }
+                      : {})
+              }
+            : existingObj.surfaces;
+
         const mergedPayload = {
             ...existingObj,
             ...req.body,
-            surfaces: req.body?.surfaces
-                ? {
-                      ...existingObj.surfaces,
-                      ...req.body.surfaces,
-                      home: req.body.surfaces.home
-                          ? {
-                                ...existingObj.surfaces?.home,
-                                ...req.body.surfaces.home
-                            }
-                          : existingObj.surfaces?.home
-                  }
-                : existingObj.surfaces
+            surfaces: mergedSurfaces
         };
 
         const validation = await validateThemeCampaignPayload(mergedPayload);

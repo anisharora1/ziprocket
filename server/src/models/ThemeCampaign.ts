@@ -34,9 +34,24 @@ export interface IThemeHomeSurface {
     sections: IThemeHomeSection[];
 }
 
+export interface IThemeGroceryColors {
+    stageFrom: string;
+    stageTo: string;
+    headerText: string;
+    pageBg: string;
+    accent: string;
+}
+
+export interface IThemeGrocerySurface {
+    colors: IThemeGroceryColors;
+    images: IThemeHomeImages;
+    sections: IThemeHomeSection[];
+}
+
 export interface IThemeSurfaces {
     home: IThemeHomeSurface;
-    // Future surfaces (e.g., grocery, overlay) will be added here without schema changes.
+    grocery?: IThemeGrocerySurface;
+    // Future surfaces can be added here without schema changes.
     [key: string]: unknown;
 }
 
@@ -46,7 +61,7 @@ export interface IThemeOverlay {
     placement: "header" | "fullscreen";
     loop: boolean;
     opacity: number;
-    surfaces: ("home")[];
+    surfaces: ("home" | "grocery")[];
 }
 
 export interface IThemeCampaign extends BaseDocument {
@@ -114,11 +129,31 @@ const themeHomeSurfaceSchema = new Schema<IThemeHomeSurface>(
     { _id: false }
 );
 
-// strict: false on surfaces subtree allows future surfaces (grocery, overlay) without schema migration
+const themeGroceryColorsSchema = new Schema<IThemeGroceryColors>(
+    {
+        stageFrom: { type: String, required: true },
+        stageTo: { type: String, required: true },
+        headerText: { type: String, required: true },
+        pageBg: { type: String, required: true },
+        accent: { type: String, required: true }
+    },
+    { _id: false }
+);
+
+const themeGrocerySurfaceSchema = new Schema<IThemeGrocerySurface>(
+    {
+        colors: { type: themeGroceryColorsSchema, required: true },
+        images: { type: themeHomeImagesSchema, required: true, default: () => ({ hero: [] }) },
+        sections: { type: [themeHomeSectionSchema], default: [] }
+    },
+    { _id: false }
+);
+
+// strict: false on surfaces subtree allows future surfaces without schema migration
 const themeSurfacesSchema = new Schema<IThemeSurfaces>(
     {
-        home: { type: themeHomeSurfaceSchema, required: true }
-        // Future surfaces: grocery, overlay
+        home: { type: themeHomeSurfaceSchema, required: true },
+        grocery: { type: themeGrocerySurfaceSchema, required: false }
     },
     { _id: false, strict: false }
 );
@@ -140,7 +175,7 @@ const themeOverlaySchema = new Schema<IThemeOverlay>(
         loop: { type: Boolean, default: true },
         opacity: { type: Number, min: 0.1, max: 1, default: 1 },
         surfaces: {
-            type: [{ type: String, enum: ["home"] }],
+            type: [{ type: String, enum: ["home", "grocery"] }],
             default: ["home"]
         }
     },

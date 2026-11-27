@@ -9,7 +9,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import LottieView from 'lottie-react-native';
 import { useFocusEffect } from 'expo-router';
-import { useThemeOverlay } from '../context/ThemeCampaignProvider';
+import { useGroceryThemeOverlay, useThemeOverlay } from '../context/ThemeCampaignProvider';
 
 const LOTTIE_CACHE_PREFIX = 'TC_LOTTIE_V1:';
 const DOWNLOAD_TIMEOUT_MS = 5000;
@@ -17,10 +17,13 @@ const MAX_LOTTIE_BYTES = 400 * 1024;
 
 interface ThemeOverlayProps {
   placement: 'header' | 'fullscreen';
+  surface?: 'home' | 'grocery';
 }
 
-function ThemeOverlay({ placement }: ThemeOverlayProps) {
-  const overlay = useThemeOverlay();
+function ThemeOverlay({ placement, surface = 'home' }: ThemeOverlayProps) {
+  const homeOverlay = useThemeOverlay();
+  const groceryOverlay = useGroceryThemeOverlay();
+  const overlay = surface === 'grocery' ? groceryOverlay : homeOverlay;
   const lottieRef = useRef<LottieView>(null);
 
   const [animationData, setAnimationData] = useState<Record<string, unknown> | null>(null);

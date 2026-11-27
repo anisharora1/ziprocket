@@ -2,12 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { apiClient } from "@/services/api";
-import { getDiscountPercent } from "@/utils/discount";
 import {
   MdAdd,
   MdArrowBack,
-  MdArrowDownward,
-  MdArrowUpward,
   MdContentCopy,
   MdDelete,
   MdEdit,
@@ -15,26 +12,29 @@ import {
   MdPalette,
   MdRefresh,
   MdSave,
-  MdSearch,
   MdSync,
   MdWarningAmber,
 } from "react-icons/md";
+import ProductStripEditor from "./ProductStripEditor";
 import ThemePreviewPhone from "./ThemePreviewPhone";
 import {
   COLOR_FIELD_META,
   CONTRAST_PAIRS,
+  DEFAULT_GROCERY_COLORS,
   DEFAULT_HOME_COLORS,
   DeliveryZoneOption,
+  GROCERY_COLOR_FIELD_META,
+  GROCERY_CONTRAST_PAIRS,
   GroceryProductOption,
   HEX_COLOR_REGEX,
   ThemeCampaignRecord,
+  ThemeGroceryColors,
   ThemeHeroImage,
   ThemeHomeColors,
   ThemeHomeSection,
   WCAG_MIN_CONTRAST,
   formatIstDateTime,
   getContrastRatio,
-  getProductImageUrl,
   istInputToUtcIso,
   slugifyName,
   utcIsoToIstInput,
@@ -77,17 +77,16 @@ export default function AdminThemeCampaignsPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Toast / notice banners
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [warningsNotice, setWarningsNotice] = useState<string[]>([]);
 
-  // Editor state
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [serverErrors, setServerErrors] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState<"home" | "grocery">("home");
 
-  // Form fields
+  // Basic fields
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
@@ -96,22 +95,31 @@ export default function AdminThemeCampaignsPage() {
   const [priority, setPriority] = useState<number>(0);
   const [isActive, setIsActive] = useState<boolean>(true);
   const [zoneIds, setZoneIds] = useState<string[]>([]);
+
+  // Home surface fields
   const [colors, setColors] = useState<ThemeHomeColors>({ ...DEFAULT_HOME_COLORS });
   const [garland, setGarland] = useState("");
   const [hero, setHero] = useState<ThemeHeroImage[]>([]);
   const [sections, setSections] = useState<ThemeHomeSection[]>([]);
+
+  // Grocery surface fields
+  const [groceryEnabled, setGroceryEnabled] = useState(false);
+  const [hadInitialGrocery, setHadInitialGrocery] = useState(false);
+  const [groceryColors, setGroceryColors] = useState<ThemeGroceryColors>({
+    ...DEFAULT_GROCERY_COLORS,
+  });
+  const [groceryGarland, setGroceryGarland] = useState("");
+  const [groceryHero, setGroceryHero] = useState<ThemeHeroImage[]>([]);
+  const [grocerySections, setGrocerySections] = useState<ThemeHomeSection[]>([]);
+
+  // Overlay fields
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayPlacement, setOverlayPlacement] = useState<"header" | "fullscreen">("header");
   const [overlayLoop, setOverlayLoop] = useState(true);
   const [overlayOpacity, setOverlayOpacity] = useState(1);
+  const [overlaySurfaces, setOverlaySurfaces] = useState<("home" | "grocery")[]>(["home"]);
   const [hadInitialOverlay, setHadInitialOverlay] = useState(false);
 
-  // Product picker state
-  const [productSearchByIdx, setProductSearchByIdx] = useState<Record<number, string>>({});
-  const [productResultsByIdx, setProductResultsByIdx] = useState<
-    Record<number, GroceryProductOption[]>
-  >({});
-  const [productSearchingIdx, setProductSearchingIdx] = useState<number | null>(null);
   const [productLookup, setProductLookup] = useState<Record<string, GroceryProductOption>>({});
 
   const fetchAll = async () => {
@@ -150,32 +158,35 @@ export default function AdminThemeCampaignsPage() {
     return map;
   }, [zones]);
 
-  // Hydrate productLookup for any productIds in a campaign being edited/duplicated
+  const handleProductsLoaded = (list: GroceryProductOption[]) => {
+    setProductLookup((prev) => {
+      const next = { ...prev };
+      for (const p of list) next[String(p._id)] = p;
+      return next;
+    });
+  };
+
   const hydrateProductLookup = async (campaign: ThemeCampaignRecord) => {
-    const allIds = Array.from(
-      new Set(
-        (campaign.surfaces?.home?.sections || []).flatMap((s) => s.productIds || []).map(String)
-      )
+    const homeIds = (campaign.surfaces?.home?.sections || []).flatMap((s) => s.productIds || []);
+    const groceryIds = (campaign.surfaces?.grocery?.sections || []).flatMap(
+      (s) => s.productIds || []
     );
-    if (allIds.length === 0) return;
+    if (homeIds.length + groceryIds.length === 0) return;
 
     try {
       const res = await apiClient.get("/grocery?limit=100");
       if (res.data.success && Array.isArray(res.data.products)) {
-        const next: Record<string, GroceryProductOption> = {};
-        for (const p of res.data.products) {
-          next[String(p._id)] = p;
-        }
-        setProductLookup((prev) => ({ ...prev, ...next }));
+        handleProductsLoaded(res.data.products);
       }
     } catch {
-      // Non-fatal: preview will still render IDs if catalog fetch fails
+      // Non-fatal
     }
   };
 
   const resetFormToDefaults = () => {
     const { startsAtIst: s, endsAtIst: e } = createDefaultFormDates();
     setEditingId(null);
+    setActiveTab("home");
     setName("");
     setSlug("");
     setSlugManuallyEdited(false);
@@ -188,14 +199,19 @@ export default function AdminThemeCampaignsPage() {
     setGarland("");
     setHero([]);
     setSections([]);
+    setGroceryEnabled(false);
+    setHadInitialGrocery(false);
+    setGroceryColors({ ...DEFAULT_GROCERY_COLORS });
+    setGroceryGarland("");
+    setGroceryHero([]);
+    setGrocerySections([]);
     setOverlayUrl("");
     setOverlayPlacement("header");
     setOverlayLoop(true);
     setOverlayOpacity(1);
+    setOverlaySurfaces(["home"]);
     setHadInitialOverlay(false);
     setServerErrors([]);
-    setProductSearchByIdx({});
-    setProductResultsByIdx({});
   };
 
   const handleOpenCreate = () => {
@@ -207,6 +223,7 @@ export default function AdminThemeCampaignsPage() {
 
   const handleOpenEdit = (campaign: ThemeCampaignRecord) => {
     setEditingId(campaign._id || null);
+    setActiveTab("home");
     setName(campaign.name);
     setSlug(campaign.slug);
     setSlugManuallyEdited(true);
@@ -215,6 +232,7 @@ export default function AdminThemeCampaignsPage() {
     setPriority(campaign.priority ?? 0);
     setIsActive(Boolean(campaign.isActive));
     setZoneIds((campaign.zoneIds || []).map(String));
+
     setColors({ ...DEFAULT_HOME_COLORS, ...(campaign.surfaces?.home?.colors || {}) });
     setGarland(campaign.surfaces?.home?.images?.garland || "");
     setHero(
@@ -230,24 +248,56 @@ export default function AdminThemeCampaignsPage() {
         productIds: (s.productIds || []).map(String),
       }))
     );
+
+    const groc = campaign.surfaces?.grocery;
+    if (groc && groc.colors) {
+      setGroceryEnabled(true);
+      setHadInitialGrocery(true);
+      setGroceryColors({ ...DEFAULT_GROCERY_COLORS, ...groc.colors });
+      setGroceryGarland(groc.images?.garland || "");
+      setGroceryHero(
+        (groc.images?.hero || []).map((h) => ({
+          imageUrl: h.imageUrl,
+          deepLink: h.deepLink || "",
+        }))
+      );
+      setGrocerySections(
+        (groc.sections || []).map((s) => ({
+          type: "product_strip",
+          title: s.title,
+          productIds: (s.productIds || []).map(String),
+        }))
+      );
+    } else {
+      setGroceryEnabled(false);
+      setHadInitialGrocery(false);
+      setGroceryColors({ ...DEFAULT_GROCERY_COLORS });
+      setGroceryGarland("");
+      setGroceryHero([]);
+      setGrocerySections([]);
+    }
+
     if (campaign.overlay?.url) {
       setOverlayUrl(campaign.overlay.url);
       setOverlayPlacement(campaign.overlay.placement || "header");
       setOverlayLoop(campaign.overlay.loop ?? true);
       setOverlayOpacity(campaign.overlay.opacity ?? 1);
+      setOverlaySurfaces(
+        campaign.overlay.surfaces?.length ? campaign.overlay.surfaces : ["home"]
+      );
       setHadInitialOverlay(true);
     } else {
       setOverlayUrl("");
       setOverlayPlacement("header");
       setOverlayLoop(true);
       setOverlayOpacity(1);
+      setOverlaySurfaces(["home"]);
       setHadInitialOverlay(false);
     }
+
     setServerErrors([]);
     setSuccessNotice(null);
     setWarningsNotice([]);
-    setProductSearchByIdx({});
-    setProductResultsByIdx({});
     setIsFormOpen(true);
     hydrateProductLookup(campaign);
   };
@@ -255,6 +305,8 @@ export default function AdminThemeCampaignsPage() {
   const handleDuplicate = (campaign: ThemeCampaignRecord) => {
     handleOpenEdit(campaign);
     setEditingId(null);
+    setHadInitialGrocery(false);
+    setHadInitialOverlay(false);
     setName(`${campaign.name} (Copy)`);
     setSlug(`${campaign.slug}-copy-${Date.now().toString().slice(-4)}`);
     setSlugManuallyEdited(true);
@@ -298,13 +350,25 @@ export default function AdminThemeCampaignsPage() {
     }
   };
 
-  // Client-side WCAG contrast validation (Save disabled when any pair < 4.5:1)
-  const hasContrastFailure = useMemo(() => {
+  // Client-side WCAG contrast validation
+  const hasHomeContrastFailure = useMemo(() => {
     return CONTRAST_PAIRS.some((pair) => {
       const ratio = getContrastRatio(colors[pair.fg], colors[pair.bg]);
       return ratio === null || ratio < WCAG_MIN_CONTRAST;
     });
   }, [colors]);
+
+  const hasGroceryContrastFailure = useMemo(() => {
+    if (!groceryEnabled) return false;
+    return GROCERY_CONTRAST_PAIRS.some((pair) => {
+      const ratio = getContrastRatio(groceryColors[pair.fg], groceryColors[pair.bg]);
+      return ratio === null || ratio < WCAG_MIN_CONTRAST;
+    });
+  }, [groceryEnabled, groceryColors]);
+
+  const overlayMissingSurfaces = overlayUrl.trim().length > 0 && overlaySurfaces.length === 0;
+  const isSaveDisabled =
+    saving || hasHomeContrastFailure || hasGroceryContrastFailure || overlayMissingSurfaces;
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -313,107 +377,31 @@ export default function AdminThemeCampaignsPage() {
     }
   };
 
-  const handleColorChange = (key: keyof ThemeHomeColors, value: string) => {
-    setColors((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleZoneToggle = (zoneId: string) => {
-    setZoneIds((prev) =>
-      prev.includes(zoneId) ? prev.filter((id) => id !== zoneId) : [...prev, zoneId]
+  const handleCopyFromHome = () => {
+    setGroceryEnabled(true);
+    setGroceryColors({
+      stageFrom: colors.stageFrom,
+      stageTo: colors.stageTo,
+      headerText: colors.headerText,
+      pageBg: colors.pageBg,
+      accent: colors.accent,
+    });
+    setGroceryGarland(garland);
+    setGrocerySections(
+      sections.map((s) => ({
+        type: "product_strip",
+        title: s.title,
+        productIds: [...s.productIds],
+      }))
     );
   };
 
-  // Hero images handlers (max 5)
-  const handleAddHero = () => {
-    if (hero.length >= 5) return;
-    setHero((prev) => [...prev, { imageUrl: "", deepLink: "" }]);
-  };
-
-  const handleHeroChange = (idx: number, field: keyof ThemeHeroImage, val: string) => {
-    setHero((prev) => prev.map((item, i) => (i === idx ? { ...item, [field]: val } : item)));
-  };
-
-  const handleRemoveHero = (idx: number) => {
-    setHero((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  // Sections handlers (max 3, max 12 products each)
-  const handleAddSection = () => {
-    if (sections.length >= 3) return;
-    setSections((prev) => [
-      ...prev,
-      { type: "product_strip", title: `Festive Picks ${prev.length + 1}`, productIds: [] },
-    ]);
-  };
-
-  const handleSectionTitleChange = (idx: number, title: string) => {
-    setSections((prev) => prev.map((sec, i) => (i === idx ? { ...sec, title } : sec)));
-  };
-
-  const handleRemoveSection = (idx: number) => {
-    setSections((prev) => prev.filter((_, i) => i !== idx));
-  };
-
-  const handleSearchProducts = async (secIdx: number) => {
-    const query = (productSearchByIdx[secIdx] || "").trim();
-    try {
-      setProductSearchingIdx(secIdx);
-      const url = query
-        ? `/grocery?search=${encodeURIComponent(query)}&limit=15`
-        : `/grocery?limit=15`;
-      const res = await apiClient.get(url);
-      if (res.data.success) {
-        const list: GroceryProductOption[] = res.data.products || [];
-        setProductResultsByIdx((prev) => ({ ...prev, [secIdx]: list }));
-        setProductLookup((prev) => {
-          const next = { ...prev };
-          for (const p of list) next[String(p._id)] = p;
-          return next;
-        });
-      }
-    } catch {
-      // Ignore transient search error
-    } finally {
-      setProductSearchingIdx(null);
-    }
-  };
-
-  const handleAddProductToSection = (secIdx: number, product: GroceryProductOption) => {
-    setProductLookup((prev) => ({ ...prev, [String(product._id)]: product }));
-    setSections((prev) =>
-      prev.map((sec, i) => {
-        if (i !== secIdx) return sec;
-        if (sec.productIds.includes(product._id) || sec.productIds.length >= 12) return sec;
-        return { ...sec, productIds: [...sec.productIds, product._id] };
-      })
+  const handleOverlaySurfaceToggle = (surface: "home" | "grocery") => {
+    setOverlaySurfaces((prev) =>
+      prev.includes(surface) ? prev.filter((s) => s !== surface) : [...prev, surface]
     );
   };
 
-  const handleRemoveProductFromSection = (secIdx: number, productId: string) => {
-    setSections((prev) =>
-      prev.map((sec, i) =>
-        i === secIdx
-          ? { ...sec, productIds: sec.productIds.filter((id) => id !== productId) }
-          : sec
-      )
-    );
-  };
-
-  const handleMoveProduct = (secIdx: number, prodIdx: number, direction: -1 | 1) => {
-    setSections((prev) =>
-      prev.map((sec, i) => {
-        if (i !== secIdx) return sec;
-        const target = prodIdx + direction;
-        if (target < 0 || target >= sec.productIds.length) return sec;
-        const nextIds = [...sec.productIds];
-        const [moved] = nextIds.splice(prodIdx, 1);
-        nextIds.splice(target, 0, moved);
-        return { ...sec, productIds: nextIds };
-      })
-    );
-  };
-
-  // Match server errors to relevant form sections
   const errorsMatching = (keywords: string[]) =>
     serverErrors.filter((err) =>
       keywords.some((kw) => err.toLowerCase().includes(kw.toLowerCase()))
@@ -425,6 +413,44 @@ export default function AdminThemeCampaignsPage() {
     setWarningsNotice([]);
     setSuccessNotice(null);
 
+    const surfacesPayload: Record<string, unknown> = {
+      home: {
+        colors,
+        images: {
+          ...(garland.trim() ? { garland: garland.trim() } : {}),
+          hero: hero.map((h) => ({
+            imageUrl: h.imageUrl.trim(),
+            ...(h.deepLink?.trim() ? { deepLink: h.deepLink.trim() } : {}),
+          })),
+        },
+        sections: sections.map((s) => ({
+          type: "product_strip" as const,
+          title: s.title.trim(),
+          productIds: s.productIds,
+        })),
+      },
+    };
+
+    if (groceryEnabled) {
+      surfacesPayload.grocery = {
+        colors: groceryColors,
+        images: {
+          ...(groceryGarland.trim() ? { garland: groceryGarland.trim() } : {}),
+          hero: groceryHero.map((h) => ({
+            imageUrl: h.imageUrl.trim(),
+            ...(h.deepLink?.trim() ? { deepLink: h.deepLink.trim() } : {}),
+          })),
+        },
+        sections: grocerySections.map((s) => ({
+          type: "product_strip" as const,
+          title: s.title.trim(),
+          productIds: s.productIds,
+        })),
+      };
+    } else if (editingId && hadInitialGrocery) {
+      surfacesPayload.grocery = null;
+    }
+
     const trimmedOverlayUrl = overlayUrl.trim();
     const payload: Record<string, unknown> = {
       name: name.trim(),
@@ -434,23 +460,7 @@ export default function AdminThemeCampaignsPage() {
       endsAt: istInputToUtcIso(endsAtIst),
       priority: Number(priority) || 0,
       zoneIds,
-      surfaces: {
-        home: {
-          colors,
-          images: {
-            ...(garland.trim() ? { garland: garland.trim() } : {}),
-            hero: hero.map((h) => ({
-              imageUrl: h.imageUrl.trim(),
-              ...(h.deepLink?.trim() ? { deepLink: h.deepLink.trim() } : {}),
-            })),
-          },
-          sections: sections.map((s) => ({
-            type: "product_strip" as const,
-            title: s.title.trim(),
-            productIds: s.productIds,
-          })),
-        },
-      },
+      surfaces: surfacesPayload,
     };
 
     if (trimmedOverlayUrl) {
@@ -460,7 +470,7 @@ export default function AdminThemeCampaignsPage() {
         placement: overlayPlacement,
         loop: overlayLoop,
         opacity: overlayOpacity,
-        surfaces: ["home"],
+        surfaces: overlaySurfaces,
       };
     } else if (editingId && hadInitialOverlay) {
       payload.overlay = null;
@@ -489,7 +499,6 @@ export default function AdminThemeCampaignsPage() {
     }
   };
 
-  // Status badge helper
   const renderStatusBadge = (campaign: ThemeCampaignRecord) => {
     if (!campaign.isActive) {
       return (
@@ -519,6 +528,105 @@ export default function AdminThemeCampaignsPage() {
     );
   };
 
+  const renderHeroEditor = (
+    idPrefix: string,
+    heroList: ThemeHeroImage[],
+    setHeroList: React.Dispatch<React.SetStateAction<ThemeHeroImage[]>>
+  ) => (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-700">
+          Hero Banners ({heroList.length}/5)
+        </span>
+        <button
+          type="button"
+          disabled={heroList.length >= 5}
+          onClick={() => setHeroList((prev) => [...prev, { imageUrl: "", deepLink: "" }])}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+        >
+          <MdAdd />
+          Add Hero Image
+        </button>
+      </div>
+
+      {heroList.map((h, idx) => (
+        <div
+          key={idx}
+          className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2"
+        >
+          <div className="flex items-center gap-3">
+            {h.imageUrl.trim().startsWith("https://") ? (
+              <img
+                src={h.imageUrl.trim()}
+                alt={`Hero ${idx + 1}`}
+                className="w-16 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
+              />
+            ) : (
+              <div className="w-16 h-12 rounded-lg bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 shrink-0">
+                Preview
+              </div>
+            )}
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label
+                  htmlFor={`${idPrefix}-hero-url-${idx}`}
+                  className="block text-[11px] font-bold text-slate-600 mb-0.5"
+                >
+                  Image URL (https) *
+                </label>
+                <input
+                  id={`${idPrefix}-hero-url-${idx}`}
+                  type="url"
+                  required
+                  value={h.imageUrl}
+                  onChange={(e) =>
+                    setHeroList((prev) =>
+                      prev.map((item, i) =>
+                        i === idx ? { ...item, imageUrl: e.target.value } : item
+                      )
+                    )
+                  }
+                  placeholder="https://res.cloudinary.com/..."
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor={`${idPrefix}-hero-link-${idx}`}
+                  className="block text-[11px] font-bold text-slate-600 mb-0.5"
+                >
+                  Deep Link (optional)
+                </label>
+                <input
+                  id={`${idPrefix}-hero-link-${idx}`}
+                  type="text"
+                  value={h.deepLink || ""}
+                  onChange={(e) =>
+                    setHeroList((prev) =>
+                      prev.map((item, i) =>
+                        i === idx ? { ...item, deepLink: e.target.value } : item
+                      )
+                    )
+                  }
+                  placeholder="ziprocket://grocery"
+                  className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setHeroList((prev) => prev.filter((_, i) => i !== idx))}
+              aria-label={`Remove hero image ${idx + 1}`}
+              className="p-2 rounded-lg text-rose-600 hover:bg-rose-50"
+            >
+              <MdDelete className="text-base" />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   if (loading && campaigns.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center min-h-[70vh] gap-3">
@@ -540,7 +648,7 @@ export default function AdminThemeCampaignsPage() {
             Theme Campaigns
           </h1>
           <p className="text-xs font-semibold text-slate-500 mt-1">
-            Configure festival &amp; event themes for the mobile app home screen (all times in IST).
+            Configure festival &amp; event themes for Home and Grocery screens (all times in IST).
           </p>
         </div>
 
@@ -601,7 +709,7 @@ export default function AdminThemeCampaignsPage() {
         >
           <div className="flex items-center gap-1.5 font-extrabold">
             <MdWarningAmber className="text-base text-amber-600 shrink-0" />
-            <span>Overlap Warning</span>
+            <span>Warnings</span>
           </div>
           <ul className="list-disc pl-5 space-y-0.5 font-medium">
             {warningsNotice.map((w, idx) => (
@@ -633,8 +741,7 @@ export default function AdminThemeCampaignsPage() {
               <MdPalette className="text-4xl text-slate-300 mx-auto" />
               <h2 className="text-base font-extrabold text-slate-700">No campaigns yet</h2>
               <p className="text-xs text-slate-500 max-w-md mx-auto">
-                Create your first festival or event theme campaign to customize the mobile app home
-                screen.
+                Create your first festival or event theme campaign to customize the mobile app.
               </p>
               <button
                 type="button"
@@ -743,7 +850,6 @@ export default function AdminThemeCampaignsPage() {
       {/* FORM + STICKY PREVIEW */}
       {isFormOpen && (
         <div className="flex flex-col lg:flex-row gap-6 items-start">
-          {/* Left: Form */}
           <form
             onSubmit={handleSubmit}
             className="flex-1 min-w-0 w-full space-y-6 bg-white rounded-2xl border border-slate-200 p-6 shadow-xs"
@@ -768,7 +874,7 @@ export default function AdminThemeCampaignsPage() {
               </div>
             )}
 
-            {/* Basic Info */}
+            {/* Campaign Metadata */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="tc-name" className="block text-xs font-bold text-slate-700 mb-1">
@@ -892,7 +998,13 @@ export default function AdminThemeCampaignsPage() {
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => handleZoneToggle(z._id)}
+                          onChange={() =>
+                            setZoneIds((prev) =>
+                              prev.includes(z._id)
+                                ? prev.filter((id) => id !== z._id)
+                                : [...prev, z._id]
+                            )
+                          }
                           className="accent-[#FF5C00]"
                         />
                         {z.name}
@@ -903,186 +1015,316 @@ export default function AdminThemeCampaignsPage() {
               )}
             </div>
 
-            {/* 8 Colours */}
-            <div className="space-y-3 pt-2 border-t border-slate-100">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                Home Surface Colours
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {COLOR_FIELD_META.map(({ key, label }) => {
-                  const val = colors[key];
-                  const isValidHex = HEX_COLOR_REGEX.test(val);
-                  return (
-                    <div key={key} className="space-y-1">
-                      <label
-                        htmlFor={`tc-color-${key}`}
-                        className="block text-xs font-bold text-slate-700"
-                      >
-                        {label}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="color"
-                          aria-label={`${label} color picker`}
-                          value={isValidHex ? val : "#000000"}
-                          onChange={(e) => handleColorChange(key, e.target.value.toUpperCase())}
-                          className="h-9 w-11 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
-                        />
-                        <input
-                          id={`tc-color-${key}`}
-                          type="text"
-                          value={val}
-                          onChange={(e) => handleColorChange(key, e.target.value)}
-                          placeholder="#FFFFFF"
-                          className={`flex-1 px-3 py-2 rounded-xl border text-xs font-mono focus:outline-none focus:ring-2 ${
-                            isValidHex
-                              ? "border-slate-200 focus:ring-[#FF5C00]"
-                              : "border-rose-400 focus:ring-rose-500"
-                          }`}
-                        />
-                      </div>
-                      {!isValidHex && (
-                        <p className="text-[11px] text-rose-600 font-semibold">
-                          Must match #RRGGBB
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
+            {/* Surface Tabs */}
+            <div className="pt-2 border-t border-slate-100">
+              <div
+                role="tablist"
+                aria-label="Campaign surfaces"
+                className="inline-flex p-1 rounded-xl bg-slate-100 gap-1"
+              >
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "home"}
+                  onClick={() => setActiveTab("home")}
+                  className={`px-4 py-2 rounded-lg text-xs font-extrabold transition-colors ${
+                    activeTab === "home"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Home screen
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === "grocery"}
+                  onClick={() => setActiveTab("grocery")}
+                  className={`px-4 py-2 rounded-lg text-xs font-extrabold transition-colors ${
+                    activeTab === "grocery"
+                      ? "bg-white text-slate-900 shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  Grocery screen {groceryEnabled ? "• On" : ""}
+                </button>
               </div>
-              {errorsMatching(["color", "contrast"]).map((err, i) => (
-                <p key={i} className="text-xs font-semibold text-rose-600">
-                  {err}
-                </p>
-              ))}
             </div>
 
-            {/* Images */}
-            <div className="space-y-4 pt-2 border-t border-slate-100">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                Images (HTTPS URLs)
-              </h3>
-
-              {/* Garland */}
-              <div>
-                <label htmlFor="tc-garland" className="block text-xs font-bold text-slate-700 mb-1">
-                  Garland Image URL (optional)
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    id="tc-garland"
-                    type="url"
-                    value={garland}
-                    onChange={(e) => setGarland(e.target.value)}
-                    placeholder="https://res.cloudinary.com/..."
-                    className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
-                  />
-                  {garland && (
-                    <button
-                      type="button"
-                      onClick={() => setGarland("")}
-                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-rose-600 hover:bg-rose-50"
-                    >
-                      Clear
-                    </button>
+            {/* HOME TAB */}
+            {activeTab === "home" && (
+              <div className="space-y-6">
+                <div className="space-y-3">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                    Home Surface Colours
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {COLOR_FIELD_META.map(({ key, label }) => {
+                      const val = colors[key];
+                      const isValidHex = HEX_COLOR_REGEX.test(val);
+                      return (
+                        <div key={key} className="space-y-1">
+                          <label
+                            htmlFor={`tc-color-${key}`}
+                            className="block text-xs font-bold text-slate-700"
+                          >
+                            {label}
+                          </label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="color"
+                              aria-label={`${label} color picker`}
+                              value={isValidHex ? val : "#000000"}
+                              onChange={(e) =>
+                                setColors((prev) => ({
+                                  ...prev,
+                                  [key]: e.target.value.toUpperCase(),
+                                }))
+                              }
+                              className="h-9 w-11 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
+                            />
+                            <input
+                              id={`tc-color-${key}`}
+                              type="text"
+                              value={val}
+                              onChange={(e) =>
+                                setColors((prev) => ({ ...prev, [key]: e.target.value }))
+                              }
+                              placeholder="#FFFFFF"
+                              className={`flex-1 px-3 py-2 rounded-xl border text-xs font-mono focus:outline-none focus:ring-2 ${
+                                isValidHex
+                                  ? "border-slate-200 focus:ring-[#FF5C00]"
+                                  : "border-rose-400 focus:ring-rose-500"
+                              }`}
+                            />
+                          </div>
+                          {!isValidHex && (
+                            <p className="text-[11px] text-rose-600 font-semibold">
+                              Must match #RRGGBB
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {errorsMatching(["surfaces.home.colors", "surfaces.home.headerText"]).map(
+                    (err, i) => (
+                      <p key={i} className="text-xs font-semibold text-rose-600">
+                        {err}
+                      </p>
+                    )
                   )}
                 </div>
-                {garland.trim().startsWith("https://") && (
-                  <img
-                    src={garland.trim()}
-                    alt="Garland thumbnail"
-                    className="mt-2 h-12 rounded-lg border border-slate-200 object-cover"
-                  />
-                )}
-              </div>
 
-              {/* Hero Images (max 5) */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">
-                    Hero Banners ({hero.length}/5)
-                  </span>
+                <div className="space-y-4 pt-2 border-t border-slate-100">
+                  <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                    Home Images (HTTPS URLs)
+                  </h3>
+                  <div>
+                    <label
+                      htmlFor="tc-garland"
+                      className="block text-xs font-bold text-slate-700 mb-1"
+                    >
+                      Garland Image URL (optional)
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="tc-garland"
+                        type="url"
+                        value={garland}
+                        onChange={(e) => setGarland(e.target.value)}
+                        placeholder="https://res.cloudinary.com/..."
+                        className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                      />
+                      {garland && (
+                        <button
+                          type="button"
+                          onClick={() => setGarland("")}
+                          className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    {garland.trim().startsWith("https://") && (
+                      <img
+                        src={garland.trim()}
+                        alt="Garland thumbnail"
+                        className="mt-2 h-12 rounded-lg border border-slate-200 object-cover"
+                      />
+                    )}
+                  </div>
+                  {renderHeroEditor("tc-home", hero, setHero)}
+                  {errorsMatching(["surfaces.home.images"]).map((err, i) => (
+                    <p key={i} className="text-xs font-semibold text-rose-600">
+                      {err}
+                    </p>
+                  ))}
+                </div>
+
+                <ProductStripEditor
+                  idPrefix="tc-home"
+                  sections={sections}
+                  onChange={setSections}
+                  productLookup={productLookup}
+                  onProductsLoaded={handleProductsLoaded}
+                  errors={errorsMatching(["surfaces.home.sections", "product"])}
+                />
+              </div>
+            )}
+
+            {/* GROCERY TAB */}
+            {activeTab === "grocery" && (
+              <div className="space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-slate-50 border border-slate-200">
+                  <label className="flex items-center gap-2.5 cursor-pointer">
+                    <input
+                      id="tc-grocery-enabled"
+                      type="checkbox"
+                      checked={groceryEnabled}
+                      onChange={(e) => setGroceryEnabled(e.target.checked)}
+                      className="h-4 w-4 accent-[#FF5C00]"
+                    />
+                    <span className="text-xs font-extrabold text-slate-800">
+                      Enable grocery theme
+                    </span>
+                  </label>
+
                   <button
                     type="button"
-                    disabled={hero.length >= 5}
-                    onClick={handleAddHero}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
+                    onClick={handleCopyFromHome}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 hover:bg-slate-100"
                   >
-                    <MdAdd />
-                    Add Hero Image
+                    <MdContentCopy className="text-sm" />
+                    Copy from Home
                   </button>
                 </div>
 
-                {hero.map((h, idx) => (
-                  <div
-                    key={idx}
-                    className="p-3 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2"
-                  >
-                    <div className="flex items-center gap-3">
-                      {h.imageUrl.trim().startsWith("https://") ? (
-                        <img
-                          src={h.imageUrl.trim()}
-                          alt={`Hero ${idx + 1}`}
-                          className="w-16 h-12 rounded-lg object-cover border border-slate-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-16 h-12 rounded-lg bg-slate-200 flex items-center justify-center text-[10px] text-slate-500 shrink-0">
-                          Preview
-                        </div>
-                      )}
-                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label
-                            htmlFor={`tc-hero-url-${idx}`}
-                            className="block text-[11px] font-bold text-slate-600 mb-0.5"
-                          >
-                            Image URL (https) *
-                          </label>
-                          <input
-                            id={`tc-hero-url-${idx}`}
-                            type="url"
-                            required
-                            value={h.imageUrl}
-                            onChange={(e) => handleHeroChange(idx, "imageUrl", e.target.value)}
-                            placeholder="https://res.cloudinary.com/..."
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
-                          />
-                        </div>
-                        <div>
-                          <label
-                            htmlFor={`tc-hero-link-${idx}`}
-                            className="block text-[11px] font-bold text-slate-600 mb-0.5"
-                          >
-                            Deep Link (optional)
-                          </label>
-                          <input
-                            id={`tc-hero-link-${idx}`}
-                            type="text"
-                            value={h.deepLink || ""}
-                            onChange={(e) => handleHeroChange(idx, "deepLink", e.target.value)}
-                            placeholder="ziprocket://grocery"
-                            className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
-                          />
-                        </div>
+                {groceryEnabled && (
+                  <>
+                    <div className="space-y-3">
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        Grocery Surface Colours
+                      </h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {GROCERY_COLOR_FIELD_META.map(({ key, label }) => {
+                          const val = groceryColors[key];
+                          const isValidHex = HEX_COLOR_REGEX.test(val);
+                          return (
+                            <div key={key} className="space-y-1">
+                              <label
+                                htmlFor={`tc-groc-color-${key}`}
+                                className="block text-xs font-bold text-slate-700"
+                              >
+                                {label}
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="color"
+                                  aria-label={`Grocery ${label} color picker`}
+                                  value={isValidHex ? val : "#000000"}
+                                  onChange={(e) =>
+                                    setGroceryColors((prev) => ({
+                                      ...prev,
+                                      [key]: e.target.value.toUpperCase(),
+                                    }))
+                                  }
+                                  className="h-9 w-11 rounded-lg border border-slate-200 cursor-pointer p-0.5 bg-white"
+                                />
+                                <input
+                                  id={`tc-groc-color-${key}`}
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) =>
+                                    setGroceryColors((prev) => ({
+                                      ...prev,
+                                      [key]: e.target.value,
+                                    }))
+                                  }
+                                  placeholder="#FFFFFF"
+                                  className={`flex-1 px-3 py-2 rounded-xl border text-xs font-mono focus:outline-none focus:ring-2 ${
+                                    isValidHex
+                                      ? "border-slate-200 focus:ring-[#FF5C00]"
+                                      : "border-rose-400 focus:ring-rose-500"
+                                  }`}
+                                />
+                              </div>
+                              {!isValidHex && (
+                                <p className="text-[11px] text-rose-600 font-semibold">
+                                  Must match #RRGGBB
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveHero(idx)}
-                        aria-label={`Remove hero image ${idx + 1}`}
-                        className="p-2 rounded-lg text-rose-600 hover:bg-rose-50"
-                      >
-                        <MdDelete className="text-base" />
-                      </button>
+                      {errorsMatching(["surfaces.grocery.colors", "surfaces.grocery.headerText"]).map(
+                        (err, i) => (
+                          <p key={i} className="text-xs font-semibold text-rose-600">
+                            {err}
+                          </p>
+                        )
+                      )}
                     </div>
-                  </div>
-                ))}
+
+                    <div className="space-y-4 pt-2 border-t border-slate-100">
+                      <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
+                        Grocery Images (HTTPS URLs)
+                      </h3>
+                      <div>
+                        <label
+                          htmlFor="tc-groc-garland"
+                          className="block text-xs font-bold text-slate-700 mb-1"
+                        >
+                          Garland Image URL (optional)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="tc-groc-garland"
+                            type="url"
+                            value={groceryGarland}
+                            onChange={(e) => setGroceryGarland(e.target.value)}
+                            placeholder="https://res.cloudinary.com/..."
+                            className="flex-1 px-3.5 py-2 rounded-xl border border-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
+                          />
+                          {groceryGarland && (
+                            <button
+                              type="button"
+                              onClick={() => setGroceryGarland("")}
+                              className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-bold text-rose-600 hover:bg-rose-50"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                        {groceryGarland.trim().startsWith("https://") && (
+                          <img
+                            src={groceryGarland.trim()}
+                            alt="Grocery garland thumbnail"
+                            className="mt-2 h-12 rounded-lg border border-slate-200 object-cover"
+                          />
+                        )}
+                      </div>
+                      {renderHeroEditor("tc-groc", groceryHero, setGroceryHero)}
+                      {errorsMatching(["surfaces.grocery.images"]).map((err, i) => (
+                        <p key={i} className="text-xs font-semibold text-rose-600">
+                          {err}
+                        </p>
+                      ))}
+                    </div>
+
+                    <ProductStripEditor
+                      idPrefix="tc-groc"
+                      sections={grocerySections}
+                      onChange={setGrocerySections}
+                      productLookup={productLookup}
+                      onProductsLoaded={handleProductsLoaded}
+                      errors={errorsMatching(["surfaces.grocery.sections", "product"])}
+                    />
+                  </>
+                )}
               </div>
-              {errorsMatching(["garland", "hero", "https"]).map((err, i) => (
-                <p key={i} className="text-xs font-semibold text-rose-600">
-                  {err}
-                </p>
-              ))}
-            </div>
+            )}
 
             {/* Animation Overlay (optional) */}
             <div className="space-y-4 pt-2 border-t border-slate-100">
@@ -1098,6 +1340,7 @@ export default function AdminThemeCampaignsPage() {
                       setOverlayPlacement("header");
                       setOverlayLoop(true);
                       setOverlayOpacity(1);
+                      setOverlaySurfaces(["home"]);
                     }}
                     className="px-3 py-1 rounded-xl border border-rose-200 text-xs font-bold text-rose-600 hover:bg-rose-50"
                   >
@@ -1107,7 +1350,10 @@ export default function AdminThemeCampaignsPage() {
               </div>
 
               <div>
-                <label htmlFor="tc-overlay-url" className="block text-xs font-bold text-slate-700 mb-1">
+                <label
+                  htmlFor="tc-overlay-url"
+                  className="block text-xs font-bold text-slate-700 mb-1"
+                >
                   Lottie File URL (.json or .lottie, https)
                 </label>
                 <input
@@ -1177,6 +1423,38 @@ export default function AdminThemeCampaignsPage() {
                 </div>
               </div>
 
+              {/* Overlay Surfaces Checkboxes */}
+              <div className="space-y-1.5">
+                <span className="block text-xs font-bold text-slate-700">
+                  Overlay Surfaces (select at least one)
+                </span>
+                <div className="flex flex-wrap gap-4">
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overlaySurfaces.includes("home")}
+                      onChange={() => handleOverlaySurfaceToggle("home")}
+                      className="h-4 w-4 accent-[#FF5C00]"
+                    />
+                    Show on Home
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={overlaySurfaces.includes("grocery")}
+                      onChange={() => handleOverlaySurfaceToggle("grocery")}
+                      className="h-4 w-4 accent-[#FF5C00]"
+                    />
+                    Show on Grocery
+                  </label>
+                </div>
+                {overlayMissingSurfaces && (
+                  <p className="text-xs font-semibold text-rose-600">
+                    Select at least one surface (Show on Home or Show on Grocery).
+                  </p>
+                )}
+              </div>
+
               {errorsMatching(["overlay"]).map((err, i) => (
                 <p key={i} className="text-xs font-semibold text-rose-600">
                   {err}
@@ -1191,228 +1469,10 @@ export default function AdminThemeCampaignsPage() {
                 ))}
             </div>
 
-            {/* Sections (max 3 product strips) */}
-            <div className="space-y-4 pt-2 border-t border-slate-100">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700">
-                  Product Strip Sections ({sections.length}/3)
-                </h3>
-                <button
-                  type="button"
-                  disabled={sections.length >= 3}
-                  onClick={handleAddSection}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 text-slate-700 text-xs font-bold hover:bg-slate-200 disabled:opacity-50"
-                >
-                  <MdAdd />
-                  Add Product Strip
-                </button>
-              </div>
-
-              {sections.map((sec, secIdx) => (
-                <div
-                  key={secIdx}
-                  className="p-4 rounded-2xl border border-slate-200 bg-slate-50/40 space-y-3"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <label
-                        htmlFor={`tc-sec-title-${secIdx}`}
-                        className="block text-[11px] font-bold text-slate-600 mb-1"
-                      >
-                        Section {secIdx + 1} Title *
-                      </label>
-                      <input
-                        id={`tc-sec-title-${secIdx}`}
-                        type="text"
-                        required
-                        value={sec.title}
-                        onChange={(e) => handleSectionTitleChange(secIdx, e.target.value)}
-                        placeholder="e.g. Festive Sweets & Snacks"
-                        className="w-full px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveSection(secIdx)}
-                      aria-label={`Remove section ${secIdx + 1}`}
-                      className="mt-5 p-2 rounded-lg text-rose-600 hover:bg-rose-50"
-                    >
-                      <MdDelete className="text-base" />
-                    </button>
-                  </div>
-
-                  {/* Product Search */}
-                  <div>
-                    <label
-                      htmlFor={`tc-sec-search-${secIdx}`}
-                      className="block text-[11px] font-bold text-slate-600 mb-1"
-                    >
-                      Search Grocery Products ({sec.productIds.length}/12 selected)
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id={`tc-sec-search-${secIdx}`}
-                        type="text"
-                        value={productSearchByIdx[secIdx] || ""}
-                        onChange={(e) =>
-                          setProductSearchByIdx((prev) => ({ ...prev, [secIdx]: e.target.value }))
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleSearchProducts(secIdx);
-                          }
-                        }}
-                        placeholder="Search by product name..."
-                        className="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#FF5C00]"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleSearchProducts(secIdx)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 text-white text-xs font-bold hover:bg-slate-900"
-                      >
-                        <MdSearch />
-                        {productSearchingIdx === secIdx ? "Searching..." : "Search"}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Search Results */}
-                  {(productResultsByIdx[secIdx] || []).length > 0 && (
-                    <div className="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white divide-y divide-slate-100">
-                      {(productResultsByIdx[secIdx] || []).map((p) => {
-                        const alreadyAdded = sec.productIds.includes(p._id);
-                        const pct = getDiscountPercent(p.price, p.discountedPrice);
-                        const img = getProductImageUrl(p);
-                        return (
-                          <div
-                            key={p._id}
-                            className="flex items-center justify-between px-3 py-2 text-xs gap-2"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {img ? (
-                                <img
-                                  src={img}
-                                  alt={p.name}
-                                  className="w-8 h-8 rounded object-cover shrink-0"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded bg-slate-100 shrink-0" />
-                              )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 truncate">{p.name}</p>
-                                <p className="text-[11px] text-slate-500">
-                                  ₹{pct > 0 && p.discountedPrice ? p.discountedPrice : p.price}
-                                  {pct > 0 && (
-                                    <span className="ml-1.5 text-emerald-700 font-bold">
-                                      ({pct}% OFF)
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                            </div>
-                            <button
-                              type="button"
-                              disabled={alreadyAdded || sec.productIds.length >= 12}
-                              onClick={() => handleAddProductToSection(secIdx, p)}
-                              className="px-2.5 py-1 rounded-lg bg-[#FF5C00] text-white text-[11px] font-bold disabled:opacity-40 shrink-0"
-                            >
-                              {alreadyAdded ? "Added" : "Add"}
-                            </button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Selected Products List (Reorder / Remove) */}
-                  {sec.productIds.length > 0 && (
-                    <div className="space-y-1.5">
-                      {sec.productIds.map((pid, pIdx) => {
-                        const p = productLookup[pid];
-                        const pct = p ? getDiscountPercent(p.price, p.discountedPrice) : 0;
-                        const img = p ? getProductImageUrl(p) : null;
-                        return (
-                          <div
-                            key={pid}
-                            className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-[11px] font-bold text-slate-400 w-4">
-                                {pIdx + 1}.
-                              </span>
-                              {img ? (
-                                <img
-                                  src={img}
-                                  alt={p?.name || pid}
-                                  className="w-8 h-8 rounded object-cover shrink-0"
-                                />
-                              ) : (
-                                <div className="w-8 h-8 rounded bg-slate-100 shrink-0" />
-                              )}
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-800 truncate">
-                                  {p ? p.name : pid}
-                                </p>
-                                {p && (
-                                  <p className="text-[11px] text-slate-500">
-                                    ₹{pct > 0 && p.discountedPrice ? p.discountedPrice : p.price}
-                                    {pct > 0 && (
-                                      <span className="ml-1.5 text-emerald-700 font-bold">
-                                        {pct}% OFF
-                                      </span>
-                                    )}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0">
-                              <button
-                                type="button"
-                                disabled={pIdx === 0}
-                                onClick={() => handleMoveProduct(secIdx, pIdx, -1)}
-                                aria-label="Move product up"
-                                className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30"
-                              >
-                                <MdArrowUpward />
-                              </button>
-                              <button
-                                type="button"
-                                disabled={pIdx === sec.productIds.length - 1}
-                                onClick={() => handleMoveProduct(secIdx, pIdx, 1)}
-                                aria-label="Move product down"
-                                className="p-1.5 rounded-lg text-slate-600 hover:bg-slate-100 disabled:opacity-30"
-                              >
-                                <MdArrowDownward />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveProductFromSection(secIdx, pid)}
-                                aria-label="Remove product"
-                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
-                              >
-                                <MdDelete />
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              ))}
-              {errorsMatching(["section", "product"]).map((err, i) => (
-                <p key={i} className="text-xs font-semibold text-rose-600">
-                  {err}
-                </p>
-              ))}
-            </div>
-
             {/* Submit Bar */}
             <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-4">
               <div className="text-xs">
-                {hasContrastFailure && (
+                {(hasHomeContrastFailure || hasGroceryContrastFailure) && (
                   <span className="text-rose-600 font-bold">
                     Save disabled: fix WCAG contrast pairs below 4.5:1.
                   </span>
@@ -1428,7 +1488,7 @@ export default function AdminThemeCampaignsPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={saving || hasContrastFailure}
+                  disabled={isSaveDisabled}
                   className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#FF5C00] text-white text-xs font-extrabold hover:bg-[#e05200] disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
                   <MdSave className="text-base" />
@@ -1441,14 +1501,22 @@ export default function AdminThemeCampaignsPage() {
           {/* Right: Sticky Live Preview */}
           <div className="w-full lg:w-[420px] lg:sticky lg:top-6 shrink-0">
             <ThemePreviewPhone
-              colors={colors}
-              garland={garland}
-              hero={hero}
-              sections={sections}
+              home={{ colors, garland, hero, sections }}
+              grocery={{
+                enabled: groceryEnabled,
+                colors: groceryColors,
+                garland: groceryGarland,
+                hero: groceryHero,
+                sections: grocerySections,
+              }}
               productLookup={productLookup}
               overlay={
                 overlayUrl.trim()
-                  ? { url: overlayUrl.trim(), placement: overlayPlacement }
+                  ? {
+                      url: overlayUrl.trim(),
+                      placement: overlayPlacement,
+                      surfaces: overlaySurfaces,
+                    }
                   : null
               }
             />

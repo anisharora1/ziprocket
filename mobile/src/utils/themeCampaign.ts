@@ -9,6 +9,14 @@ export interface ThemeHomeColors {
   tabInactive: string;
 }
 
+export interface ThemeGroceryColors {
+  stageFrom: string;
+  stageTo: string;
+  headerText: string;
+  pageBg: string;
+  accent: string;
+}
+
 export interface ThemeHeroItem {
   imageUrl: string;
   deepLink?: string;
@@ -42,7 +50,7 @@ export interface ThemeOverlay {
   placement: 'header' | 'fullscreen';
   loop: boolean;
   opacity: number;
-  surfaces: 'home'[];
+  surfaces: ('home' | 'grocery')[];
 }
 
 export interface ThemeCampaign {
@@ -53,6 +61,20 @@ export interface ThemeCampaign {
   updatedAt: string;
   home: {
     colors: ThemeHomeColors;
+    images: ThemeCampaignImages;
+    sections: ThemeHomeSection[];
+  };
+  overlay?: ThemeOverlay;
+}
+
+export interface ThemeGroceryCampaign {
+  id: string;
+  slug: string;
+  startsAt: string;
+  endsAt: string;
+  updatedAt: string;
+  grocery: {
+    colors: ThemeGroceryColors;
     images: ThemeCampaignImages;
     sections: ThemeHomeSection[];
   };
@@ -73,11 +95,24 @@ const REQUIRED_COLOR_KEYS: (keyof ThemeHomeColors)[] = [
   'tabInactive',
 ];
 
+const GROCERY_COLOR_KEYS: (keyof ThemeGroceryColors)[] = [
+  'stageFrom',
+  'stageTo',
+  'headerText',
+  'pageBg',
+  'accent',
+];
+
 const CONTRAST_PAIRS: Array<[keyof ThemeHomeColors, keyof ThemeHomeColors]> = [
   ['headerText', 'stageFrom'],
   ['headerText', 'stageTo'],
   ['tabActive', 'tabBg'],
   ['tabInactive', 'tabBg'],
+];
+
+const GROCERY_CONTRAST_PAIRS: Array<[keyof ThemeGroceryColors, keyof ThemeGroceryColors]> = [
+  ['headerText', 'stageFrom'],
+  ['headerText', 'stageTo'],
 ];
 
 export function isValidHexColor(value: unknown): value is string {
@@ -159,7 +194,10 @@ export function isLottieUrl(value: unknown): value is string {
  * Validates an optional campaign overlay.
  * Returns undefined if invalid so the rest of the campaign still applies.
  */
-export function validateThemeOverlay(raw: unknown): ThemeOverlay | undefined {
+export function validateThemeOverlay(
+  raw: unknown,
+  expectedSurface: 'home' | 'grocery' = 'home'
+): ThemeOverlay | undefined {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
   const obj = raw as Record<string, unknown>;
 
@@ -176,12 +214,18 @@ export function validateThemeOverlay(raw: unknown): ThemeOverlay | undefined {
     opacity = Math.min(1, Math.max(0.1, parsed));
   }
 
-  let surfaces: 'home'[] = ['home'];
+  let surfaces: ('home' | 'grocery')[] = ['home'];
   if (obj.surfaces !== undefined) {
-    if (!Array.isArray(obj.surfaces) || !obj.surfaces.includes('home')) {
+    if (!Array.isArray(obj.surfaces)) return undefined;
+    const validSurfaces = obj.surfaces.filter(
+      (s): s is 'home' | 'grocery' => s === 'home' || s === 'grocery'
+    );
+    if (!validSurfaces.includes(expectedSurface)) {
       return undefined;
     }
-    surfaces = ['home'];
+    surfaces = validSurfaces;
+  } else if (expectedSurface !== 'home') {
+    return undefined;
   }
 
   return {
@@ -253,7 +297,7 @@ export function validateThemeCampaign(
   }
 
   const sections = Array.isArray(candidate.home.sections) ? candidate.home.sections : [];
-  const overlay = validateThemeOverlay(candidate.overlay);
+  const overlay = validateThemeOverlay(candidate.overlay, 'home');
 
   return {
     id: candidate.id,
@@ -271,6 +315,96 @@ export function validateThemeCampaign(
         tabBg: colors.tabBg.trim(),
         tabActive: colors.tabActive.trim(),
         tabInactive: colors.tabInactive.trim(),
+      },
+      images: {
+        ...(images.garland ? { garland: images.garland.trim() } : {}),
+        hero: rawHero.map((h) => ({
+          imageUrl: h.imageUrl.trim(),
+          ...(typeof h.deepLink === 'string' && h.deepLink.trim()
+            ? { deepLink: h.deepLink.trim() }
+            : {}),
+        })),
+      },
+      sections,
+    },
+    ...(overlay ? { overlay } : {}),
+  };
+}
+
+/**
+ * Validates a grocery-surface ThemeCampaign payload on the device.
+ * Returns null if any color, URL, date window, or WCAG contrast check fails.
+ */
+export function validateGroceryThemeCampaign(
+  raw: unknown,
+  nowMs: number = Date.now()
+): ThemeGroceryCampaign | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidate = raw as Partial<ThemeGroceryCampaign>;
+
+  if (
+    typeof candidate.id !== 'string' ||
+    typeof candidate.slug !== 'string' ||
+    typeof candidate.startsAt !== 'string' ||
+    typeof candidate.endsAt !== 'string' ||
+    !candidate.grocery ||
+    typeof candidate.grocery !== 'object'
+  ) {
+    return null;
+  }
+
+  if (!isWithinCampaignWindow(candidate.startsAt, candidate.endsAt, nowMs)) {
+    return null;
+  }
+
+  const colors = candidate.grocery.colors;
+  if (!colors || typeof colors !== 'object') return null;
+
+  for (const key of GROCERY_COLOR_KEYS) {
+    if (!isValidHexColor(colors[key])) {
+      return null;
+    }
+  }
+
+  for (const [fgKey, bgKey] of GROCERY_CONTRAST_PAIRS) {
+    const ratio = getContrastRatio(colors[fgKey], colors[bgKey]);
+    if (ratio === null || ratio < WCAG_AA_MIN_CONTRAST) {
+      return null;
+    }
+  }
+
+  const images = candidate.grocery.images;
+  if (!images || typeof images !== 'object') return null;
+
+  if (images.garland !== undefined && images.garland !== null && images.garland !== '') {
+    if (!isHttpsUrl(images.garland)) {
+      return null;
+    }
+  }
+
+  const rawHero = Array.isArray(images.hero) ? images.hero : [];
+  for (const item of rawHero) {
+    if (!item || !isHttpsUrl(item.imageUrl)) {
+      return null;
+    }
+  }
+
+  const sections = Array.isArray(candidate.grocery.sections) ? candidate.grocery.sections : [];
+  const overlay = validateThemeOverlay(candidate.overlay, 'grocery');
+
+  return {
+    id: candidate.id,
+    slug: candidate.slug,
+    startsAt: candidate.startsAt,
+    endsAt: candidate.endsAt,
+    updatedAt: typeof candidate.updatedAt === 'string' ? candidate.updatedAt : '',
+    grocery: {
+      colors: {
+        stageFrom: colors.stageFrom.trim(),
+        stageTo: colors.stageTo.trim(),
+        headerText: colors.headerText.trim(),
+        pageBg: colors.pageBg.trim(),
+        accent: colors.accent.trim(),
       },
       images: {
         ...(images.garland ? { garland: images.garland.trim() } : {}),

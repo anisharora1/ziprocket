@@ -8,14 +8,18 @@ import { useLocation } from './LocationContext';
 import {
   ThemeCampaign,
   ThemeCampaignImages,
+  ThemeGroceryCampaign,
+  ThemeGroceryColors,
   ThemeHomeColors,
   ThemeHomeSection,
   ThemeOverlay,
   isWithinCampaignWindow,
+  validateGroceryThemeCampaign,
   validateThemeCampaign,
 } from '../utils/themeCampaign';
 
-const STORAGE_KEY = 'TC_ACTIVE_V1';
+const HOME_STORAGE_KEY = 'TC_ACTIVE_V1';
+const GROCERY_STORAGE_KEY = 'TC_GROCERY_V1';
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
 const MAX_TIMEOUT_MS = 2147483647;
 
@@ -27,26 +31,37 @@ const ThemeImagesContext = createContext<ThemeCampaignImages | null>(null);
 const ThemeSectionsContext = createContext<ThemeHomeSection[]>(EMPTY_SECTIONS);
 const ThemeOverlayContext = createContext<ThemeOverlay | null>(null);
 
-export function ThemeCampaignProvider({ children }: { children: React.ReactNode }) {
-  const { zoneId } = useLocation();
-  const [activeCampaign, setActiveCampaign] = useState<ThemeCampaign | null>(null);
+const GroceryThemeCampaignContext = createContext<ThemeGroceryCampaign | null>(null);
+const GroceryThemeColorsContext = createContext<ThemeGroceryColors | null>(null);
+const GroceryThemeImagesContext = createContext<ThemeCampaignImages | null>(null);
+const GroceryThemeSectionsContext = createContext<ThemeHomeSection[]>(EMPTY_SECTIONS);
+const GroceryThemeOverlayContext = createContext<ThemeOverlay | null>(null);
+
+function useCampaignSurface<TCampaign extends { startsAt: string; endsAt: string }>(
+  surface: 'home' | 'grocery',
+  storageKey: string,
+  zoneId: string | null,
+  validator: (raw: unknown) => TCampaign | null,
+  getImages: (campaign: TCampaign) => ThemeCampaignImages
+): TCampaign | null {
+  const [activeCampaign, setActiveCampaign] = useState<TCampaign | null>(null);
 
   // 1. Hydrate last good campaign from disk off the first-render path
   useEffect(() => {
     let mounted = true;
-    AsyncStorage.getItem(STORAGE_KEY)
+    AsyncStorage.getItem(storageKey)
       .then((raw) => {
         if (!mounted || !raw) return;
         try {
           const parsed = JSON.parse(raw);
-          const validated = validateThemeCampaign(parsed);
+          const validated = validator(parsed);
           if (validated) {
             setActiveCampaign(validated);
           } else {
-            AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+            AsyncStorage.removeItem(storageKey).catch(() => {});
           }
         } catch {
-          AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+          AsyncStorage.removeItem(storageKey).catch(() => {});
         }
       })
       .catch(() => {});
@@ -54,17 +69,17 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [storageKey, validator]);
 
   // 2. Background fetch via existing QueryClient (never blocks rendering)
-  const { data: fetchedCampaign } = useQuery<ThemeCampaign | null>({
-    queryKey: ['theme-campaign', 'home', zoneId || 'all'],
+  const { data: fetchedCampaign } = useQuery<TCampaign | null>({
+    queryKey: ['theme-campaign', surface, zoneId || 'all'],
     queryFn: async () => {
       const res = await apiClient.get('/app-config/mobile', {
-        params: zoneId ? { surface: 'home', zoneId } : { surface: 'home' },
+        params: zoneId ? { surface, zoneId } : { surface },
       });
       const rawCampaign = res.data?.campaign ?? null;
-      return validateThemeCampaign(rawCampaign);
+      return validator(rawCampaign);
     },
     staleTime: FIVE_MINUTES_MS,
     refetchOnWindowFocus: true,
@@ -77,18 +92,19 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
 
     if (fetchedCampaign === null) {
       setActiveCampaign(null);
-      AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+      AsyncStorage.removeItem(storageKey).catch(() => {});
       return;
     }
 
     setActiveCampaign(fetchedCampaign);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fetchedCampaign)).catch(() => {});
+    AsyncStorage.setItem(storageKey, JSON.stringify(fetchedCampaign)).catch(() => {});
 
+    const imgs = getImages(fetchedCampaign);
     const urlsToPrefetch: string[] = [];
-    if (fetchedCampaign.home.images.garland) {
-      urlsToPrefetch.push(fetchedCampaign.home.images.garland);
+    if (imgs.garland) {
+      urlsToPrefetch.push(imgs.garland);
     }
-    for (const heroItem of fetchedCampaign.home.images.hero) {
+    for (const heroItem of imgs.hero) {
       if (heroItem.imageUrl) {
         urlsToPrefetch.push(heroItem.imageUrl);
       }
@@ -96,7 +112,7 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
     if (urlsToPrefetch.length > 0) {
       Image.prefetch(urlsToPrefetch).catch(() => {});
     }
-  }, [fetchedCampaign]);
+  }, [fetchedCampaign, storageKey, getImages]);
 
   // 4. Expire active campaign automatically at endsAt and on app foreground
   useEffect(() => {
@@ -105,7 +121,7 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
     const checkExpiry = () => {
       if (!isWithinCampaignWindow(activeCampaign.startsAt, activeCampaign.endsAt)) {
         setActiveCampaign(null);
-        AsyncStorage.removeItem(STORAGE_KEY).catch(() => {});
+        AsyncStorage.removeItem(storageKey).catch(() => {});
       }
     };
 
@@ -129,23 +145,66 @@ export function ThemeCampaignProvider({ children }: { children: React.ReactNode 
       if (timer) clearTimeout(timer);
       sub.remove();
     };
-  }, [activeCampaign]);
+  }, [activeCampaign, storageKey]);
 
-  const colors = useMemo(() => activeCampaign?.home.colors ?? null, [activeCampaign]);
-  const images = useMemo(() => activeCampaign?.home.images ?? null, [activeCampaign]);
-  const sections = useMemo(
-    () => activeCampaign?.home.sections ?? EMPTY_SECTIONS,
-    [activeCampaign]
+  return activeCampaign;
+}
+
+const getHomeImages = (c: ThemeCampaign) => c.home.images;
+const getGroceryImages = (c: ThemeGroceryCampaign) => c.grocery.images;
+
+export function ThemeCampaignProvider({ children }: { children: React.ReactNode }) {
+  const { zoneId } = useLocation();
+
+  const homeCampaign = useCampaignSurface(
+    'home',
+    HOME_STORAGE_KEY,
+    zoneId,
+    validateThemeCampaign,
+    getHomeImages
   );
-  const overlay = useMemo(() => activeCampaign?.overlay ?? null, [activeCampaign]);
+
+  const groceryCampaign = useCampaignSurface(
+    'grocery',
+    GROCERY_STORAGE_KEY,
+    zoneId,
+    validateGroceryThemeCampaign,
+    getGroceryImages
+  );
+
+  const homeColors = useMemo(() => homeCampaign?.home.colors ?? null, [homeCampaign]);
+  const homeImages = useMemo(() => homeCampaign?.home.images ?? null, [homeCampaign]);
+  const homeSections = useMemo(
+    () => homeCampaign?.home.sections ?? EMPTY_SECTIONS,
+    [homeCampaign]
+  );
+  const homeOverlay = useMemo(() => homeCampaign?.overlay ?? null, [homeCampaign]);
+
+  const groceryColors = useMemo(() => groceryCampaign?.grocery.colors ?? null, [groceryCampaign]);
+  const groceryImages = useMemo(() => groceryCampaign?.grocery.images ?? null, [groceryCampaign]);
+  const grocerySections = useMemo(
+    () => groceryCampaign?.grocery.sections ?? EMPTY_SECTIONS,
+    [groceryCampaign]
+  );
+  const groceryOverlay = useMemo(() => groceryCampaign?.overlay ?? null, [groceryCampaign]);
 
   return (
-    <ThemeCampaignContext.Provider value={activeCampaign}>
-      <ThemeColorsContext.Provider value={colors}>
-        <ThemeImagesContext.Provider value={images}>
-          <ThemeSectionsContext.Provider value={sections}>
-            <ThemeOverlayContext.Provider value={overlay}>
-              {children}
+    <ThemeCampaignContext.Provider value={homeCampaign}>
+      <ThemeColorsContext.Provider value={homeColors}>
+        <ThemeImagesContext.Provider value={homeImages}>
+          <ThemeSectionsContext.Provider value={homeSections}>
+            <ThemeOverlayContext.Provider value={homeOverlay}>
+              <GroceryThemeCampaignContext.Provider value={groceryCampaign}>
+                <GroceryThemeColorsContext.Provider value={groceryColors}>
+                  <GroceryThemeImagesContext.Provider value={groceryImages}>
+                    <GroceryThemeSectionsContext.Provider value={grocerySections}>
+                      <GroceryThemeOverlayContext.Provider value={groceryOverlay}>
+                        {children}
+                      </GroceryThemeOverlayContext.Provider>
+                    </GroceryThemeSectionsContext.Provider>
+                  </GroceryThemeImagesContext.Provider>
+                </GroceryThemeColorsContext.Provider>
+              </GroceryThemeCampaignContext.Provider>
             </ThemeOverlayContext.Provider>
           </ThemeSectionsContext.Provider>
         </ThemeImagesContext.Provider>
@@ -172,4 +231,24 @@ export function useThemeSections(): ThemeHomeSection[] {
 
 export function useThemeOverlay(): ThemeOverlay | null {
   return useContext(ThemeOverlayContext);
+}
+
+export function useGroceryThemeCampaign(): ThemeGroceryCampaign | null {
+  return useContext(GroceryThemeCampaignContext);
+}
+
+export function useGroceryThemeColors(): ThemeGroceryColors | null {
+  return useContext(GroceryThemeColorsContext);
+}
+
+export function useGroceryThemeImages(): ThemeCampaignImages | null {
+  return useContext(GroceryThemeImagesContext);
+}
+
+export function useGroceryThemeSections(): ThemeHomeSection[] {
+  return useContext(GroceryThemeSectionsContext);
+}
+
+export function useGroceryThemeOverlay(): ThemeOverlay | null {
+  return useContext(GroceryThemeOverlayContext);
 }

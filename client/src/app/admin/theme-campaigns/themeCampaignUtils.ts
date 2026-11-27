@@ -9,6 +9,14 @@ export interface ThemeHomeColors {
   tabInactive: string;
 }
 
+export interface ThemeGroceryColors {
+  stageFrom: string;
+  stageTo: string;
+  headerText: string;
+  pageBg: string;
+  accent: string;
+}
+
 export interface ThemeHeroImage {
   imageUrl: string;
   deepLink?: string;
@@ -26,7 +34,7 @@ export interface ThemeOverlay {
   placement: "header" | "fullscreen";
   loop: boolean;
   opacity: number;
-  surfaces: ("home")[];
+  surfaces: ("home" | "grocery")[];
 }
 
 export interface ThemeCampaignRecord {
@@ -42,6 +50,14 @@ export interface ThemeCampaignRecord {
   surfaces: {
     home: {
       colors: ThemeHomeColors;
+      images: {
+        garland?: string;
+        hero: ThemeHeroImage[];
+      };
+      sections: ThemeHomeSection[];
+    };
+    grocery?: {
+      colors: ThemeGroceryColors;
       images: {
         garland?: string;
         hero: ThemeHeroImage[];
@@ -86,6 +102,17 @@ export const COLOR_FIELD_META: Array<{
   { key: "tabInactive", label: "Tab Inactive Text" },
 ];
 
+export const GROCERY_COLOR_FIELD_META: Array<{
+  key: keyof ThemeGroceryColors;
+  label: string;
+}> = [
+  { key: "stageFrom", label: "Stage Gradient From" },
+  { key: "stageTo", label: "Stage Gradient To" },
+  { key: "headerText", label: "Header Text" },
+  { key: "pageBg", label: "Page Background" },
+  { key: "accent", label: "Accent Ring / Pill" },
+];
+
 export const CONTRAST_PAIRS: Array<{
   fg: keyof ThemeHomeColors;
   bg: keyof ThemeHomeColors;
@@ -97,6 +124,15 @@ export const CONTRAST_PAIRS: Array<{
   { fg: "tabInactive", bg: "tabBg", label: "tabInactive vs tabBg" },
 ];
 
+export const GROCERY_CONTRAST_PAIRS: Array<{
+  fg: keyof ThemeGroceryColors;
+  bg: keyof ThemeGroceryColors;
+  label: string;
+}> = [
+  { fg: "headerText", bg: "stageFrom", label: "headerText vs stageFrom" },
+  { fg: "headerText", bg: "stageTo", label: "headerText vs stageTo" },
+];
+
 export const DEFAULT_HOME_COLORS: ThemeHomeColors = {
   stageFrom: "#1E1B4B",
   stageTo: "#312E81",
@@ -106,6 +142,14 @@ export const DEFAULT_HOME_COLORS: ThemeHomeColors = {
   tabBg: "#1E293B",
   tabActive: "#FFFFFF",
   tabInactive: "#CBD5E1",
+};
+
+export const DEFAULT_GROCERY_COLORS: ThemeGroceryColors = {
+  stageFrom: "#064E3B",
+  stageTo: "#047857",
+  headerText: "#FFFFFF",
+  pageBg: "#ECFDF5",
+  accent: "#10B981",
 };
 
 export function slugifyName(name: string): string {

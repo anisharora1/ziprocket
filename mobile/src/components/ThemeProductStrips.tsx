@@ -1,6 +1,9 @@
 import React, { useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, ListRenderItemInfo } from 'react-native';
-import { useThemeSections } from '../context/ThemeCampaignProvider';
+import {
+  useGroceryThemeSections,
+  useThemeSections,
+} from '../context/ThemeCampaignProvider';
 import { ThemeCampaignProduct } from '../utils/themeCampaign';
 import ProductCard, { Product } from './ProductCard';
 import { Colors, Spacing, Typography, FontFamily } from '../constants/theme';
@@ -18,19 +21,41 @@ function mapCampaignProduct(p: ThemeCampaignProduct): Product {
   };
 }
 
-function ThemeProductStrips() {
-  const sections = useThemeSections();
+interface ThemeProductStripsProps {
+  surface?: 'home' | 'grocery';
+  getCartQuantity?: (productId: string) => number;
+  addToCart?: any;
+  updateQuantity?: any;
+}
+
+function ThemeProductStrips({
+  surface = 'home',
+  getCartQuantity,
+  addToCart,
+  updateQuantity,
+}: ThemeProductStripsProps) {
+  const homeSections = useThemeSections();
+  const grocerySections = useGroceryThemeSections();
+  const sections = surface === 'grocery' ? grocerySections : homeSections;
 
   const keyExtractor = useCallback((item: ThemeCampaignProduct) => item.id, []);
 
-  const renderItem = useCallback(({ item }: ListRenderItemInfo<ThemeCampaignProduct>) => {
-    const mapped = mapCampaignProduct(item);
-    return (
-      <View style={styles.cardWrapper}>
-        <ProductCard prod={mapped} />
-      </View>
-    );
-  }, []);
+  const renderItem = useCallback(
+    ({ item }: ListRenderItemInfo<ThemeCampaignProduct>) => {
+      const mapped = mapCampaignProduct(item);
+      return (
+        <View style={styles.cardWrapper}>
+          <ProductCard
+            prod={mapped}
+            qty={getCartQuantity ? getCartQuantity(item.id) : undefined}
+            addToCart={addToCart}
+            updateQuantity={updateQuantity}
+          />
+        </View>
+      );
+    },
+    [getCartQuantity, addToCart, updateQuantity]
+  );
 
   const nonEmptySections = sections.filter(
     (sec) => Array.isArray(sec.products) && sec.products.length > 0

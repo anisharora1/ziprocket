@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,31 @@ import {
   TextInput,
   ActivityIndicator,
   StyleSheet,
+  Dimensions,
+  Linking,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
 import { MaterialIcons } from '@expo/vector-icons';
 import { apiClient } from '../../src/services/api';
 import { useCart, useCartActions } from '../../src/context/CartContext';
 import { usePlatform } from '../../src/context/PlatformContext';
+import {
+  useGroceryThemeColors,
+  useGroceryThemeImages,
+  useGroceryThemeOverlay,
+} from '../../src/context/ThemeCampaignProvider';
+import { isLightColor, ThemeHeroItem } from '../../src/utils/themeCampaign';
 import OptimizedImage from '../../src/components/OptimizedImage';
 import ProductCard, { Product } from '../../src/components/ProductCard';
+import ThemeProductStrips from '../../src/components/ThemeProductStrips';
+import ThemeOverlay from '../../src/components/ThemeOverlay';
 import FloatingCartButton from '../../src/components/FloatingCartButton';
 import BrandFooter from '../../src/components/BrandFooter';
 import { useIsOnline } from '../../src/services/network';
@@ -39,6 +54,127 @@ const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP).map((id) => ({
   ...GROCERY_CATEGORY_DISPLAY[id],
 }));
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const HERO_WIDTH = SCREEN_WIDTH - Spacing.md * 2;
+const HERO_HEIGHT = HERO_WIDTH * 0.44;
+
+const GroceryThemedHero = React.memo(function GroceryThemedHero({
+  heroItems,
+  accentColor,
+  onFallback,
+}: {
+  heroItems: ThemeHeroItem[];
+  accentColor: string;
+  onFallback: () => React.ReactNode;
+}) {
+  const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [failedSlots, setFailedSlots] = useState<Record<number, boolean>>({});
+
+  useEffect(() => {
+    setFailedSlots({});
+    setActiveIndex(0);
+  }, [heroItems]);
+
+  useEffect(() => {
+    if (heroItems.length <= 1) return;
+    const timer = setInterval(() => {
+      setActiveIndex((prev) => {
+        const next = (prev + 1) % heroItems.length;
+        scrollRef.current?.scrollTo({ x: next * HERO_WIDTH, animated: true });
+        return next;
+      });
+    }, 4000);
+    return () => clearInterval(timer);
+  }, [heroItems.length]);
+
+  const handlePress = useCallback(
+    async (deepLink?: string) => {
+      if (!deepLink) return;
+      const trimmed = deepLink.trim();
+      if (!trimmed) return;
+      try {
+        if (trimmed.startsWith('/')) {
+          router.push(trimmed as any);
+          return;
+        }
+        const canOpen = await Linking.canOpenURL(trimmed);
+        if (canOpen) {
+          await Linking.openURL(trimmed);
+        }
+      } catch {
+        // Ignore unresolvable deep links
+      }
+    },
+    [router]
+  );
+
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const idx = Math.round(event.nativeEvent.contentOffset.x / HERO_WIDTH);
+      if (idx !== activeIndex && idx >= 0 && idx < heroItems.length) {
+        setActiveIndex(idx);
+      }
+    },
+    [activeIndex, heroItems.length]
+  );
+
+  return (
+    <View style={styles.themedHeroContainer}>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+      >
+        {heroItems.map((item, idx) =>
+          failedSlots[idx] ? (
+            <View key={`fallback-${idx}`} style={{ width: HERO_WIDTH }}>
+              {onFallback()}
+            </View>
+          ) : (
+            <Pressable
+              key={`groc-hero-${idx}`}
+              style={styles.themedHeroSlide}
+              onPress={() => handlePress(item.deepLink)}
+              accessibilityRole="button"
+              accessibilityLabel={`Grocery campaign banner ${idx + 1}`}
+            >
+              <OptimizedImage
+                src={item.imageUrl}
+                alt={`Grocery campaign banner ${idx + 1}`}
+                preset="large"
+                style={styles.themedHeroImage}
+                contentFit="cover"
+                onError={() =>
+                  setFailedSlots((prev) => ({ ...prev, [idx]: true }))
+                }
+              />
+            </Pressable>
+          )
+        )}
+      </ScrollView>
+      {heroItems.length > 1 && (
+        <View style={styles.themedDotsRow}>
+          {heroItems.map((_, idx) => (
+            <View
+              key={idx}
+              style={[
+                styles.themedDot,
+                idx === activeIndex
+                  ? { width: 18, backgroundColor: accentColor }
+                  : null,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
+
 export default function GroceryIndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -47,6 +183,9 @@ export default function GroceryIndexScreen() {
   const { addToCart, updateQuantity } = useCartActions();
   const { getGroceryStatusMessage } = usePlatform();
   const groceryStatusMessage = getGroceryStatusMessage();
+  const groceryColors = useGroceryThemeColors();
+  const groceryImages = useGroceryThemeImages();
+  const groceryOverlay = useGroceryThemeOverlay();
 
   const [searchQuery, setSearchQuery] = useState(q || '');
 
@@ -110,10 +249,15 @@ export default function GroceryIndexScreen() {
     enabled: searchQuery.trim().length > 0,
   });
 
-  const getCartQuantity = (productId: string) => {
-    const item = [...cart.items, ...(cart.groceryItems || [])].find((i) => i.id === `groc-${productId}` || i.id === productId);
-    return item ? item.quantity : 0;
-  };
+  const getCartQuantity = useCallback(
+    (productId: string) => {
+      const item = [...cart.items, ...(cart.groceryItems || [])].find(
+        (i) => i.id === `groc-${productId}` || i.id === productId
+      );
+      return item ? item.quantity : 0;
+    },
+    [cart.items, cart.groceryItems]
+  );
 
   const handleCategoryPress = (catId: string) => {
     router.push({
@@ -122,49 +266,123 @@ export default function GroceryIndexScreen() {
     } as any);
   };
 
-  return (
-    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
-      {/* Top Bar (No gear icon) */}
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
+  const renderSearchBox = () => (
+    <View style={styles.searchBarBox}>
+      <MaterialIcons name="search" size={20} color={Colors.textMuted} />
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search vegetables, oils, milk, snacks..."
+        placeholderTextColor={Colors.textMuted}
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+      />
+      {searchQuery ? (
+        <Pressable onPress={() => setSearchQuery('')}>
+          <MaterialIcons name="close" size={18} color={Colors.textSecondary} />
         </Pressable>
-        <Text style={styles.topBarTitle}>Grocery Store</Text>
-        <View style={{ width: 36 }} />
+      ) : null}
+    </View>
+  );
+
+  const renderDefaultHeroBanner = (includeSearchBox: boolean) => (
+    <View style={styles.heroBanner}>
+      <View style={styles.badgeRow}>
+        <Text style={styles.badgeText}>DELIVERY IN 10 MINUTES</Text>
       </View>
+      <Text style={styles.bannerTitle}>ZipGrocery Store</Text>
+      <Text
+        style={[
+          styles.bannerSubtitle,
+          !includeSearchBox && { marginBottom: 0 },
+        ]}
+      >
+        Fresh vegetables, dairy, household items & munchies delivered instantly!
+      </Text>
+      {includeSearchBox ? renderSearchBox() : null}
+    </View>
+  );
+
+  const hasThemedHero = Boolean(groceryImages?.hero && groceryImages.hero.length > 0);
+  const statusBarStyle = groceryColors
+    ? isLightColor(groceryColors.stageFrom)
+      ? 'dark'
+      : 'light'
+    : 'dark';
+
+  return (
+    <SafeAreaView
+      style={[
+        styles.container,
+        groceryColors ? { backgroundColor: groceryColors.pageBg } : null,
+      ]}
+      edges={groceryColors ? ['left', 'right'] : ['top', 'left', 'right']}
+    >
+      <StatusBar style={statusBarStyle} />
+
+      {groceryColors ? (
+        <LinearGradient
+          colors={[groceryColors.stageFrom, groceryColors.stageTo]}
+          style={[styles.themedStage, { paddingTop: insets.top }]}
+        >
+          {groceryImages?.garland ? (
+            <Image
+              source={{ uri: groceryImages.garland }}
+              style={styles.garlandOverlay}
+              contentFit="cover"
+              pointerEvents="none"
+            />
+          ) : null}
+          {groceryOverlay?.placement === 'header' ? (
+            <ThemeOverlay surface="grocery" placement="header" />
+          ) : null}
+          <View style={styles.stageForeground}>
+            <View style={[styles.topBar, styles.themedTopBar]}>
+              <Pressable onPress={() => router.back()} style={styles.backBtn}>
+                <MaterialIcons
+                  name="arrow-back"
+                  size={22}
+                  color={groceryColors.headerText}
+                />
+              </Pressable>
+              <Text
+                style={[styles.topBarTitle, { color: groceryColors.headerText }]}
+              >
+                Grocery Store
+              </Text>
+              <View style={{ width: 36 }} />
+            </View>
+            <View style={styles.themedSearchContainer}>{renderSearchBox()}</View>
+          </View>
+        </LinearGradient>
+      ) : (
+        <View style={styles.topBar}>
+          <Pressable onPress={() => router.back()} style={styles.backBtn}>
+            <MaterialIcons name="arrow-back" size={22} color={Colors.textPrimary} />
+          </Pressable>
+          <Text style={styles.topBarTitle}>Grocery Store</Text>
+          <View style={{ width: 36 }} />
+        </View>
+      )}
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.body}>
-          {/* Quick Commerce Search Banner */}
-          <View style={styles.heroBanner}>
-            <View style={styles.badgeRow}>
-              <Text style={styles.badgeText}>DELIVERY IN 10 MINUTES</Text>
-            </View>
-            <Text style={styles.bannerTitle}>ZipGrocery Store</Text>
-            <Text style={styles.bannerSubtitle}>
-              Fresh vegetables, dairy, household items & munchies delivered instantly!
-            </Text>
-
-          {/* Search Input Box */}
-          <View style={styles.searchBarBox}>
-            <MaterialIcons name="search" size={20} color={Colors.textMuted} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search vegetables, oils, milk, snacks..."
-              placeholderTextColor={Colors.textMuted}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-            {searchQuery ? (
-              <Pressable onPress={() => setSearchQuery('')}>
-                <MaterialIcons name="close" size={18} color={Colors.textSecondary} />
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
+          {/* Hero Banner */}
+          {groceryColors ? (
+            hasThemedHero ? (
+              <GroceryThemedHero
+                heroItems={groceryImages!.hero}
+                accentColor={groceryColors.accent}
+                onFallback={() => renderDefaultHeroBanner(false)}
+              />
+            ) : (
+              renderDefaultHeroBanner(false)
+            )
+          ) : (
+            renderDefaultHeroBanner(true)
+          )}
 
         {/* Grocery Status Banner if Closed */}
         {groceryStatusMessage && (
@@ -218,6 +436,14 @@ export default function GroceryIndexScreen() {
           </View>
         ) : (
           <>
+            {/* Festival / Event Product Strips */}
+            <ThemeProductStrips
+              surface="grocery"
+              getCartQuantity={getCartQuantity}
+              addToCart={addToCart}
+              updateQuantity={updateQuantity}
+            />
+
             {/* Shop by Category Grid */}
             <View style={styles.sectionContainer}>
               <Text style={styles.sectionLabel}>SHOP BY CATEGORY</Text>
@@ -228,7 +454,18 @@ export default function GroceryIndexScreen() {
                     style={styles.categoryCard}
                     onPress={() => handleCategoryPress(cat.id)}
                   >
-                    <View style={[styles.categoryIconCircle, { backgroundColor: cat.bg }]}>
+                    <View
+                      style={[
+                        styles.categoryIconCircle,
+                        groceryColors
+                          ? {
+                              backgroundColor: Colors.white,
+                              borderWidth: 2,
+                              borderColor: groceryColors.accent,
+                            }
+                          : { backgroundColor: cat.bg },
+                      ]}
+                    >
                       <OptimizedImage
                         src={cat.image}
                         alt={cat.name}
@@ -310,6 +547,10 @@ export default function GroceryIndexScreen() {
         {!isInitialLoading && <BrandFooter />}
       </ScrollView>
 
+      {groceryOverlay?.placement === 'fullscreen' ? (
+        <ThemeOverlay surface="grocery" placement="fullscreen" />
+      ) : null}
+
       {/* Floating Bottom Cart Bar */}
       <FloatingCartButton />
     </SafeAreaView>
@@ -330,6 +571,62 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
+  },
+  themedStage: {
+    position: 'relative',
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+    paddingBottom: Spacing.md,
+    overflow: 'hidden',
+    zIndex: 100,
+  },
+  themedTopBar: {
+    backgroundColor: 'transparent',
+    borderBottomWidth: 0,
+  },
+  themedSearchContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.xs,
+  },
+  stageForeground: {
+    zIndex: 3,
+  },
+  garlandOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    width: '100%',
+    aspectRatio: 6,
+    zIndex: 1,
+  },
+  themedHeroContainer: {
+    marginBottom: Spacing.md,
+  },
+  themedHeroSlide: {
+    width: HERO_WIDTH,
+    height: HERO_HEIGHT,
+    borderRadius: BorderRadius.xxl,
+    overflow: 'hidden',
+    backgroundColor: Colors.surfaceMuted,
+    ...Shadows.md,
+  },
+  themedHeroImage: {
+    width: '100%',
+    height: '100%',
+  },
+  themedDotsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: Spacing.sm,
+  },
+  themedDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.border,
   },
   backBtn: {
     padding: Spacing.xs,

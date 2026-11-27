@@ -1,13 +1,19 @@
 import mongoose from "mongoose";
 import GroceryProduct from "../models/GroceryProduct";
-import { IThemeHomeColors, IThemeHomeSurface, IThemeOverlay } from "../models/ThemeCampaign";
+import {
+    IThemeGroceryColors,
+    IThemeGrocerySurface,
+    IThemeHomeColors,
+    IThemeHomeSurface,
+    IThemeOverlay
+} from "../models/ThemeCampaign";
 
 const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
 const WCAG_AA_MIN_CONTRAST = 4.5;
 const OVERLAY_MAX_BYTES = 300 * 1024;
 const OVERLAY_HEAD_TIMEOUT_MS = 3000;
 
-const REQUIRED_COLOR_KEYS: (keyof IThemeHomeColors)[] = [
+const HOME_COLOR_KEYS: (keyof IThemeHomeColors)[] = [
     "stageFrom",
     "stageTo",
     "headerText",
@@ -18,11 +24,24 @@ const REQUIRED_COLOR_KEYS: (keyof IThemeHomeColors)[] = [
     "tabInactive"
 ];
 
-const CONTRAST_PAIRS: Array<[keyof IThemeHomeColors, keyof IThemeHomeColors]> = [
+const GROCERY_COLOR_KEYS: (keyof IThemeGroceryColors)[] = [
+    "stageFrom",
+    "stageTo",
+    "headerText",
+    "pageBg",
+    "accent"
+];
+
+const HOME_CONTRAST_PAIRS: Array<[keyof IThemeHomeColors, keyof IThemeHomeColors]> = [
     ["headerText", "stageFrom"],
     ["headerText", "stageTo"],
     ["tabActive", "tabBg"],
     ["tabInactive", "tabBg"]
+];
+
+const GROCERY_CONTRAST_PAIRS: Array<[keyof IThemeGroceryColors, keyof IThemeGroceryColors]> = [
+    ["headerText", "stageFrom"],
+    ["headerText", "stageTo"]
 ];
 
 export interface ValidatedThemeCampaignPayload {
@@ -35,6 +54,7 @@ export interface ValidatedThemeCampaignPayload {
     zoneIds: mongoose.Types.ObjectId[];
     surfaces: {
         home: IThemeHomeSurface;
+        grocery?: IThemeGrocerySurface;
         [key: string]: unknown;
     };
     overlay?: IThemeOverlay;
@@ -76,6 +96,160 @@ export function getContrastRatio(hexA: string, hexB: string): number {
     const lighter = Math.max(lumA, lumB);
     const darker = Math.min(lumA, lumB);
     return (lighter + 0.05) / (darker + 0.05);
+}
+
+function validateSurfaceBlock<TColors extends object>(
+    surfaceName: "home" | "grocery",
+    rawSurface: any,
+    colorKeys: (keyof TColors & string)[],
+    contrastPairs: Array<[keyof TColors & string, keyof TColors & string]>,
+    errors: string[],
+    allProductIdStrings: string[]
+): {
+    colors: TColors;
+    images: { garland?: string; hero: Array<{ imageUrl: string; deepLink?: string }> };
+    sections: Array<{ type: "product_strip"; title: string; productIds: mongoose.Types.ObjectId[] }>;
+} | null {
+    const prefix = `surfaces.${surfaceName}`;
+    if (!rawSurface || typeof rawSurface !== "object" || Array.isArray(rawSurface)) {
+        errors.push(`${prefix} is required.`);
+        return null;
+    }
+
+    // 1. Colors
+    const colors = rawSurface.colors;
+    const validatedColors: Record<string, string> = {};
+    if (!colors || typeof colors !== "object") {
+        errors.push(`${prefix}.colors is required.`);
+    } else {
+        for (const key of colorKeys) {
+            const val = colors[key];
+            if (typeof val !== "string" || !HEX_COLOR_REGEX.test(val.trim())) {
+                errors.push(
+                    `${prefix}.colors.${key} must be a valid 6-digit hex color matching /^#[0-9A-Fa-f]{6}$/ (got "${val}").`
+                );
+            } else {
+                validatedColors[key] = val.trim();
+            }
+        }
+
+        for (const [fgKey, bgKey] of contrastPairs) {
+            const fg = validatedColors[fgKey];
+            const bg = validatedColors[bgKey];
+            if (fg && bg) {
+                const ratio = getContrastRatio(fg, bg);
+                if (ratio < WCAG_AA_MIN_CONTRAST) {
+                    errors.push(
+                        `Contrast check failed for ${prefix}.${fgKey} (${fg}) vs ${bgKey} (${bg}): ratio is ${ratio.toFixed(2)}:1, minimum required is ${WCAG_AA_MIN_CONTRAST}:1.`
+                    );
+                }
+            }
+        }
+    }
+
+    // 2. Images
+    const images = rawSurface.images;
+    let validatedGarland: string | undefined = undefined;
+    const validatedHero: Array<{ imageUrl: string; deepLink?: string }> = [];
+
+    if (!images || typeof images !== "object" || Array.isArray(images)) {
+        errors.push(`${prefix}.images is required and must be an object.`);
+    } else {
+        if (images.garland !== undefined && images.garland !== null && images.garland !== "") {
+            if (!isHttpsUrl(images.garland)) {
+                errors.push(`${prefix}.images.garland must be an https URL (got "${images.garland}").`);
+            } else {
+                validatedGarland = images.garland.trim();
+            }
+        }
+
+        const hero = images.hero !== undefined ? images.hero : [];
+        if (!Array.isArray(hero)) {
+            errors.push(`${prefix}.images.hero must be an array.`);
+        } else {
+            if (hero.length > 5) {
+                errors.push(`${prefix}.images.hero can have at most 5 items (got ${hero.length}).`);
+            }
+            hero.forEach((item: any, idx: number) => {
+                if (!item || typeof item !== "object" || !isHttpsUrl(item.imageUrl)) {
+                    errors.push(`${prefix}.images.hero[${idx}].imageUrl must be a valid https URL.`);
+                } else {
+                    const entry: { imageUrl: string; deepLink?: string } = {
+                        imageUrl: item.imageUrl.trim()
+                    };
+                    if (typeof item.deepLink === "string" && item.deepLink.trim()) {
+                        entry.deepLink = item.deepLink.trim();
+                    }
+                    validatedHero.push(entry);
+                }
+            });
+        }
+    }
+
+    // 3. Sections
+    const rawSections = rawSurface.sections !== undefined ? rawSurface.sections : [];
+    const validatedSections: Array<{
+        type: "product_strip";
+        title: string;
+        productIds: mongoose.Types.ObjectId[];
+    }> = [];
+
+    if (!Array.isArray(rawSections)) {
+        errors.push(`${prefix}.sections must be an array.`);
+    } else {
+        if (rawSections.length > 3) {
+            errors.push(`${prefix}.sections can have at most 3 items (got ${rawSections.length}).`);
+        }
+        rawSections.forEach((sec: any, idx: number) => {
+            if (!sec || typeof sec !== "object") {
+                errors.push(`${prefix}.sections[${idx}] must be an object.`);
+                return;
+            }
+            if (sec.type !== "product_strip") {
+                errors.push(`${prefix}.sections[${idx}].type must be "product_strip" (got "${sec.type}").`);
+            }
+            const title = typeof sec.title === "string" ? sec.title.trim() : "";
+            if (!title) {
+                errors.push(`${prefix}.sections[${idx}].title is required.`);
+            }
+            const pIds = sec.productIds !== undefined ? sec.productIds : [];
+            if (!Array.isArray(pIds)) {
+                errors.push(`${prefix}.sections[${idx}].productIds must be an array.`);
+                return;
+            }
+            if (pIds.length > 12) {
+                errors.push(
+                    `${prefix}.sections[${idx}].productIds can have at most 12 items (got ${pIds.length}).`
+                );
+            }
+            const sectionObjectIds: mongoose.Types.ObjectId[] = [];
+            for (const pId of pIds) {
+                const pStr = String(pId);
+                if (!mongoose.Types.ObjectId.isValid(pStr)) {
+                    errors.push(
+                        `Invalid GroceryProduct ObjectId in ${prefix}.sections[${idx}].productIds: "${pStr}".`
+                    );
+                } else {
+                    sectionObjectIds.push(new mongoose.Types.ObjectId(pStr));
+                    allProductIdStrings.push(pStr);
+                }
+            }
+            validatedSections.push({
+                type: "product_strip",
+                title,
+                productIds: sectionObjectIds
+            });
+        });
+    }
+
+    return {
+        colors: validatedColors as TColors,
+        images: {
+            ...(validatedGarland ? { garland: validatedGarland } : {}),
+            hero: validatedHero
+        },
+        sections: validatedSections
+    };
 }
 
 /**
@@ -138,136 +312,35 @@ export async function validateThemeCampaignPayload(
         }
     }
 
-    // Validate surfaces.home
-    const home = payload.surfaces?.home;
-    if (!home || typeof home !== "object") {
-        errors.push("surfaces.home is required.");
-        return { valid: false, message: errors[0], errors };
-    }
-
-    // 1. Colors validation
-    const colors = home.colors;
-    const validatedColors: Partial<IThemeHomeColors> = {};
-    if (!colors || typeof colors !== "object") {
-        errors.push("surfaces.home.colors is required.");
-    } else {
-        for (const key of REQUIRED_COLOR_KEYS) {
-            const val = colors[key];
-            if (typeof val !== "string" || !HEX_COLOR_REGEX.test(val.trim())) {
-                errors.push(`surfaces.home.colors.${key} must be a valid 6-digit hex color matching /^#[0-9A-Fa-f]{6}$/ (got "${val}").`);
-            } else {
-                validatedColors[key] = val.trim();
-            }
-        }
-
-        // WCAG contrast checks (only if all colors in the pair are valid hex)
-        for (const [fgKey, bgKey] of CONTRAST_PAIRS) {
-            const fg = validatedColors[fgKey];
-            const bg = validatedColors[bgKey];
-            if (fg && bg) {
-                const ratio = getContrastRatio(fg, bg);
-                if (ratio < WCAG_AA_MIN_CONTRAST) {
-                    errors.push(
-                        `Contrast check failed for ${fgKey} (${fg}) vs ${bgKey} (${bg}): ratio is ${ratio.toFixed(2)}:1, minimum required is ${WCAG_AA_MIN_CONTRAST}:1.`
-                    );
-                }
-            }
-        }
-    }
-
-    // 2. Images validation
-    const images = home.images || { hero: [] };
-    let validatedGarland: string | undefined = undefined;
-    const validatedHero: Array<{ imageUrl: string; deepLink?: string }> = [];
-
-    if (typeof images !== "object") {
-        errors.push("surfaces.home.images must be an object.");
-    } else {
-        if (images.garland !== undefined && images.garland !== null && images.garland !== "") {
-            if (!isHttpsUrl(images.garland)) {
-                errors.push(`surfaces.home.images.garland must be an https URL (got "${images.garland}").`);
-            } else {
-                validatedGarland = images.garland.trim();
-            }
-        }
-
-        const hero = images.hero !== undefined ? images.hero : [];
-        if (!Array.isArray(hero)) {
-            errors.push("surfaces.home.images.hero must be an array.");
-        } else {
-            if (hero.length > 5) {
-                errors.push(`surfaces.home.images.hero can have at most 5 items (got ${hero.length}).`);
-            }
-            hero.forEach((item: any, idx: number) => {
-                if (!item || typeof item !== "object" || !isHttpsUrl(item.imageUrl)) {
-                    errors.push(`surfaces.home.images.hero[${idx}].imageUrl must be a valid https URL.`);
-                } else {
-                    const entry: { imageUrl: string; deepLink?: string } = {
-                        imageUrl: item.imageUrl.trim()
-                    };
-                    if (typeof item.deepLink === "string" && item.deepLink.trim()) {
-                        entry.deepLink = item.deepLink.trim();
-                    }
-                    validatedHero.push(entry);
-                }
-            });
-        }
-    }
-
-    // 3. Sections validation
-    const rawSections = home.sections !== undefined ? home.sections : [];
-    const validatedSections: Array<{
-        type: "product_strip";
-        title: string;
-        productIds: mongoose.Types.ObjectId[];
-    }> = [];
     const allProductIdStrings: string[] = [];
 
-    if (!Array.isArray(rawSections)) {
-        errors.push("surfaces.home.sections must be an array.");
-    } else {
-        if (rawSections.length > 3) {
-            errors.push(`surfaces.home.sections can have at most 3 items (got ${rawSections.length}).`);
+    // Validate required surfaces.home
+    const validatedHome = validateSurfaceBlock<IThemeHomeColors>(
+        "home",
+        payload.surfaces?.home,
+        HOME_COLOR_KEYS,
+        HOME_CONTRAST_PAIRS,
+        errors,
+        allProductIdStrings
+    );
+
+    // Validate optional surfaces.grocery
+    let validatedGrocery: IThemeGrocerySurface | undefined = undefined;
+    if (payload.surfaces?.grocery !== undefined && payload.surfaces?.grocery !== null) {
+        const groceryResult = validateSurfaceBlock<IThemeGroceryColors>(
+            "grocery",
+            payload.surfaces.grocery,
+            GROCERY_COLOR_KEYS,
+            GROCERY_CONTRAST_PAIRS,
+            errors,
+            allProductIdStrings
+        );
+        if (groceryResult) {
+            validatedGrocery = groceryResult;
         }
-        rawSections.forEach((sec: any, idx: number) => {
-            if (!sec || typeof sec !== "object") {
-                errors.push(`surfaces.home.sections[${idx}] must be an object.`);
-                return;
-            }
-            if (sec.type !== "product_strip") {
-                errors.push(`surfaces.home.sections[${idx}].type must be "product_strip" (got "${sec.type}").`);
-            }
-            const title = typeof sec.title === "string" ? sec.title.trim() : "";
-            if (!title) {
-                errors.push(`surfaces.home.sections[${idx}].title is required.`);
-            }
-            const pIds = sec.productIds !== undefined ? sec.productIds : [];
-            if (!Array.isArray(pIds)) {
-                errors.push(`surfaces.home.sections[${idx}].productIds must be an array.`);
-                return;
-            }
-            if (pIds.length > 12) {
-                errors.push(`surfaces.home.sections[${idx}].productIds can have at most 12 items (got ${pIds.length}).`);
-            }
-            const sectionObjectIds: mongoose.Types.ObjectId[] = [];
-            for (const pId of pIds) {
-                const pStr = String(pId);
-                if (!mongoose.Types.ObjectId.isValid(pStr)) {
-                    errors.push(`Invalid GroceryProduct ObjectId in sections[${idx}].productIds: "${pStr}".`);
-                } else {
-                    sectionObjectIds.push(new mongoose.Types.ObjectId(pStr));
-                    allProductIdStrings.push(pStr);
-                }
-            }
-            validatedSections.push({
-                type: "product_strip",
-                title,
-                productIds: sectionObjectIds
-            });
-        });
     }
 
-    // 4. Verify productIds exist in GroceryProduct
+    // Verify all productIds across home + grocery exist in GroceryProduct
     if (allProductIdStrings.length > 0) {
         const uniqueIds = Array.from(new Set(allProductIdStrings));
         const existingProducts = await GroceryProduct.find({
@@ -282,7 +355,7 @@ export async function validateThemeCampaignPayload(
         }
     }
 
-    // 5. Optional overlay validation (strips unknown fields)
+    // Optional overlay validation (strips unknown fields)
     let validatedOverlay: IThemeOverlay | undefined = undefined;
     const overlayWarnings: string[] = [];
 
@@ -329,15 +402,15 @@ export async function validateThemeCampaignPayload(
 
             const rawSurfaces =
                 rawOverlay.surfaces !== undefined ? rawOverlay.surfaces : ["home"];
-            const overlaySurfaces: ("home")[] = [];
+            const overlaySurfaces: ("home" | "grocery")[] = [];
             if (!Array.isArray(rawSurfaces) || rawSurfaces.length === 0) {
                 errors.push('overlay.surfaces must be a non-empty array (e.g. ["home"]).');
             } else {
                 for (const s of rawSurfaces) {
-                    if (s !== "home") {
+                    if (s !== "home" && s !== "grocery") {
                         errors.push(`overlay.surfaces contains unsupported surface "${s}".`);
-                    } else if (!overlaySurfaces.includes("home")) {
-                        overlaySurfaces.push("home");
+                    } else if (!overlaySurfaces.includes(s)) {
+                        overlaySurfaces.push(s);
                     }
                 }
             }
@@ -355,10 +428,10 @@ export async function validateThemeCampaignPayload(
         }
     }
 
-    if (errors.length > 0) {
+    if (errors.length > 0 || !validatedHome) {
         return {
             valid: false,
-            message: errors[0],
+            message: errors[0] || "Validation failed.",
             errors
         };
     }
@@ -393,14 +466,15 @@ export async function validateThemeCampaignPayload(
         }
     }
 
-    const validatedHome: IThemeHomeSurface = {
-        colors: validatedColors as IThemeHomeColors,
-        images: {
-            ...(validatedGarland ? { garland: validatedGarland } : {}),
-            hero: validatedHero
-        },
-        sections: validatedSections
+    const surfacesPayload: ValidatedThemeCampaignPayload["surfaces"] = {
+        ...(payload.surfaces || {}),
+        home: validatedHome
     };
+    if (validatedGrocery) {
+        surfacesPayload.grocery = validatedGrocery;
+    } else {
+        delete surfacesPayload.grocery;
+    }
 
     return {
         valid: true,
@@ -413,10 +487,7 @@ export async function validateThemeCampaignPayload(
             endsAt: endsAt!,
             priority,
             zoneIds,
-            surfaces: {
-                ...(payload.surfaces || {}),
-                home: validatedHome
-            },
+            surfaces: surfacesPayload,
             ...(validatedOverlay ? { overlay: validatedOverlay } : {})
         }
     };
