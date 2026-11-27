@@ -4,7 +4,7 @@ import { Image, ImageStyle } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 
-export type ImagePreset = 'thumbnail' | 'card' | 'large' | 'avatar';
+export type ImagePreset = 'thumbnail' | 'tile' | 'card' | 'large' | 'avatar';
 
 export interface OptimizedImageProps {
   src: any;
@@ -29,6 +29,9 @@ export const getOptimizedCloudinaryUrl = (
   switch (preset) {
     case 'thumbnail':
       transformations = 'w_150,h_150,c_fill,g_auto,f_auto,q_auto';
+      break;
+    case 'tile':
+      transformations = 'w_360,h_360,c_fill,g_auto,f_auto,q_auto';
       break;
     case 'avatar':
       transformations = 'w_100,h_100,c_fill,g_face,f_auto,q_auto';
@@ -63,6 +66,11 @@ export const getOptimizedUnsplashUrl = (
       case 'thumbnail':
         searchParams.set('w', '150');
         searchParams.set('h', '150');
+        searchParams.set('fit', 'crop');
+        break;
+      case 'tile':
+        searchParams.set('w', '360');
+        searchParams.set('h', '360');
         searchParams.set('fit', 'crop');
         break;
       case 'avatar':

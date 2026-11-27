@@ -36,13 +36,13 @@ export const GROCERY_CATEGORY_DISPLAY: Record<string, { name: string; image: str
   },
   'Cold Drinks & Juices': {
     name: 'Drinks & Juices',
-    image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=150&h=150&q=80',
+    image: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=360&h=360&q=80',
     color: '#E05200',
     bg: '#FFF8F2',
   },
   'Household Essentials': {
     name: 'Household',
-    image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=150&h=150&q=80',
+    image: 'https://images.unsplash.com/photo-1583947215259-38e31be8751f?auto=format&fit=crop&w=360&h=360&q=80',
     color: '#FF4500',
     bg: '#FFEBE5',
   },

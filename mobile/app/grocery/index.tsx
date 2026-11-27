@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
+  useWindowDimensions,
   Linking,
   NativeSyntheticEvent,
   NativeScrollEvent,
@@ -53,6 +54,75 @@ const CATEGORIES = Object.keys(GROCERY_CATEGORIES_MAP).map((id) => ({
   id,
   ...GROCERY_CATEGORY_DISPLAY[id],
 }));
+
+interface CategoryTileItem {
+  id: string;
+  name: string;
+  image: string;
+  color: string;
+  bg: string;
+}
+
+const TILE_CARD_PADDING = Spacing.xs + 2;
+const TILE_LABEL_LINE_HEIGHT = 18;
+
+const GroceryCategoryTile = React.memo(function GroceryCategoryTile({
+  cat,
+  tileWidth,
+  fontSize,
+  accentColor,
+  onPress,
+}: {
+  cat: CategoryTileItem;
+  tileWidth: number;
+  fontSize: number;
+  accentColor: string | null;
+  onPress: (catId: string) => void;
+}) {
+  const imageWidth = Math.max(0, tileWidth - 2 * TILE_CARD_PADDING);
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        styles.categoryCard,
+        { width: tileWidth },
+        pressed && { opacity: 0.85 },
+      ]}
+      onPress={() => onPress(cat.id)}
+      accessibilityRole="button"
+      accessibilityLabel={cat.name}
+    >
+      <View
+        style={[
+          styles.categoryImageWrapper,
+          { width: imageWidth },
+          accentColor
+            ? {
+                backgroundColor: Colors.white,
+                borderWidth: 2,
+                borderColor: accentColor,
+              }
+            : { backgroundColor: cat.bg },
+        ]}
+      >
+        <OptimizedImage
+          src={cat.image}
+          alt={cat.name}
+          preset="tile"
+          style={styles.categoryImage}
+          contentFit="cover"
+        />
+      </View>
+      <Text
+        style={[styles.categoryName, { fontSize }]}
+        numberOfLines={2}
+        allowFontScaling
+        maxFontSizeMultiplier={1.15}
+      >
+        {cat.name}
+      </Text>
+    </Pressable>
+  );
+});
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_WIDTH = SCREEN_WIDTH - Spacing.md * 2;
@@ -178,6 +248,10 @@ const GroceryThemedHero = React.memo(function GroceryThemedHero({
 export default function GroceryIndexScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const tileGap = Spacing.sm;
+  const tileWidth = (windowWidth - 2 * Spacing.md - 2 * tileGap) / 3;
+  const tileLabelFontSize = windowWidth < 380 ? Typography.fontSize.md - 1 : Typography.fontSize.md;
   const { q } = useLocalSearchParams<{ q?: string }>();
   const { cart } = useCart();
   const { addToCart, updateQuantity } = useCartActions();
@@ -259,12 +333,15 @@ export default function GroceryIndexScreen() {
     [cart.items, cart.groceryItems]
   );
 
-  const handleCategoryPress = (catId: string) => {
-    router.push({
-      pathname: '/grocery/category/[categoryName]',
-      params: { categoryName: catId },
-    } as any);
-  };
+  const handleCategoryPress = useCallback(
+    (catId: string) => {
+      router.push({
+        pathname: '/grocery/category/[categoryName]',
+        params: { categoryName: catId },
+      } as any);
+    },
+    [router]
+  );
 
   const renderSearchBox = () => (
     <View style={styles.searchBarBox}>
@@ -449,35 +526,14 @@ export default function GroceryIndexScreen() {
               <Text style={styles.sectionLabel}>SHOP BY CATEGORY</Text>
               <View style={styles.categoryGrid}>
                 {CATEGORIES.map((cat) => (
-                  <Pressable
+                  <GroceryCategoryTile
                     key={cat.id}
-                    style={styles.categoryCard}
-                    onPress={() => handleCategoryPress(cat.id)}
-                  >
-                    <View
-                      style={[
-                        styles.categoryIconCircle,
-                        groceryColors
-                          ? {
-                              backgroundColor: Colors.white,
-                              borderWidth: 2,
-                              borderColor: groceryColors.accent,
-                            }
-                          : { backgroundColor: cat.bg },
-                      ]}
-                    >
-                      <OptimizedImage
-                        src={cat.image}
-                        alt={cat.name}
-                        preset="thumbnail"
-                        style={styles.categoryImage}
-                        contentFit="cover"
-                      />
-                    </View>
-                    <Text style={styles.categoryName} numberOfLines={2}>
-                      {cat.name}
-                    </Text>
-                  </Pressable>
+                    cat={cat}
+                    tileWidth={tileWidth}
+                    fontSize={tileLabelFontSize}
+                    accentColor={groceryColors ? groceryColors.accent : null}
+                    onPress={handleCategoryPress}
+                  />
                 ))}
               </View>
             </View>
@@ -749,26 +805,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: Spacing.sm,
-    justifyContent: 'space-between',
+    justifyContent: 'flex-start',
   },
   categoryCard: {
-    width: '23%',
     backgroundColor: Colors.surface,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.xs + 2,
+    padding: TILE_CARD_PADDING,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: Colors.borderLight,
     ...Shadows.sm,
   },
-  categoryIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  categoryImageWrapper: {
+    aspectRatio: 1,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
   },
   categoryImage: {
     width: '100%',
@@ -776,10 +829,11 @@ const styles = StyleSheet.create({
   },
   categoryName: {
     fontFamily: FontFamily.bold,
-    fontSize: 10,
     color: Colors.textPrimary,
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: TILE_LABEL_LINE_HEIGHT,
+    minHeight: 2 * TILE_LABEL_LINE_HEIGHT,
+    marginTop: Spacing.xs,
   },
   productGrid: {
     flexDirection: 'row',
