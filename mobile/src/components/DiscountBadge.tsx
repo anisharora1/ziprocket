@@ -12,12 +12,16 @@ import {
 export interface DiscountBadgeProps {
   price?: number | null;
   discountedPrice?: number | null;
+  compact?: boolean;
+  variant?: 'default' | 'ribbon';
   style?: StyleProp<ViewStyle>;
 }
 
 export default function DiscountBadge({
   price,
   discountedPrice,
+  compact = false,
+  variant = 'default',
   style,
 }: DiscountBadgeProps) {
   const percent = getDiscountPercent(price, discountedPrice);
@@ -26,9 +30,28 @@ export default function DiscountBadge({
     return null;
   }
 
+  const isRibbon = variant === 'ribbon';
+
   return (
-    <View style={[styles.badge, style]}>
-      <Text style={styles.text}>{percent}% OFF</Text>
+    <View
+      accessible={isRibbon ? false : undefined}
+      importantForAccessibility={isRibbon ? 'no-hide-descendants' : undefined}
+      style={[
+        styles.badge,
+        compact && !isRibbon && styles.badgeCompact,
+        isRibbon && styles.badgeRibbon,
+        style,
+      ]}
+    >
+      <Text
+        style={[
+          styles.text,
+          compact && !isRibbon && styles.textCompact,
+          isRibbon && styles.textRibbon,
+        ]}
+      >
+        {percent}% OFF
+      </Text>
     </View>
   );
 }
@@ -43,6 +66,20 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     alignSelf: 'flex-end',
   },
+  badgeCompact: {
+    paddingHorizontal: Spacing.xs + 2,
+    paddingVertical: 1,
+  },
+  badgeRibbon: {
+    backgroundColor: Colors.primaryDark,
+    borderWidth: 0,
+    borderRadius: 0,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderBottomRightRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.xs + 2,
+    paddingVertical: 2,
+    alignSelf: 'flex-start',
+  },
   text: {
     fontFamily: FontFamily.extraBold,
     fontSize: Typography.fontSize.xs,
@@ -50,6 +87,17 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  textCompact: {
+    fontSize: Typography.fontSize.xs,
+    letterSpacing: 0.2,
+  },
+  textRibbon: {
+    fontFamily: FontFamily.extraBold,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.heavy,
+    color: Colors.white,
+    letterSpacing: 0.3,
   },
 });
 

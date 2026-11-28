@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -37,6 +37,7 @@ import FloatingCartButton from '../../src/components/FloatingCartButton';
 import BrandFooter from '../../src/components/BrandFooter';
 import { useIsOnline } from '../../src/services/network';
 import OfflineState from '../../src/components/OfflineState';
+import { sortAvailableFirst } from '../../src/utils/sortAvailableFirst';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_CATEGORY_DISPLAY,
@@ -63,7 +64,7 @@ interface CategoryTileItem {
   bg: string;
 }
 
-const TILE_CARD_PADDING = Spacing.xs + 2;
+const TILE_CARD_PADDING = 0;
 const TILE_LABEL_LINE_HEIGHT = 18;
 
 const GroceryCategoryTile = React.memo(function GroceryCategoryTile({
@@ -97,10 +98,10 @@ const GroceryCategoryTile = React.memo(function GroceryCategoryTile({
           { width: imageWidth },
           accentColor
             ? {
-                backgroundColor: Colors.white,
-                borderWidth: 2,
-                borderColor: accentColor,
-              }
+              backgroundColor: Colors.white,
+              borderWidth: 2,
+              borderColor: accentColor,
+            }
             : { backgroundColor: cat.bg },
         ]}
       >
@@ -323,6 +324,19 @@ export default function GroceryIndexScreen() {
     enabled: searchQuery.trim().length > 0,
   });
 
+  const sortedFeaturedProducts = useMemo(
+    () => sortAvailableFirst(featuredProducts),
+    [featuredProducts]
+  );
+  const sortedRecentProducts = useMemo(
+    () => sortAvailableFirst(recentProducts),
+    [recentProducts]
+  );
+  const sortedSearchResults = useMemo(
+    () => sortAvailableFirst(searchResults),
+    [searchResults]
+  );
+
   const getCartQuantity = useCallback(
     (productId: string) => {
       const item = [...cart.items, ...(cart.groceryItems || [])].find(
@@ -461,103 +475,44 @@ export default function GroceryIndexScreen() {
             renderDefaultHeroBanner(true)
           )}
 
-        {/* Grocery Status Banner if Closed */}
-        {groceryStatusMessage && (
-          <View style={styles.statusBanner}>
-            <MaterialIcons name="error" size={20} color={Colors.error} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.statusTitle}>Grocery Delivery Unavailable</Text>
-              <Text style={styles.statusSubtitle}>{groceryStatusMessage}</Text>
-            </View>
-          </View>
-        )}
-
-        {/* Search Results Drawer */}
-        {searchQuery.trim().length > 0 ? (
-          <View style={styles.sectionContainer}>
-            <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>{`Search Results for "${searchQuery}"`}</Text>
-              <Pressable onPress={() => setSearchQuery('')}>
-                <Text style={styles.clearSearchText}>Clear</Text>
-              </Pressable>
-            </View>
-
-            {searchResults.length === 0 && (!isOnline || searchFetchStatus === 'paused' || searchError) ? (
-              <OfflineState compact onRetry={refetchSearch} />
-            ) : isSearching ? (
-              <View style={styles.loadingBox}>
-                <ActivityIndicator size="small" color={Colors.primary} />
-                <Text style={styles.loadingText}>Searching groceries...</Text>
-              </View>
-            ) : searchResults.length === 0 ? (
-              <View style={styles.emptySearchBox}>
-                <MaterialIcons name="shopping-bag" size={40} color={Colors.textMuted} />
-                <Text style={styles.emptySearchText}>
-                  {'No grocery items match your search. Try "milk" or "oil".'}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.productGrid}>
-                {searchResults.map((prod) => (
-                  <View key={prod._id} style={styles.gridCardWrapper}>
-                    <ProductCard
-                      prod={prod}
-                      qty={getCartQuantity(prod._id)}
-                      addToCart={addToCart}
-                      updateQuantity={updateQuantity}
-                    />
-                  </View>
-                ))}
-              </View>
-            )}
-          </View>
-        ) : (
-          <>
-            {/* Festival / Event Product Strips */}
-            <ThemeProductStrips
-              surface="grocery"
-              getCartQuantity={getCartQuantity}
-              addToCart={addToCart}
-              updateQuantity={updateQuantity}
-            />
-
-            {/* Shop by Category Grid */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionLabel}>SHOP BY CATEGORY</Text>
-              <View style={styles.categoryGrid}>
-                {CATEGORIES.map((cat) => (
-                  <GroceryCategoryTile
-                    key={cat.id}
-                    cat={cat}
-                    tileWidth={tileWidth}
-                    fontSize={tileLabelFontSize}
-                    accentColor={groceryColors ? groceryColors.accent : null}
-                    onPress={handleCategoryPress}
-                  />
-                ))}
+          {/* Grocery Status Banner if Closed */}
+          {groceryStatusMessage && (
+            <View style={styles.statusBanner}>
+              <MaterialIcons name="error" size={20} color={Colors.error} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.statusTitle}>Grocery Delivery Unavailable</Text>
+                <Text style={styles.statusSubtitle}>{groceryStatusMessage}</Text>
               </View>
             </View>
+          )}
 
-            {/* Featured Deals Row */}
+          {/* Search Results Drawer */}
+          {searchQuery.trim().length > 0 ? (
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionLabel}>BEST DEALS & FEATURED</Text>
-                <Pressable
-                  onPress={() => handleCategoryPress('Vegetables & Fruits')}
-                >
-                  <Text style={styles.seeAllText}>See all</Text>
+                <Text style={styles.sectionTitle}>{`Search Results for "${searchQuery}"`}</Text>
+                <Pressable onPress={() => setSearchQuery('')}>
+                  <Text style={styles.clearSearchText}>Clear</Text>
                 </Pressable>
               </View>
 
-              {featuredProducts.length === 0 && (!isOnline || featuredFetchStatus === 'paused' || featuredError) ? (
-                <OfflineState compact onRetry={refetchFeatured} />
-              ) : featuredLoading && featuredProducts.length === 0 ? (
+              {searchResults.length === 0 && (!isOnline || searchFetchStatus === 'paused' || searchError) ? (
+                <OfflineState compact onRetry={refetchSearch} />
+              ) : isSearching ? (
                 <View style={styles.loadingBox}>
                   <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.loadingText}>Searching groceries...</Text>
+                </View>
+              ) : searchResults.length === 0 ? (
+                <View style={styles.emptySearchBox}>
+                  <MaterialIcons name="shopping-bag" size={40} color={Colors.textMuted} />
+                  <Text style={styles.emptySearchText}>
+                    {'No grocery items match your search. Try "milk" or "oil".'}
+                  </Text>
                 </View>
               ) : (
                 <View style={styles.productGrid}>
-                  {featuredProducts.map((prod) => (
+                  {sortedSearchResults.map((prod) => (
                     <View key={prod._id} style={styles.gridCardWrapper}>
                       <ProductCard
                         prod={prod}
@@ -570,34 +525,93 @@ export default function GroceryIndexScreen() {
                 </View>
               )}
             </View>
+          ) : (
+            <>
+              {/* Festival / Event Product Strips */}
+              <ThemeProductStrips
+                surface="grocery"
+                getCartQuantity={getCartQuantity}
+                addToCart={addToCart}
+                updateQuantity={updateQuantity}
+              />
 
-            {/* New Arrivals Row */}
-            <View style={styles.sectionContainer}>
-              <Text style={styles.sectionLabel}>NEW ARRIVALS IN STORE</Text>
-
-              {recentProducts.length === 0 && (!isOnline || recentFetchStatus === 'paused' || recentError) ? (
-                <OfflineState compact onRetry={refetchRecent} />
-              ) : recentLoading && recentProducts.length === 0 ? (
-                <View style={styles.loadingBox}>
-                  <ActivityIndicator size="small" color={Colors.primary} />
-                </View>
-              ) : (
-                <View style={styles.productGrid}>
-                  {recentProducts.map((prod) => (
-                    <View key={prod._id} style={styles.gridCardWrapper}>
-                      <ProductCard
-                        prod={prod}
-                        qty={getCartQuantity(prod._id)}
-                        addToCart={addToCart}
-                        updateQuantity={updateQuantity}
-                      />
-                    </View>
+              {/* Shop by Category Grid */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionLabel}>SHOP BY CATEGORY</Text>
+                <View style={styles.categoryGrid}>
+                  {CATEGORIES.map((cat) => (
+                    <GroceryCategoryTile
+                      key={cat.id}
+                      cat={cat}
+                      tileWidth={tileWidth}
+                      fontSize={tileLabelFontSize}
+                      accentColor={groceryColors ? groceryColors.accent : null}
+                      onPress={handleCategoryPress}
+                    />
                   ))}
                 </View>
-              )}
-            </View>
-          </>
-        )}
+              </View>
+
+              {/* Featured Deals Row */}
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeaderRow}>
+                  <Text style={styles.sectionLabel}>BEST DEALS & FEATURED</Text>
+                  <Pressable
+                    onPress={() => handleCategoryPress('Vegetables & Fruits')}
+                  >
+                    <Text style={styles.seeAllText}>See all</Text>
+                  </Pressable>
+                </View>
+
+                {featuredProducts.length === 0 && (!isOnline || featuredFetchStatus === 'paused' || featuredError) ? (
+                  <OfflineState compact onRetry={refetchFeatured} />
+                ) : featuredLoading && featuredProducts.length === 0 ? (
+                  <View style={styles.loadingBox}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                ) : (
+                  <View style={styles.productGrid}>
+                    {sortedFeaturedProducts.map((prod) => (
+                      <View key={prod._id} style={styles.gridCardWrapper}>
+                        <ProductCard
+                          prod={prod}
+                          qty={getCartQuantity(prod._id)}
+                          addToCart={addToCart}
+                          updateQuantity={updateQuantity}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+
+              {/* New Arrivals Row */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionLabel}>NEW ARRIVALS IN STORE</Text>
+
+                {recentProducts.length === 0 && (!isOnline || recentFetchStatus === 'paused' || recentError) ? (
+                  <OfflineState compact onRetry={refetchRecent} />
+                ) : recentLoading && recentProducts.length === 0 ? (
+                  <View style={styles.loadingBox}>
+                    <ActivityIndicator size="small" color={Colors.primary} />
+                  </View>
+                ) : (
+                  <View style={styles.productGrid}>
+                    {sortedRecentProducts.map((prod) => (
+                      <View key={prod._id} style={styles.gridCardWrapper}>
+                        <ProductCard
+                          prod={prod}
+                          qty={getCartQuantity(prod._id)}
+                          addToCart={addToCart}
+                          updateQuantity={updateQuantity}
+                        />
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            </>
+          )}
         </View>
 
         {!isInitialLoading && <BrandFooter />}
@@ -771,7 +785,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   sectionContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
@@ -781,7 +795,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontFamily: FontFamily.extraBold,
-    fontSize: 11,
+    fontSize: 14,
     color: Colors.textSecondary,
     letterSpacing: 0.5,
     marginBottom: Spacing.sm,
@@ -804,17 +818,14 @@ const styles = StyleSheet.create({
   categoryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: Spacing.sm,
+    columnGap: Spacing.sm,
+    rowGap: Spacing.md,
     justifyContent: 'flex-start',
   },
   categoryCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.xl,
+    backgroundColor: 'transparent',
     padding: TILE_CARD_PADDING,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
-    ...Shadows.sm,
   },
   categoryImageWrapper: {
     aspectRatio: 1,
@@ -833,7 +844,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: TILE_LABEL_LINE_HEIGHT,
     minHeight: 2 * TILE_LABEL_LINE_HEIGHT,
-    marginTop: Spacing.xs,
+    marginTop: Spacing.xs + 2,
   },
   productGrid: {
     flexDirection: 'row',

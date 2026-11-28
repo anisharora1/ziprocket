@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, StyleProp } from 'react-native';
 import { Image, ImageStyle } from 'expo-image';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../constants/theme';
 
-export type ImagePreset = 'thumbnail' | 'tile' | 'card' | 'large' | 'avatar';
+export type ImagePreset = 'thumbnail' | 'tile' | 'product' | 'card' | 'large' | 'avatar';
 
 export interface OptimizedImageProps {
   src: any;
@@ -32,6 +32,9 @@ export const getOptimizedCloudinaryUrl = (
       break;
     case 'tile':
       transformations = 'w_360,h_360,c_fill,g_auto,f_auto,q_auto';
+      break;
+    case 'product':
+      transformations = 'w_400,h_400,c_pad,b_white,f_auto,q_auto';
       break;
     case 'avatar':
       transformations = 'w_100,h_100,c_fill,g_face,f_auto,q_auto';
@@ -139,7 +142,25 @@ export default function OptimizedImage({
   onError,
 }: OptimizedImageProps) {
   const [hasError, setHasError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const optimizedUri = getOptimizedSrc(src, preset);
+
+  useEffect(() => {
+    if (retryTimerRef.current) {
+      clearTimeout(retryTimerRef.current);
+      retryTimerRef.current = null;
+    }
+    setHasError(false);
+    setRetryCount(0);
+
+    return () => {
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+  }, [optimizedUri]);
 
   if (!optimizedUri || hasError) {
     return (
@@ -151,13 +172,26 @@ export default function OptimizedImage({
 
   return (
     <Image
+      key={`${optimizedUri}-${retryCount}`}
       source={{ uri: optimizedUri }}
+      recyclingKey={optimizedUri}
       accessibilityLabel={alt}
       contentFit={contentFit}
       priority={priority ? 'high' : 'normal'}
       transition={200}
       style={style}
       onError={() => {
+        if (retryCount === 0) {
+          if (retryTimerRef.current) {
+            clearTimeout(retryTimerRef.current);
+          }
+          retryTimerRef.current = setTimeout(() => {
+            retryTimerRef.current = null;
+            setHasError(false);
+            setRetryCount(1);
+          }, 1500);
+          return;
+        }
         setHasError(true);
         onError?.();
       }}
