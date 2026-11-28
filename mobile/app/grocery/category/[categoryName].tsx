@@ -7,7 +7,6 @@ import {
   Pressable,
   ActivityIndicator,
   StyleSheet,
-  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,6 +20,7 @@ import FloatingCartButton from '../../../src/components/FloatingCartButton';
 import BrandFooter from '../../../src/components/BrandFooter';
 import { useIsOnline } from '../../../src/services/network';
 import OfflineState from '../../../src/components/OfflineState';
+import { sortAvailableFirst } from '../../../src/utils/sortAvailableFirst';
 import {
   GROCERY_CATEGORIES_MAP,
   GROCERY_SUBCATEGORY_ICONS,
@@ -31,8 +31,9 @@ import {
   BorderRadius,
   Typography,
   FontFamily,
-  Shadows,
 } from '../../../src/constants/theme';
+
+const RAIL_ICON_CONTENT_FIT: 'cover' | 'contain' = 'cover';
 
 export default function CategoryProductsScreen() {
   const { categoryName } = useLocalSearchParams<{ categoryName: string }>();
@@ -74,6 +75,8 @@ export default function CategoryProductsScreen() {
     },
     enabled: !!decodedCategory,
   });
+
+  const sortedProducts = useMemo(() => sortAvailableFirst(products), [products]);
 
   const getCartQuantity = (productId: string) => {
     const item = [...cart.items, ...(cart.groceryItems || [])].find((i) => i.id === `groc-${productId}` || i.id === productId);
@@ -117,13 +120,18 @@ export default function CategoryProductsScreen() {
               ]}
               onPress={() => setActiveSub('All')}
             >
-              <View style={styles.railIconCircle}>
+              <View
+                style={[
+                  styles.railIconBox,
+                  activeSub === 'All' && styles.railIconBoxActive,
+                ]}
+              >
                 <OptimizedImage
                   src={GROCERY_SUBCATEGORY_ICONS['All']}
                   alt="All"
-                  preset="thumbnail"
+                  preset="tile"
                   style={styles.railIconImg}
-                  contentFit="cover"
+                  contentFit={RAIL_ICON_CONTENT_FIT}
                 />
               </View>
               <Text
@@ -148,13 +156,18 @@ export default function CategoryProductsScreen() {
                   style={[styles.railItem, isActive && styles.railItemActive]}
                   onPress={() => setActiveSub(sub)}
                 >
-                  <View style={styles.railIconCircle}>
+                  <View
+                    style={[
+                      styles.railIconBox,
+                      isActive && styles.railIconBoxActive,
+                    ]}
+                  >
                     <OptimizedImage
                       src={icon}
                       alt={sub}
-                      preset="thumbnail"
+                      preset="tile"
                       style={styles.railIconImg}
-                      contentFit="cover"
+                      contentFit={RAIL_ICON_CONTENT_FIT}
                     />
                   </View>
                   <Text
@@ -194,10 +207,11 @@ export default function CategoryProductsScreen() {
             </View>
           ) : (
             <FlatList
-              data={products}
+              key={`${decodedCategory}-${activeSub}`}
+              data={sortedProducts}
               initialNumToRender={8}
               windowSize={7}
-              removeClippedSubviews={Platform.OS === 'android'}
+              removeClippedSubviews={false}
               keyExtractor={(item) => item._id}
               numColumns={2}
               columnWrapperStyle={styles.columnWrapper}
@@ -244,12 +258,12 @@ const styles = StyleSheet.create({
   },
   topBarTitle: {
     fontFamily: FontFamily.extraBold,
-    fontSize: Typography.fontSize.base,
+    fontSize: Typography.fontSize.lg,
     color: Colors.textPrimary,
   },
   topBarSubtitle: {
     fontFamily: FontFamily.medium,
-    fontSize: 10,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textMuted,
   },
   splitLayout: {
@@ -258,7 +272,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   leftRail: {
-    width: 88,
+    width: 100,
     backgroundColor: Colors.surface,
     borderRightWidth: 1,
     borderRightColor: Colors.borderLight,
@@ -267,28 +281,27 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.xs,
   },
   railItem: {
-    paddingVertical: Spacing.sm + 2,
-    paddingHorizontal: 4,
+    padding: Spacing.sm,
+    marginHorizontal: Spacing.xs,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
-    borderLeftWidth: 3,
-    borderLeftColor: 'transparent',
     backgroundColor: Colors.surface,
   },
   railItemActive: {
-    backgroundColor: '#FFF5EE',
-    borderLeftColor: Colors.primary,
+    backgroundColor: Colors.orange50,
   },
-  railIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+  railIconBox: {
+    width: 60,
+    height: 60,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
     backgroundColor: Colors.surfaceMuted,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: Colors.borderLight,
+  },
+  railIconBoxActive: {
+    borderWidth: 2,
+    borderColor: Colors.primary,
   },
   railIconImg: {
     width: '100%',
@@ -296,10 +309,11 @@ const styles = StyleSheet.create({
   },
   railItemText: {
     fontFamily: FontFamily.semiBold,
-    fontSize: 9,
+    fontSize: Typography.fontSize.sm,
     color: Colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: 15,
+    marginTop: Spacing.xs,
   },
   railItemTextActive: {
     fontFamily: FontFamily.extraBold,
@@ -311,7 +325,7 @@ const styles = StyleSheet.create({
   },
   columnWrapper: {
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm + 2,
+    marginBottom: Spacing.sm,
   },
   cardContainer: {
     width: '48.5%',
